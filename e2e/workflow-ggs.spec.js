@@ -579,6 +579,14 @@ test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for t
   await expect(ggs.locator('.ggs-head .knob .knob-label', { hasText: 'F1 res' })).toHaveCount(1);
   await expect(ggs.locator('.ggs-head .knob.unused')).toHaveCount(7);
 
+  // a macro is automated from its own knob (and is in the playlist's "create automation" menu for this channel)
+  await ggs.locator('.ggs-head .knob', { hasText: 'F1 res' }).click({ button: 'right' });
+  await expect(menu.locator('.cm-header')).toHaveText('Macro 5 · F1 res');
+  await menu.locator('.cm-item', { hasText: 'Automate in the playlist' }).click();
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().project.automations.map((a) => `${a.name}|${a.target.param}`))).toEqual(['Lead Macro 5 · F1 res|macro5']);
+  await expect(page.locator('.window', { hasText: 'Lead · Macro 5 · F1 res' }).first()).toBeVisible();
+  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.dispatch(st.project.automations.map((a) => ({ type: 'automation/remove', id: a.id }))); st.closeWindow('automation'); });
+
   // ---- live: hold a note and the dot on the modulated knob follows the chaos, the chips show their sources
   await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { chaos1Type: 'rossler', chaos1Rate: 8 } } } }]), channels.Lead);
   const live = () => page.evaluate((cid) => { const v = window.greanteadawy.engine().ggsLive(cid); return v ? Array.from(v) : null; }, channels.Lead);

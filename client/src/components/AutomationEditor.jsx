@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { EFFECTS, uid, ticksPerBar, STEP } from '@greanteadawy/core';
+import { GGS_PRESET_INFO, MACRO_COUNT, macroLabel, ggsDefaults } from '@greanteadawy/synth-dsp';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { DragNumber } from './ui/Controls.jsx';
@@ -14,9 +15,24 @@ const CH_PARAMS = [
   ['pitch', 'Pitch', (c) => (c.pitch + 24) / 48]
 ];
 
+/** The eight macros of a GGS Synth channel as automation targets: [param, label, current value]. */
+export function macroTargets(channel) {
+  if (channel?.instrument?.kind !== 'ggs') return [];
+  const params = { ...ggsDefaults(), ...channel.instrument.params };
+  const names = GGS_PRESET_INFO[channel.instrument.preset]?.macros;
+  return Array.from({ length: MACRO_COUNT }, (_, k) => {
+    const name = macroLabel(params, k + 1, names);
+    return [`macro${k + 1}`, name === `Macro ${k + 1}` ? name : `Macro ${k + 1} · ${name}`, params[`macro${k + 1}`]];
+  });
+}
+
 export function describeTarget(project, t) {
   if (!t) return '';
-  if (t.type === 'channel') return `${project.channels.find((c) => c.id === t.id)?.name || '?'} · ${t.param}`;
+  if (t.type === 'channel') {
+    const ch = project.channels.find((c) => c.id === t.id);
+    const macro = macroTargets(ch).find(([param]) => param === t.param);
+    return `${ch?.name || '?'} · ${macro ? macro[1] : t.param}`;
+  }
   if (t.type === 'mixer') return `Mixer ${t.index} ${project.mixer[t.index]?.name || ''} · ${t.param}`;
   if (t.type === 'master') return `Master · ${t.param}`;
   if (t.type === 'effect') {
@@ -51,7 +67,11 @@ export function AutomationCreateMenu() {
     const p = useStore.getState().project;
     const items = [
       { header: 'Create automation clip' },
-      { label: 'Channels', submenu: p.channels.map((c) => ({ label: c.name, submenu: CH_PARAMS.map(([param, label, get]) => ({ label, onClick: () => createAutomationFor({ type: 'channel', id: c.id, param }, get(c), `${c.name} ${label}`) })) })) },
+      { label: 'Channels', submenu: p.channels.map((c) => ({ label: c.name, submenu: [
+        ...CH_PARAMS.map(([param, label, get]) => ({ label, onClick: () => createAutomationFor({ type: 'channel', id: c.id, param }, get(c), `${c.name} ${label}`) })),
+        // a GGS Synth channel: its macros move whatever the patch routes them to
+        ...(c.instrument.kind === 'ggs' ? ['-', ...macroTargets(c).map(([param, label, value]) => ({ label, onClick: () => createAutomationFor({ type: 'channel', id: c.id, param }, value, `${c.name} ${label}`) }))] : [])
+      ] })) },
       { label: 'Mixer', submenu: p.mixer.map((m, i) => ({ label: `${i === 0 ? 'Master' : `${i}. ${m.name}`}`, submenu: [
         { label: 'Volume', onClick: () => createAutomationFor(i === 0 ? { type: 'master', param: 'volume' } : { type: 'mixer', index: i, param: 'volume' }, m.volume / 1.25, `${m.name} Volume`) },
         { label: 'Pan', onClick: () => createAutomationFor(i === 0 ? { type: 'master', param: 'pan' } : { type: 'mixer', index: i, param: 'pan' }, (m.pan + 1) / 2, `${m.name} Pan`) }

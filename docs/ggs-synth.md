@@ -169,7 +169,9 @@ that shows what it is doing right now.
 [![Rings and live dots](screenshots/ggs-rings.png)](screenshots/ggs-rings.png)
 
 The header has **eight macro knobs**. A preset names its macros; a macro you route yourself is named after what it
-moves (“F1 cutoff”, “F1 cutoff +2”), and the ones a patch does not use are dimmed. Their dot follows automation.
+moves (“F1 cutoff”, “F1 cutoff +2”), and the ones a patch does not use are dimmed. Right-click a macro →
+*Automate in the playlist* makes an automation clip for it (the playlist's *Create automation clip* menu lists the
+macros of every GGS channel too); the dot on the knob follows the automation.
 - **Effects**, and **All parameters**: every parameter of the patch in one searchable table — value, range and what it
   does — with a *Changed* filter that shows what makes this patch different from the init patch. The same
   descriptions are the tooltips of every control.

@@ -21,6 +21,7 @@ import { ParamTable } from './synth/ParamTable.jsx';
 import { SourceBar, SourceMeter } from './synth/SourceBar.jsx';
 import { StepEditor } from './synth/StepEditor.jsx';
 import { SOURCE_GROUPS, sourceFamily, sourceColor, ringsOf, liveTarget, liveSource } from './synth/modulation.js';
+import { createAutomationFor } from './AutomationEditor.jsx';
 
 const TABS = [['osc', 'Oscillators'], ['filter', 'Filters'], ['mod', 'Modulators'], ['matrix', 'Matrix'], ['fx', 'Effects'], ['all', 'All parameters']];
 const FAMILY_LABEL = { env: 'Envelopes', lfo: 'LFOs', chaos: 'Chaos', note: 'The note (velocity, pressure, slide …)', macro: 'Macros' };
@@ -275,6 +276,14 @@ export function SynthEditor({ channel }) {
     ]);
   };
 
+  const macroMenu = (i) => (e) => st.showContextMenu(e, [
+    { header: sourceName(`macro${i}`) },
+    { label: 'Automate in the playlist', onClick: () => createAutomationFor({ type: 'channel', id: channel.id, param: `macro${i}` }, val(`macro${i}`), `${channel.name} ${sourceName(`macro${i}`)}`) },
+    { label: used(`macro${i}`) ? 'Show its routes in the matrix' : 'Not routed yet: drag its chip onto a knob', disabled: !used(`macro${i}`), onClick: () => showInMatrix(`macro${i}`) },
+    '-',
+    { label: 'Reset to 0', onClick: () => set(`macro${i}`, 0) }
+  ]);
+
   /** The control for one param: knob, dropdown or switch, by its definition. */
   const C = (key, opts = {}) => {
     const d = ggsParamDef(key);
@@ -296,7 +305,7 @@ export function SynthEditor({ channel }) {
           rings={rings} live={rings?.length || opts.live ? liveOf(key) : undefined}
           onAltDrag={target && rings.length ? (delta) => changeDepth(key, delta) : undefined}
           onDropSource={target ? (src) => MOD_SOURCES.includes(src) && src !== 'none' && modulate(src, key) : undefined}
-          onContextMenu={target ? knobMenu(key, d) : undefined}
+          onContextMenu={target ? knobMenu(key, d) : opts.menu}
           onChange={(v) => set(key, d.step ? Math.round(v) : Math.round(v * 1e6) / 1e6)} />
       );
     }
@@ -445,8 +454,8 @@ export function SynthEditor({ channel }) {
         <div className="param-row">
           <PresetBrowser preset={channel.instrument.preset} onPick={pickPreset} />
           {Array.from({ length: MACRO_COUNT }, (_, k) => k + 1).map((i) => C(`macro${i}`, {
-            label: macroNames[`macro${i}`], color: '#c86be0', size: 32, live: true, className: macroUsed(full, i) ? '' : 'unused',
-            title: `Macro ${i}${macroUsed(full, i) ? `: ${macroNames[`macro${i}`]}` : ' — free: drag its chip (M' + i + ') from the source bar onto a knob'}. Automate it in the playlist; the dot shows where automation has it.`
+            label: macroNames[`macro${i}`], color: '#c86be0', size: 32, live: true, className: macroUsed(full, i) ? '' : 'unused', menu: macroMenu(i),
+            title: `Macro ${i}${macroUsed(full, i) ? `: ${macroNames[`macro${i}`]}` : ' — free: drag its chip (M' + i + ') from the source bar onto a knob'}. Right-click to automate it in the playlist; the dot shows where automation has it.`
           }))}
           {C('gain')}
           <button className="btn tiny" onClick={exportPatch} title="Save this patch as a .json document">Export</button>

@@ -23,6 +23,8 @@ stirred by attractors.
 
 **64 modulation routes** (were 16) with a filter box, source colours and live meters in the matrix, and **8 macros**
 (were 4), all automatable. Presets name the first four; a macro you route yourself is named after what it moves.
+Macros can now be automated from the studio itself: right-click a macro knob → *Automate in the playlist*, or the
+playlist's *Create automation clip → Channels → (a GGS channel)*. (Until now only Claude could create those clips.)
 
 **LFO shapes you draw** — shape *steps*: up to 16 bars drawn with the pointer, hard (a step sequencer) or glided
 (a curve), with Random / Invert / Ramp.
