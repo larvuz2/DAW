@@ -11,7 +11,7 @@ function loadOf(params, voices, fs) {
   const fx = new GgsFx({ sampleRate: fs, params, bpm: 120 });
   const L = new Float32Array(BLOCK);
   const R = new Float32Array(BLOCK);
-  const ctl = { pitch: 0, pressure: 0.5, timbre: 0.5, macros: [0, 0, 0, 0], time: 0 };
+  const ctl = { pitch: 0, pressure: 0.5, timbre: 0.5, macros: [0, 0, 0, 0] };
   const frames = Math.round(seconds * fs);
   const run = () => {
     for (let f = 0; f < frames; f += BLOCK) {

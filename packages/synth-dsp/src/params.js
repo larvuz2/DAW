@@ -249,7 +249,7 @@ function chaosParams(i) {
     sel(`chaos${i}Sync`, 'Sync', LFO_SYNC, 'off', d('Locks the speed to the tempo: the length of one swing, orbit or step as a note value. Off = use Rate.')),
     n(`chaos${i}Char`, 'Character', 0, 1, 0.5, d('What kind of chaos: lorenz 0 = long stays on one side, 1 = restless · rossler 0 = nearly periodic, 1 = spiky · drift 0 = jittery, 1 = smooth · turing = the chance that a step mutates (0 locks the loop).')),
     n(`chaos${i}Steps`, 'Steps', 2, 32, 16, { step: 1, ...d('Turing only: the length of the looping pattern in steps.') }),
-    sel(`chaos${i}Path`, 'Path', CHAOS_PATHS, 'note', d('note = every note gets its own path (voices drift apart, like analog hardware); same = every note replays the same path from its start (notes of a chord move together, and a part sounds the same every time). A tempo-synced turing pattern on "same" follows the song clock instead: every note hears the same step at the same moment.'))
+    sel(`chaos${i}Path`, 'Path', CHAOS_PATHS, 'note', d('note = every note gets its own path (voices drift apart, like analog hardware); same = every note replays the same path from its start (notes of a chord move together, and a part sounds the same every time). A tempo-synced turing pattern on "same" is locked to the song instead: every note hears the step of that moment, on the grid, and a bar sounds the same every time it is played or exported.'))
   ];
 }
 

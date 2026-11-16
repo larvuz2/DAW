@@ -71,8 +71,10 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
   `f1Morph/f2Morph`, `lfo1Rate..4`). Never hard-code the number of slots or macros: use `MOD_SLOTS`, `MACRO_COUNT`
   and `modulationRoutes()` (two checks that looped to 16 silently missed routes once the matrix grew).
 - **Chaos** must stay a function of its seed: only + − × ÷ on the state, the rate merely scans the sequence. A source
-  that all notes share must be a function of absolute time (`Chaos.at`, like "free" LFOs) — never shared state
-  between voices.
+  that all notes share must be a function of the **song position** (`Chaos.at`, like "free" LFOs) — never shared
+  state between voices, and never the audio context's clock (it differs on every Play and in every render). A voice
+  gets `beat` at its start and counts frames (`beat0` / `time0` / `frames`, re-anchored in `setTempo`); anything
+  seekable must answer for any position at a bounded cost (see `seekTuring`) — a note can start at bar 2000.
 - **Live values**: a new source or target shows up in the editor by itself (the report is `[sources…, targets…]`);
   a new *kind* of target needs a case in `modTargetSpec` so rings, dots and sentences know its units.
 - **Presets**: every preset routes `pressure`, `timbre` and its four named macros (a test enforces it; macros 5–8

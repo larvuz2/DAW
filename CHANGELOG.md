@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.10.1 — GGS Synth: what a second review found
+
+An independent review of the 0.10.0 modulation code. Everything it found is fixed here, each with a test that fails
+without the fix.
+
+**A tempo-locked pattern follows the song, not the browser's audio clock**
+- A tempo-synced Turing pattern on the path *same*, and "free" LFOs, were tied to the audio context's clock — which
+  starts at a different moment on every Play and in every export. The pattern started somewhere else each time,
+  its steps fell up to a step off the grid (20 ms early even in an export), and playback did not match the export.
+  Now a note is told where the song stands when it starts and the pattern is a function of that position: **bar 9
+  sounds like bar 9**, in the loop, from the middle of the song and in the export, with the steps on the grid.
+  A synced free LFO counts beats, so it also stays on the grid through a tempo change.
+- A note that started late used to run every step it had missed, from the first one: the longer the browser tab had
+  been open, the longer that took (measured by the review: 6 ms for one note after eight hours — two audio blocks).
+  The tape can now be entered at any step; entering costs 1–25 µs wherever in the song the note is.
+- A pattern that mutates at all now renews every step of its loop at least once in 256 turns.
+- **This changes what a Turing pattern plays** (which steps, not how it sounds): the pattern of a given patch is a
+  new one. No factory preset uses it; a song made with 0.10.0 that does will play another pattern of the same kind.
+- With the transport stopped, notes played by hand share a clock that starts with the first one after a silence.
+- Renders of everything else are unchanged, with one footnote: the phase of a "free" LFO is now summed differently,
+  which moves it by one rounding step (Vowel Morph differs from 0.10.0 by 1.5e-8 of full scale). A patch that is
+  itself chaotic turns that into a different waveform: Fold Drone, when slide pushes its feedback FM — as it does
+  with any change of 1e-13 anywhere (measured on 0.10.0 too). Two renders with the same version are still identical.
+
+**Fixed**
+- The live dots on the knobs stayed dark after the Channel window was switched to another GGS channel (until it was
+  closed and reopened). The route an Alt-drag changes is no longer remembered across channels either.
+- Changing the instrument of a GGS channel while its notes sounded left those notes in the engine's books for good
+  (they counted against polyphony checks and kept the engine from seeing silence).
+- A chaos *path* chosen while the source was not routed took effect only for later notes.
+- A knob whose route cannot do anything (the rate of a free LFO) said "drop a source here"; it now says why the
+  route there has no effect.
+- On a phone the matrix was wider than the editor (Via and × out of reach): a route now takes two lines.
+- `set_synth_chaos` and `describe_synth` say what the path *same* does with a synced Turing pattern; the chaos
+  preview no longer breaks on a setting that is not a number; the docs said "four macros" in two places.
+
 ## 0.10.0 — GGS Synth: modulation you can see
 
 The second batch from GGS Composer: the modulation system, and the way the editor shows it.

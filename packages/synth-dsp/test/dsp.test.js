@@ -250,7 +250,7 @@ test('envelopes: sustain, release and the promised tail length', () => {
   const v = new GgsVoice({ sampleRate: fs, params, key: 69, velocity: 1, seed: 1 });
   const L = new Float32Array(fs);
   const R = new Float32Array(fs);
-  const ctl = { pitch: 0, pressure: 0, timbre: 0, macros: null, time: 0 };
+  const ctl = { pitch: 0, pressure: 0, timbre: 0, macros: null };
   v.process(L, R, 0, fs * 0.3, ctl);
   const peakOf = (from, to) => { let p = 0; for (let i = Math.round(from * fs); i < Math.round(to * fs); i++) p = Math.max(p, Math.abs(L[i])); return p; };
   const attack = peakOf(0.005, 0.02);

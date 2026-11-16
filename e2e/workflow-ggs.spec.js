@@ -708,6 +708,141 @@ test('chaos renders the same every time, and macro 8 automates', async () => {
   await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.dispatch(st.project.automations.map((x) => ({ type: 'automation/remove', id: x.id }))); });
 });
 
+test('tempo-locked modulation follows the song: every Play and the export put a note at the same place', async () => {
+  await claude.call('create_project', { name: 'E2E Clock', bpm: 120 });
+  await expect(page).toHaveTitle(/E2E Clock/);
+  await claude.call('add_channel', { name: 'Seq', instrument: 'ggs', preset: 'Init' });
+  // a generative step pattern on the filter: turing, a sixteenth per step, the same for every note
+  expect(await claude.call('set_synth_chaos', { channel: 'Seq', chaos: 1, type: 'turing', sync: '1/16', steps: 8, character: 0.2, path: 'same' })).toMatch(/turing/i);
+  await claude.call('set_synth_modulation', { channel: 'Seq', mode: 'replace', routes: [{ source: 'chaos1', target: 'f1Cutoff', amount: 0.4 }] });
+  const { pattern, channels } = await ids();
+  const patternName = await page.evaluate(() => window.greanteadawy.store.getState().project.patterns[0].name);
+  await claude.call('add_notes', { pattern: patternName, channel: 'Seq', notes: [{ note: 'C3', start: 0, length: 3 }, { note: 'E3', start: 5, length: 3 }, { note: 'G3', start: 10, length: 4 }] });
+  // what each voice is told when it is made: its key and where the song stands when it starts
+  await page.evaluate(() => {
+    const Real = window.AudioWorkletNode;
+    window.__voices = [];
+    window.AudioWorkletNode = class extends Real {
+      constructor(ctx, name, options) {
+        super(ctx, name, options);
+        const o = options?.processorOptions;
+        if (name === 'ggs-voice') window.__voices.push({ offline: ctx instanceof OfflineAudioContext, key: o.key, beat: o.beat, start: o.start });
+      }
+    };
+  });
+  const voices = (offline) => page.evaluate((off) => window.__voices.filter((v) => v.offline === off), offline);
+  const playFor = async (ms) => {
+    await page.evaluate(() => { window.__voices.length = 0; return window.greanteadawy.store.getState().play({ mode: 'pattern' }); });
+    await expect.poll(async () => (await voices(false)).length, { timeout: 15000 }).toBeGreaterThanOrEqual(ms > 2500 ? 5 : 3);
+    await page.evaluate(() => window.greanteadawy.store.getState().stop());
+    return voices(false);
+  };
+  // sixteenth 0, 5 and 10 of the bar are beats 0, 1.25 and 2.5 — on the first pass and on the next (a bar is 2 s)
+  const place = { 48: 0, 52: 1.25, 55: 2.5 };
+  const first = await playFor(3000);
+  expect(first.length).toBeGreaterThanOrEqual(5);
+  for (const v of first) expect(v.beat, `key ${v.key} on Play 1`).toBeCloseTo(place[v.key], 6);
+  // the audio clock has moved on: the second Play starts at another moment, and the notes are where they were
+  await page.waitForTimeout(370);
+  const second = await playFor(1000);
+  for (const v of second) expect(v.beat, `key ${v.key} on Play 2`).toBeCloseTo(place[v.key], 6);
+  expect(second[0].start).toBeGreaterThan(first[0].start + 1);
+  // the export: the same notes at the same places
+  await page.evaluate(async (patternId) => {
+    const { store, render } = window.greanteadawy;
+    window.__voices.length = 0;
+    await render(store.getState().project, { mode: 'pattern', patternId, loops: 1, tail: 0.2, encode: false, sampleRate: 44100 });
+  }, pattern);
+  const rendered = await voices(true);
+  expect(rendered.map((v) => v.key)).toEqual([48, 52, 55]);
+  for (const v of rendered) expect(v.beat, `key ${v.key} in the render`).toBeCloseTo(place[v.key], 6);
+  // and two exports are the same audio, with the pattern audibly at work
+  const render = () => page.evaluate(async (patternId) => {
+    const { store, render: run } = window.greanteadawy;
+    const r = await run(store.getState().project, { mode: 'pattern', patternId, loops: 1, tail: 0.2, encode: false, sampleRate: 44100 });
+    return Array.from(r.buffer.getChannelData(0).subarray(0, 88200));
+  }, pattern);
+  const a = await render();
+  const b = await render();
+  await claude.call('set_synth_modulation', { channel: 'Seq', mode: 'replace', routes: [] });
+  const plain = await render();
+  let worst = 0;
+  let moved = 0;
+  for (let i = 0; i < a.length; i++) { worst = Math.max(worst, Math.abs(a[i] - b[i])); moved = Math.max(moved, Math.abs(a[i] - plain[i])); }
+  expect(worst).toBeLessThan(1e-6);
+  expect(moved).toBeGreaterThan(0.02);
+
+  // with the transport stopped, notes played by hand share a clock that starts with the first one after a silence
+  const hand = await page.evaluate(async (cid) => {
+    const eng = window.greanteadawy.engine();
+    window.__voices.length = 0;
+    const one = eng.noteOn(cid, 60, 0.8);
+    await new Promise((r) => setTimeout(r, 400));
+    const two = eng.noteOn(cid, 64, 0.8);
+    await new Promise((r) => setTimeout(r, 100));
+    eng.noteOff(one);
+    eng.noteOff(two);
+    return window.__voices.map((v) => v.beat);
+  }, channels.Seq);
+  expect(hand[0]).toBe(0);
+  expect(hand[1]).toBeGreaterThan(0.6); // 0.4 s at 120 bpm = 0.8 beats, give or take the timer
+  expect(hand[1]).toBeLessThan(1.4);
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 8000 }).toBe(0);
+  expect(await page.evaluate((cid) => { const eng = window.greanteadawy.engine(); window.__voices.length = 0; eng.noteOff(eng.noteOn(cid, 60, 0.8)); return window.__voices[0].beat; }, channels.Seq)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 8000 }).toBe(0);
+  await page.evaluate(() => { window.AudioWorkletNode = Object.getPrototypeOf(window.AudioWorkletNode); delete window.__voices; });
+});
+
+test('the editor follows the channel it shows, and a swapped instrument leaves no notes behind', async () => {
+  const { channels } = await ids();
+  await claude.call('add_channel', { name: 'Two', instrument: 'ggs', preset: 'Init' });
+  // both channels modulate their filter and macro 1 does something: both have dots to show
+  for (const channel of ['Seq', 'Two']) await claude.call('set_synth_modulation', { channel, mode: 'replace', routes: [{ source: 'lfo1', target: 'f1Cutoff', amount: 0.3 }, { source: 'macro1', target: 'f1Res', amount: 0.4 }] });
+  const two = (await ids()).channels.Two;
+  const show = (cid) => page.evaluate((c) => { const st = window.greanteadawy.store.getState(); st.openWindow('channelSettings'); st.openChannelSettings(c); }, cid);
+  const ggs = page.locator('.ggs');
+  const cutoffDot = ggs.locator('.ggs-filter').first().locator('.knob').first().locator('.knob-live');
+  const macroDot = ggs.locator('.ggs-head .knob-live').first(); // macro 1
+  const hold = (cid, key) => page.evaluate(([c, k]) => { const eng = window.greanteadawy.engine(); (window.__held ||= []).push(eng.noteOn(c, k, 0.8)); }, [cid, key]);
+  const letGo = () => page.evaluate(() => { const eng = window.greanteadawy.engine(); for (const v of window.__held || []) if (v) eng.noteOff(v); window.__held = []; });
+  await show(channels.Seq);
+  await expect(ggs).toBeVisible();
+  await ggs.locator('.ggs-tabs button', { hasText: 'Filters' }).click();
+  await hold(channels.Seq, 60);
+  await expect(cutoffDot).toBeVisible();
+  await expect(macroDot).toBeVisible();
+  await letGo();
+  await expect(cutoffDot).toBeHidden({ timeout: 8000 });
+  // the same window, another channel: its notes light the dots (they used to stay dark until the window was reopened)
+  await show(two);
+  await expect(page.locator('.window', { hasText: 'Two' }).first()).toBeVisible();
+  await hold(two, 64);
+  await expect.poll(() => page.evaluate((c) => !!window.greanteadawy.engine().ggsLive(c), two)).toBe(true);
+  await expect(cutoffDot).toBeVisible();
+  await expect(macroDot).toBeVisible();
+  // a note on the channel that is no longer shown lights nothing here
+  await letGo();
+  await expect(cutoffDot).toBeHidden({ timeout: 8000 });
+  await hold(channels.Seq, 60);
+  await page.waitForTimeout(400);
+  await expect(cutoffDot).toBeHidden();
+  await letGo();
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 8000 }).toBe(0);
+
+  // three notes held on a GGS channel whose instrument is changed under them: they end, nothing is left in the books
+  for (const key of [50, 54, 57]) await hold(two, key);
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size)).toBe(3);
+  await dispatch([{ type: 'channel/update', id: two, patch: { instrument: { kind: 'synth' } } }]);
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 3000 }).toBe(0);
+  await letGo();
+  // …and the channel plays its new instrument
+  await hold(two, 60);
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size)).toBe(1);
+  await letGo();
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 8000 }).toBe(0);
+  await page.evaluate(() => window.greanteadawy.store.getState().closeWindow('channelSettings'));
+});
+
 test('Claude designs a patch, performs it note by note and the browser renders the result', async () => {
   await claude.call('create_project', { name: 'E2E Agent', bpm: 100, key: 'D', scale: 'minor' });
   await expect(page).toHaveTitle(/E2E Agent/);

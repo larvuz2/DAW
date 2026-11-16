@@ -1,7 +1,8 @@
-/* global AudioWorkletProcessor, registerProcessor, currentTime, currentFrame, sampleRate */
+/* global AudioWorkletProcessor, registerProcessor, currentFrame, sampleRate */
 // The GGS Synth inside the audio thread. Two processors:
-//   ggs-voice  one note. Created when the note is scheduled; everything it needs arrives with it (processorOptions)
-//              or as AudioParams — gate, kill, the note's pitch / pressure / timbre curves and the channel's macros.
+//   ggs-voice  one note. Created when the note is scheduled; everything it needs arrives with it (processorOptions:
+//              the patch, the key, where the song stands when it starts) or as AudioParams — gate, kill, the note's
+//              pitch / pressure / timbre curves and the channel's macros.
 //              Nothing depends on message timing, so an offline render is sample-identical every time.
 //   ggs-fx     the channel's drive / chorus / delay / reverb / output gain, after its voices are summed.
 // Messages are only used for edits made while a note sounds (a knob turned in the editor) and tempo changes — and,
@@ -37,7 +38,7 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
     this.done = false;
     this.pending = null; // edits that arrive before the note has started
     this.macros = new Float32Array(MACRO_COUNT);
-    this.ctl = { pitch: 0, pressure: 0, timbre: 0, macros: this.macros, time: 0 };
+    this.ctl = { pitch: 0, pressure: 0, timbre: 0, macros: this.macros };
     this.watch = !!o.watch;
     this.report = null; // [sources…, targets…] as last evaluated, copied out for the editor
     this.nextReport = 0;
@@ -74,7 +75,11 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
       if (at >= n) return true; // the note starts in a later block
       from = Math.max(0, at);
       const o = this.o;
-      this.voice = new GgsVoice({ sampleRate, params: this.pending ? { ...o.params, ...this.pending } : o.params, key: o.key, velocity: o.velocity, seed: o.seed, bpm: o.bpm, glideFrom: o.glideFrom, legato: o.legato });
+      // where the song stands on the note's first frame: `beat` is for the moment the note was asked for, and the
+      // frame it really starts on is that moment rounded to a sample (or later, if it was asked for too late)
+      const late = (currentFrame + from) / sampleRate - (o.start || 0);
+      const beat = (o.beat ?? ((o.start || 0) * o.bpm) / 60) + (late * o.bpm) / 60;
+      this.voice = new GgsVoice({ sampleRate, params: this.pending ? { ...o.params, ...this.pending } : o.params, key: o.key, velocity: o.velocity, seed: o.seed, bpm: o.bpm, beat, glideFrom: o.glideFrom, legato: o.legato });
     }
     const voice = this.voice;
     const ctl = this.ctl;
@@ -82,7 +87,6 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
     ctl.pressure = parameters.pressure;
     ctl.timbre = parameters.timbre;
     for (let i = 0; i < MACRO_COUNT; i++) this.macros[i] = parameters[MACROS[i]][0];
-    ctl.time = currentTime + from / sampleRate;
 
     // note-off on its exact sample: the first frame where the gate has fallen
     let offAt = -1;
@@ -96,7 +100,6 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
       if (offAt > from) voice.process(L, R, from, offAt - from, ctl);
       voice.noteOff(parameters.release[0]);
       this.off = true;
-      ctl.time = currentTime + offAt / sampleRate;
       voice.process(L, R, offAt, n - offAt, ctl);
     } else {
       voice.process(L, R, from, n - from, ctl);

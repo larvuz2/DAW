@@ -6,7 +6,7 @@ import { sanitizeParams } from '@greanteadawy/core';
 import {
   GGS_PARAMS, GGS_PRESET_INFO, OSC_IDS, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO, MOD_TARGET_INFO, FILTER_TYPES, FILTER_INFO,
   MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, CHAOS_INFO, chaosPreview, macroLabel, macroUsed, modSourceLabel, modTargetLabel,
-  ggsParamDef, ggsDefaults, wavetablePreview, wavetableSpectrum, modulationRoutes, describeRoute, paramsToPatch, patchToParams, paramsToSection, sectionToParams, syncBeats
+  ggsParamDef, ggsDefaults, wavetablePreview, wavetableSpectrum, modulationRoutes, modTargetSpec, describeRoute, paramsToPatch, patchToParams, paramsToSection, sectionToParams, syncBeats
 } from '@greanteadawy/synth-dsp';
 import { useStore } from '../state/store.js';
 import { getEngine, onEngineReady } from '../audio/index.js';
@@ -217,14 +217,21 @@ export function SynthEditor({ channel }) {
     const again = setInterval(() => watch(true), 1000);
     return () => { off(); clearInterval(again); watch(false); };
   }, [channel.id]);
+  // (the window stays open while another channel is selected: what is remembered per channel starts again)
+  useEffect(() => setActive({}), [channel.id]);
   const latest = useRef(full);
   latest.current = full;
+  const liveNow = useRef(live);
+  liveNow.current = live;
   const liveFns = useRef(new Map());
-  /** A stable function per knob that says where its control really is right now (null: no note sounding). */
+  /**
+   * A stable function per knob that says where its control really is right now (null: no note sounding). Stable
+   * for the life of the editor, so it reads the channel and the patch of the moment through refs.
+   */
   const liveOf = (key) => {
     let fn = liveFns.current.get(key);
     if (!fn) {
-      fn = /^macro\d$/.test(key) ? () => liveSource(live(), key) : () => liveTarget(live(), key, latest.current);
+      fn = /^macro\d$/.test(key) ? () => liveSource(liveNow.current(), key) : () => liveTarget(liveNow.current(), key, latest.current);
       liveFns.current.set(key, fn);
     }
     return fn;
@@ -295,9 +302,13 @@ export function SynthEditor({ channel }) {
       const rings = target ? ringsOf(routes, key, full) : null;
       if (target) {
         const chosen = rings.length ? activeRoute(key) : null;
+        // (routes that cannot do anything draw no ring — say why, rather than invite another one)
+        const idle = rings.length ? [] : routes.filter((r) => r.target === key);
+        const why = idle.length ? modTargetSpec(key, full)?.inert : null;
         title += rings.length
           ? `\nModulated by ${rings.map((r) => sourceName(r.source)).join(', ')}. Alt-drag: depth of ${sourceName(chosen.source)}. Right-click for more.`
-          : '\nDrop a source here, or right-click, to modulate it.';
+          : why ? `\nRouted from ${idle.map((r) => sourceName(r.source)).join(', ')}, without effect: ${why}. Right-click for more.`
+            : '\nDrop a source here, or right-click, to modulate it.';
       }
       return (
         <Knob key={key} value={val(key)} min={d.min} max={d.max} def={d.default} curve={d.curve} step={d.step} label={label} unit={d.unit}

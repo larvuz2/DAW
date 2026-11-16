@@ -159,8 +159,10 @@ class Osc {
 
 export class GgsVoice {
   /**
-   * opts: { sampleRate, params, key, velocity, seed, bpm, glideFrom (Hz, 0 = none), legato }
+   * opts: { sampleRate, params, key, velocity, seed, bpm, beat, glideFrom (Hz, 0 = none), legato }
    * seed makes the note's random parts (unison phases, noise, random LFOs) repeatable: same seed, same audio.
+   * beat is the song position (in beats) of the note's first frame: "free" LFOs and tempo-locked Turing patterns are
+   * functions of it, so every note hears them at the same place, and a render hears what playback did.
    */
   constructor(opts) {
     this.fs = opts.sampleRate;
@@ -172,6 +174,11 @@ export class GgsVoice {
     this.key = opts.key ?? 60;
     this.vel = clamp(opts.velocity ?? 0.8, 0, 1);
     this.bpm = opts.bpm || 120;
+    // the clock that "free" LFOs and tempo-locked patterns follow: where the song stands at this note's first frame,
+    // counted on from there in frames (re-anchored when the tempo changes, so it never jumps)
+    this.beat0 = Number.isFinite(opts.beat) ? opts.beat : 0;
+    this.time0 = (this.beat0 * 60) / this.bpm;
+    this.frames = 0;
     this.seed = hash32((opts.seed | 0) ^ Math.imul(this.key + 1, 0x9e3779b1));
     this.rng = new Rng(this.seed);
     this.noiseRng = new Rng(this.seed ^ 0x5bd1e995);
@@ -199,7 +206,7 @@ export class GgsVoice {
     this.lfoPhase = new Float64Array(LFO_COUNT);
     this.macro = new Float64Array(MACRO_COUNT);
     this.chaos = [null, null];
-    this.chaosc = Array.from({ length: CHAOS_COUNT }, () => ({ used: false, type: 0, rate: 1, beats: 0, char: 0.5, steps: 16, same: false, locked: false }));
+    this.chaosc = Array.from({ length: CHAOS_COUNT }, () => ({ used: false, type: 0, rate: 1, beats: 0, char: 0.5, steps: 16, same: false, built: false, locked: false }));
     this.src = mem.f64(MOD_SOURCES.length);
     this.dst = mem.f64(MOD_TARGETS.length);
     this.amp = 0;
@@ -277,7 +284,13 @@ export class GgsVoice {
   }
 
   setTempo(bpm) {
-    if (bpm > 0) this.bpm = bpm;
+    if (!(bpm > 0) || bpm === this.bpm) return;
+    // the clock carries on from where it stands, at the new speed
+    const t = this.frames / this.fs;
+    this.beat0 += (t * this.bpm) / 60;
+    this.time0 += t;
+    this.frames = 0;
+    this.bpm = bpm;
   }
 
   /** Everything that only changes when a parameter changes. */
@@ -357,7 +370,11 @@ export class GgsVoice {
       c.beats = sync === 'off' ? 0 : syncBeats(sync);
       c.char = p[CHAOS_K[n].Char];
       c.steps = p[CHAOS_K[n].Steps];
-      if (c.used && (!this.chaos[i] || c.same !== same)) this.chaos[i] = new Chaos(same ? 0xc4a05 + i : hash32(this.seed ^ Math.imul(i + 1, 0x632be5ab)));
+      // (`built`: the path the generator was made for — the setting may change while the source is not routed)
+      if (c.used && (!this.chaos[i] || c.built !== same)) {
+        this.chaos[i] = new Chaos(same ? 0xc4a05 + i : hash32(this.seed ^ Math.imul(i + 1, 0x632be5ab)));
+        c.built = same;
+      }
       c.same = same;
       c.locked = same && c.beats > 0 && c.type === TURING;
     }
@@ -414,9 +431,8 @@ export class GgsVoice {
 
   /**
    * Render `count` frames, ADDING them to outL/outR from index `start`.
-   * ctl: { pitch, pressure, timbre, macros[8], time } — pitch (semitones), pressure and timbre (0..1) are numbers or
-   * per-frame arrays indexed like the output; macros are 0..1 (missing ones take the patch's own values); time is
-   * the absolute time (s) of frame `start`.
+   * ctl: { pitch, pressure, timbre, macros[8] } — pitch (semitones), pressure and timbre (0..1) are numbers or
+   * per-frame arrays indexed like the output; macros are 0..1 (missing ones take the patch's own values).
    */
   process(outL, outR, start, count, ctl) {
     if (this.finished) return;
@@ -425,7 +441,8 @@ export class GgsVoice {
     while (done < count && !this.finished) {
       const m = Math.min(CTRL, count - done);
       const i0 = start + done;
-      this.control(m / this.fs, ctl, i0 + m - 1, ctl.time + (done + m) / this.fs);
+      this.frames += m;
+      this.control(m / this.fs, ctl, i0 + m - 1);
       const mi = m * os;
       this.renderBlock(mi);
       if (os === 2) this.dec.process(OL, OR, outL, outR, m, true, i0);
@@ -438,10 +455,13 @@ export class GgsVoice {
   }
 
   /** Evaluate envelopes, LFOs and the matrix for the end of a block of `dt` seconds; sets the ramp targets. */
-  control(dt, ctl, index, timeEnd) {
+  control(dt, ctl, index) {
     const src = this.src;
     const dst = this.dst;
     this.age += dt;
+    const sinceAnchor = this.frames / this.fs;
+    const timeEnd = this.time0 + sinceAnchor;
+    const beatEnd = this.beat0 + (sinceAnchor * this.bpm) / 60;
     if (this.next) this.applySwaps();
     const gate = this.gate;
     for (let u = 0; u < 4; u++) {
@@ -469,10 +489,9 @@ export class GgsVoice {
     for (let i = 0; i < CHAOS_COUNT; i++) {
       const c = this.chaosc[i];
       if (!c.used) continue;
-      const rate = c.beats ? this.bpm / 60 / c.beats : c.rate;
-      // a tempo-synced Turing pattern on the shared path follows the clock, like a "free" LFO: every note hears the
-      // same step at the same moment, in time with the song
-      src[SRC.chaos1 + i] = c.locked ? this.chaos[i].at(timeEnd * rate, c.type, c.char, c.steps) : this.chaos[i].advance(dt, c.type, rate, c.char, c.steps);
+      // a tempo-synced Turing pattern on the shared path follows the song, like a "free" LFO: every note hears the
+      // same step at the same moment, on the grid
+      src[SRC.chaos1 + i] = c.locked ? this.chaos[i].at(beatEnd / c.beats, c.char, c.steps) : this.chaos[i].advance(dt, c.type, c.beats ? this.bpm / 60 / c.beats : c.rate, c.char, c.steps);
     }
 
     // LFOs read the rate modulation of the previous block (one block late is inaudible, and it breaks the loop
@@ -483,7 +502,9 @@ export class GgsVoice {
       let rate = c.beats ? this.bpm / 60 / c.beats : c.rate;
       let phase;
       if (c.free) {
-        phase = timeEnd * rate + c.phase; // tied to the clock: every note hears the same LFO
+        // tied to the song: every note hears the same LFO (a synced one counts beats, so it stays on the grid
+        // through a tempo change)
+        phase = (c.beats ? beatEnd / c.beats : timeEnd * rate) + c.phase;
       } else {
         const mod = dst[DST.lfo1Rate + i];
         if (mod) rate *= Math.pow(2, 4 * mod);

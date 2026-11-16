@@ -305,6 +305,16 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .ggs-amt span { font: 10.5px var(--mono); width: 38px; text-align: right; }
 .ggs-empty { color: var(--muted); font-size: 11px; padding: 10px 4px; }
 .ggs-matrix-quick { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 6px; font-size: 10.5px; color: var(--muted); }
+/* on a phone a route takes two lines — source and target, then amount, via and × — instead of one that does not fit */
+.app.compact .ggs-matrix thead { display: none; }
+.app.compact .ggs-matrix tr { display: flex; flex-wrap: wrap; align-items: center; }
+.app.compact .ggs-matrix td { flex: 1 1 45%; min-width: 0; white-space: nowrap; }
+.app.compact .ggs-matrix td.ggs-amt { min-width: 0; }
+.app.compact .ggs-matrix td:nth-child(4) { flex: 0 1 30%; }
+.app.compact .ggs-matrix td:nth-child(5) { flex: 0 0 auto; }
+.app.compact .ggs-matrix .ggs-route-says td, .app.compact .ggs-matrix td.ggs-empty { flex: 1 1 100%; white-space: normal; }
+.app.compact .ggs-matrix .ui-select { max-width: calc(100% - 14px); }
+.app.compact .ggs-matrix td:nth-child(n + 2) .ui-select { max-width: 100%; }
 .ggs-pad {
   position: relative; height: 74px; flex: none; border-radius: 5px; border: 1px solid var(--border); touch-action: none; cursor: crosshair; overflow: hidden;
   background: linear-gradient(to top, rgba(70, 199, 154, 0.05), rgba(70, 199, 154, 0.28)), linear-gradient(to right, #14191e, #233040);

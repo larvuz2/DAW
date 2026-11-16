@@ -10,7 +10,8 @@
 //             fast it wanders; character = smoothness (jittery walk … rounded wander).
 //   turing    a Turing-machine shift register (after the Music Thing Modular module): a looping pattern of steps
 //             that mutates. Rate = steps per second; character = the chance a recycled bit is replaced by a random
-//             one (0 = a locked loop, 1 = always new); steps = loop length.
+//             one (0 = a locked loop, 1 = always new); steps = loop length. Its tape can be entered at any step
+//             (see `at`): that is how a tempo-synced pattern is the same for every note, in playback and in a render.
 //
 // Each generator is a fixed sequence of states that the rate merely scans, like a tape: the attractors are integrated
 // with classic RK4 at a fixed step in their own time (1/96 or 1/128 of a mean cycle), so the integration is equally
@@ -41,6 +42,14 @@ const DRIFT_STEPS = 32;
 const DRIFT_SIGMA = 0.35;
 const STEPS_PER_CYCLE = [LORENZ_STEPS, ROSSLER_STEPS, DRIFT_STEPS, 1];
 const MAX_STEPS = 4096; // per advance: a stalled clock catching up must not stall the audio
+const TURING = 3;
+const STEP_HASH = 0x9e3779b1;
+const BIT_HASH = 0x68bc21eb;
+const NEAR = 8; // steps: a position this close ahead is reached by stepping, anything else by seeking
+const RENEW = 256; // turns of the loop after which a step is replaced at the latest (when the pattern mutates at all)
+// a position within rounding of a step's edge counts as having reached it: voices that got to the same moment by
+// different sums agree on the step
+const EDGE = 1e-7;
 
 const lorenzRho = (character) => 26 + 30 * character;
 /** Swings of x (local maxima) per time unit: a quadratic fit to measurements for ρ in 25…59 (error < 1.5 %). */
@@ -190,7 +199,11 @@ export class Chaos {
     this.b = 1;
     this.gain = 1;
     this.coefFor = -1;
-    this.reg = 0; // turing: bit 0 is the newest bit, bits 0…steps−1 are the loop
+    this.reg = 0; // turing: bit j is the bit that entered j steps ago; bits 0…steps−1 are the loop
+    this.init = 0; // the register before the first step
+    this.tseed = 0;
+    this.tchar = -1; // what the register was last brought up to date with (see at)
+    this.tlen = 0;
     this.type = -1;
     this.pos = 0; // cycles since the start
     this.lastStep = 0;
@@ -211,15 +224,13 @@ export class Chaos {
       // reach the stationary distribution before the first output
       for (let i = 0; i < 64; i++) this.stepDrift(0.5);
     } else {
-      this.rng = new Rng(hash32(this.seed ^ 0x7021c6));
+      this.tseed = hash32(this.seed ^ 0x7021c6);
+      const h = hash32(this.tseed ^ 0x51ed27);
       // bits 0 and 1 differ, so even a 2-step loop is not stuck on one value
-      this.reg = ((this.u32() & ~3) | (this.rng.next() < 0 ? 1 : 2)) >>> 0;
+      this.init = ((h & ~3) | (h & 4 ? 1 : 2)) >>> 0;
+      this.reg = this.init;
+      this.tchar = -1;
     }
-  }
-
-  u32() {
-    this.rng.next();
-    return this.rng.s >>> 0;
   }
 
   /** White noise through two one-poles: the mean reversion, then a smoother whose corner `character` moves. */
@@ -244,12 +255,63 @@ export class Chaos {
     pts[0] = pts[1]; pts[1] = pts[2]; pts[2] = pts[3]; pts[3] = this.y2 * this.gain;
   }
 
-  stepTuring(len, character) {
-    const recycled = (this.reg >>> (len - 1)) & 1;
-    // both draws happen on every step, so the pattern does not depend on when the character was changed
-    const replace = this.rng.unit() < character;
-    const random = this.u32() >>> 31;
-    this.reg = ((this.reg << 1) | (replace ? random : recycled)) >>> 0;
+  /**
+   * What step number k of the tape brings in: a fresh bit (0 or 1) if the step mutates, −1 if it recycles. It is read
+   * off the step's number — not drawn from a running generator — so the register at any step can be worked out
+   * without the steps before it. With any mutation at all, every step of the loop is also renewed once in RENEW
+   * turns of the loop (staggered, step by step): no bit is older than that, which is as far back as `seekTuring`
+   * ever has to look.
+   */
+  freshBit(k, len, limit) {
+    const h = hash32(this.tseed ^ Math.imul(k, STEP_HASH));
+    if (h >= limit) {
+      const turn = Math.floor(k / len);
+      if (limit <= 0 || (turn + (k - turn * len) * 37) % RENEW !== 0) return -1;
+    }
+    return hash32(h ^ BIT_HASH) >>> 31;
+  }
+
+  stepTuring(len, character, k) {
+    const fresh = this.freshBit(k, len, character * 4294967296);
+    this.reg = ((this.reg << 1) | (fresh < 0 ? (this.reg >>> (len - 1)) & 1 : fresh)) >>> 0;
+  }
+
+  /**
+   * The register after `step` steps of an undisturbed tape, without running them. The bit that entered at step k is
+   * a fresh one if that step mutated, else the bit that entered one turn of the loop earlier, and so on back to the
+   * starting pattern. Built oldest bit first: only the oldest `len` bits need that walk (1 / character turns on
+   * average, RENEW at most, none when the loop is locked) — every newer one finds its predecessor in the register.
+   */
+  seekTuring(step, len, character) {
+    const limit = character * 4294967296;
+    const init = this.init;
+    let reg = 0;
+    for (let j = 31; j >= 0; j--) {
+      let k = step - j; // the step whose bit ends up j places from the newest
+      let bit = -1;
+      if (k > 0 && j + len <= 31) {
+        bit = this.freshBit(k, len, limit);
+        if (bit < 0) bit = (reg >>> (len - 1)) & 1;
+      } else if (k > 0 && limit > 0) {
+        for (; k > 0 && bit < 0; k -= len) bit = this.freshBit(k, len, limit);
+      } else if (k > 0) {
+        k -= Math.ceil(k / len) * len;
+      }
+      if (bit < 0) bit = (init >>> -k) & 1; // from before the first step: the starting pattern
+      reg = (reg << 1) | bit;
+    }
+    this.reg = reg >>> 0;
+  }
+
+  /** The register as a value: an 8-bit DAC over the newest bits of the loop (wrapping round loops shorter than 8). */
+  turingValue(len) {
+    let byte = 0;
+    let bit = 0;
+    for (let i = 0; i < 8; i++) {
+      byte = (byte << 1) | ((this.reg >>> bit) & 1);
+      if (++bit === len) bit = 0;
+    }
+    return (byte * 2) / 255 - 1;
   }
 
   /**
@@ -258,26 +320,40 @@ export class Chaos {
    */
   advance(dt, type, rate, character, steps) {
     if (type !== this.type) this.start(type, character);
-    return this.scan(this.pos + rate * dt, type, character, steps, MAX_STEPS);
+    return this.scan(this.pos + rate * dt, type, character, steps);
   }
 
   /**
-   * The value at an absolute position on the tape (in cycles from its start). A generator driven this way is a
-   * function of time: every voice that asks for the same position gets the same value — how a tempo-synced Turing
-   * pattern stays in step with the song (a voice that starts late runs the steps it missed; they are bit operations).
+   * The Turing pattern at an absolute position on its tape (in steps from the start): a function of the position and
+   * the settings alone, whatever was asked before. Every voice that asks for the same position gets the same value —
+   * how a tempo-synced pattern stays in step with the song, in playback and in a render, for a note that starts at
+   * bar 200 as for one that starts at bar 1.
    */
-  at(pos, type, character, steps) {
-    if (type !== this.type || pos < this.pos) { this.pos = 0; this.start(type, character); }
-    return this.scan(pos, type, character, steps, Infinity);
+  at(pos, character, steps) {
+    const len = steps < 2 ? 2 : steps > 32 ? 32 : steps | 0;
+    const step = pos > 0 ? Math.floor(pos + EDGE) : 0; // (a note just ahead of the song's start waits on step 0)
+    const ahead = step - this.lastStep;
+    if (this.type !== TURING || character !== this.tchar || len !== this.tlen || ahead < 0 || ahead > NEAR) {
+      if (this.type !== TURING) this.start(TURING, character);
+      this.seekTuring(step, len, character);
+      this.tchar = character;
+      this.tlen = len;
+    } else {
+      for (let k = this.lastStep + 1; k <= step; k++) this.stepTuring(len, character, k);
+    }
+    this.pos = pos;
+    this.lastStep = step;
+    this.value = this.turingValue(len);
+    return this.value;
   }
 
-  scan(pos, type, character, steps, most) {
+  scan(pos, type, character, steps) {
     this.pos = pos;
     const sp = pos * STEPS_PER_CYCLE[type];
     const step = Math.floor(sp);
     const f = sp - step;
     let n = step - this.lastStep;
-    if (n > most) n = most;
+    if (n > MAX_STEPS) n = MAX_STEPS;
     this.lastStep = step;
     let v;
     if (type === 0) {
@@ -298,15 +374,10 @@ export class Chaos {
       v = softLimit(((c3 * f + c2) * f + c1) * f + p[1]);
     } else {
       const len = steps < 2 ? 2 : steps > 32 ? 32 : steps | 0;
-      for (let i = 0; i < n; i++) this.stepTuring(len, character);
-      // an 8-bit DAC over the newest bits of the loop (wrapping round loops shorter than 8)
-      let byte = 0;
-      let bit = 0;
-      for (let i = 0; i < 8; i++) {
-        byte = (byte << 1) | ((this.reg >>> bit) & 1);
-        if (++bit === len) bit = 0;
-      }
-      v = (byte * 2) / 255 - 1;
+      for (let k = step - n + 1; k <= step; k++) this.stepTuring(len, character, k);
+      // (stepped here, the register is no longer the one `at` keeps: it must seek before its next answer)
+      this.tchar = -1;
+      v = this.turingValue(len);
     }
     this.value = v > -1 ? (v < 1 ? v : 1) : v === v ? -1 : 0;
     return this.value;
@@ -321,7 +392,9 @@ export function chaosPreview(settings, points = 240, cycles = 12, seed = 1) {
   const type = Math.max(0, CHAOS_TYPES.indexOf(settings.type));
   const c = new Chaos(seed);
   const out = new Float32Array(points);
-  const character = Math.max(0, Math.min(1, settings.character ?? 0.5));
-  for (let i = 0; i < points; i++) out[i] = c.advance(cycles / points, type, 1, character, settings.steps ?? 16);
+  const ch = Number(settings.character ?? 0.5);
+  const character = ch > 0 ? (ch < 1 ? ch : 1) : 0; // (NaN → 0)
+  const steps = Number.isFinite(Number(settings.steps)) ? Number(settings.steps) : 16;
+  for (let i = 0; i < points; i++) out[i] = c.advance(cycles / points, type, 1, character, steps);
   return out;
 }

@@ -68,8 +68,15 @@ a tempo division; *Character* means something different for each:
 
 *Path* decides who shares a path. **note** (default): every note wanders its own way — a little `drift` on
 `pitchFine` is analog voice drift. **same**: every note replays one path from its start, so a chord moves as one and
-a part sounds the same every time; a tempo-synced `turing` pattern on this path follows the song clock, so every
-note hears the same step at the same moment.
+a part sounds the same every time.
+
+A tempo-synced `turing` pattern on the path *same* is the exception: it is **locked to the song** — a step sequence.
+The pattern is a function of the song position alone, so every note hears the step of that moment, the steps fall
+on the grid, and bar 9 sounds like bar 9 whenever it is played: in the loop, started from the middle, or in an
+export. Mutation 0 is one loop for the whole song; above 0 the pattern changes as the song goes on, the same way
+every time (and every step of the loop is renewed at least once in 256 turns). "Free" LFOs follow the same clock.
+With the transport stopped there is no song position: notes played by hand share a clock that starts with the
+first note after a silence, so a chord still hears one pattern.
 
 A path is fixed by its note (the seed comes from the note's time and key), so **two renders of a song are the same
 audio** even with chaos everywhere. The attractors are integrated with RK4 at a fixed step in their own time and
@@ -176,7 +183,7 @@ macros of every GGS channel too); the dot on the knob follows the automation.
   does — with a *Changed* filter that shows what makes this patch different from the init patch. The same
   descriptions are the tooltips of every control.
 
-The header also has the four macros with their names, gain, and **Export / Import** of a patch as a `.json` document.
+The header also has the eight macros with their names, gain, and **Export / Import** of a patch as a `.json` document.
 
 | | |
 |---|---|
@@ -231,10 +238,16 @@ drawn shape as `steps: [1, 0, 0.5, …]`; `set_synth_chaos` sketches the path it
 ## Engineering notes
 
 - **One AudioWorklet processor per note** (`ggs-voice`). The patch arrives with the note (`processorOptions`); gate,
-  kill, pitch, pressure, timbre and the four macros are AudioParams. Nothing depends on message timing, so realtime
+  kill, pitch, pressure, timbre and the eight macros are AudioParams. Nothing depends on message timing, so realtime
   playback and offline renders share one deterministic path; two renders of a song are the same audio.
-- A per-channel `ggs-fx` processor runs the effects after the voices are summed, and four constant sources feed
+- A per-channel `ggs-fx` processor runs the effects after the voices are summed, and eight constant sources feed
   every voice's macro inputs (that is what automation moves).
+- **The song clock.** A note is told where the song stands on its first frame (`beat` in `processorOptions`: the
+  transport's position for the notes it schedules, `engine.beatAt` for notes played by hand) and counts on from
+  there in frames. "Free" LFOs and song-locked Turing patterns are functions of that position — not of the audio
+  context's clock, which starts at a different moment on every Play and in every render. The Turing tape can be
+  entered at any step (`Chaos.at`): the bit a step brings is read off the step's number, so a note at bar 200 works
+  out the register in microseconds instead of running 3200 steps.
 - Modulation is evaluated every 16 samples and every audible control is ramped across the block: no zipper noise.
 - **Oversampling is selective** (quality `auto`): a patch that makes new harmonics after the oscillators — FM,
   warp, filter drive, the ladder / acid / MS-20 filters, the combs — runs at 2× with a polyphase half-band decimator; a plain patch, which cannot alias,

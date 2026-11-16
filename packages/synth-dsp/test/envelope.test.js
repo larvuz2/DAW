@@ -95,7 +95,7 @@ function edited(base, delta, opts = {}) {
   for (let i = 0; i < n; i += 128) {
     if (i === at) v.setParams(delta);
     if (opts.then && i === at + opts.then.after) v.setParams(opts.then.delta);
-    v.process(L, R, i, 128, { pitch: 0, pressure: 0, timbre: 0, time: i / FS });
+    v.process(L, R, i, 128, { pitch: 0, pressure: 0, timbre: 0 });
   }
   return { x: L, at, voice: v };
 }

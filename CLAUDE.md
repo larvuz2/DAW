@@ -146,6 +146,8 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   model under a held note without it.
   One AudioWorklet processor per note; the patch travels in `processorOptions`, and gate / kill / pitch / pressure /
   timbre / macros are AudioParams — never make note timing depend on port messages (offline renders must repeat).
+  A note is also told where the song stands when it starts (`beat`: the transport's position, or `engine.beatAt`
+  for notes played by hand): "free" LFOs and tempo-locked patterns follow that, never the context's clock.
   No allocation or string-keyed lookups in the render path — and no function call that takes numbers per sample
   (an un-inlined call boxes them: write the maths out in the loop); a voice's typed arrays over 64 bytes come from
   its `Arena`. No `Math.random()` in the engine (seeded per note). What the editor shows live (knob rings' dots,

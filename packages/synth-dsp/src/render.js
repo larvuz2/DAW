@@ -68,7 +68,7 @@ export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120,
     }
     const sounding = active.filter((v) => v.killAt < 0);
     for (let i = 0; i <= sounding.length - Math.round(p.polyphony); i++) sounding[i].killAt = note.startFrame;
-    active.push({ note, voice: new GgsVoice({ sampleRate: fs, params: p, key: note.key, velocity: note.velocity, seed: note.seed, bpm, glideFrom, legato }), killAt: -1, off: false });
+    active.push({ note, voice: new GgsVoice({ sampleRate: fs, params: p, key: note.key, velocity: note.velocity, seed: note.seed, bpm, beat: ((note.startFrame / fs) * bpm) / 60, glideFrom, legato }), killAt: -1, off: false });
   };
 
   for (let frame = 0; frame < total; frame += BLOCK) {
@@ -78,7 +78,7 @@ export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120,
       const v = active[a];
       const from = Math.max(0, v.note.startFrame - frame);
       if (from >= n) continue;
-      const ctl = { macros: macroValues, time: (frame + from) / fs };
+      const ctl = { macros: macroValues };
       for (const dim of ['pitch', 'pressure', 'timbre']) {
         const pts = v.note[dim];
         if (!pts) { ctl[dim] = 0; continue; }
@@ -93,7 +93,6 @@ export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120,
         if (offAt > from) v.voice.process(tmpL, tmpR, from, offAt - from, ctl);
         v.voice.noteOff(v.note.releaseVelocity);
         v.off = true;
-        ctl.time = (frame + offAt) / fs;
         v.voice.process(tmpL, tmpR, offAt, n - offAt, ctl);
       } else {
         if (!v.off && offAt < from) { v.voice.noteOff(v.note.releaseVelocity); v.off = true; }

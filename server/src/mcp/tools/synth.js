@@ -85,7 +85,8 @@ export function registerSynthTools({ tool, backend, load }) {
         '', `Envelope 1 always shapes the level. Pressure, timbre (slide) and bend come from each note (set_note_expression); velocity from the note; macros 1-${MACRO_COUNT} from the channel (automatable: add_automation target channel param macro1..macro${MACRO_COUNT}).`,
         '', `CHAOS (set_synth_chaos; sources chaos1..chaos${CHAOS_COUNT}) — modulation that never quite repeats. "character" 0..1 means something different for each:`,
         ...CHAOS_TYPES.map((t) => `  ${t.padEnd(8)} rate = ${CHAOS_INFO[t].rate}; character = ${CHAOS_INFO[t].character.toLowerCase()}. ${CHAOS_INFO[t].desc}`),
-        '  path "note": every note wanders its own way (voices drift apart, renders still repeat exactly). path "same": every note replays one path from its start (a chord moves together).'
+        '  path "note": every note wanders its own way (voices drift apart, renders still repeat exactly). path "same": every note replays one path from its start (a chord moves together).',
+        '  turing + a tempo division (sync) + path "same" is the exception: the pattern is locked to the song. Every note hears the step of that moment, steps fall on the grid, and bar 9 always sounds like bar 9 — in playback and in an export. character 0 = one loop for the whole song; above 0 it mutates as the song goes on (the same way every time).'
       ].join('\n'));
     }
     if (topic === 'presets') {
@@ -291,7 +292,7 @@ export function registerSynthTools({ tool, backend, load }) {
 
   tool('set_synth_chaos', {
     title: 'Set a synth chaos source',
-    description: 'Configure one of the two chaos generators of a GGS Synth — modulation that never quite repeats: "lorenz" (swings between two centres and flips unpredictably), "rossler" (a wobbling loop that lurches), "drift" (a random walk that comes home: analog pitch drift) or "turing" (a looping pattern of steps that mutates — generative sequences). rate in Hz or a tempo division (sync); character 0..1 (lorenz: calm … restless · rossler: nearly periodic … spiky · drift: jittery … smooth · turing: chance that a step mutates, 0 = a locked loop); steps = turing loop length; path "note" (default: every note wanders its own way, like analog voices) or "same" (every note replays one path: chords move together). A chaos source does nothing until routed with set_synth_modulation (source chaos1 / chaos2). Renders repeat exactly: a path is fixed by its note. The reply sketches the path.',
+    description: 'Configure one of the two chaos generators of a GGS Synth — modulation that never quite repeats: "lorenz" (swings between two centres and flips unpredictably), "rossler" (a wobbling loop that lurches), "drift" (a random walk that comes home: analog pitch drift) or "turing" (a looping pattern of steps that mutates — generative sequences). rate in Hz or a tempo division (sync); character 0..1 (lorenz: calm … restless · rossler: nearly periodic … spiky · drift: jittery … smooth · turing: chance that a step mutates, 0 = a locked loop); steps = turing loop length; path "note" (default: every note wanders its own way, like analog voices) or "same" (every note replays one path from its start: chords move together). One exception: "turing" with a tempo division and path "same" is locked to the song instead — every note hears the step of that moment, on the grid, the same in playback and in an export: a step sequence. A chaos source does nothing until routed with set_synth_modulation (source chaos1 / chaos2). Renders repeat exactly: a path is fixed by its note. The reply sketches the path.',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
       chaos: z.number().int().min(1).max(CHAOS_COUNT),

@@ -1,6 +1,6 @@
 // The GGS Synth preset library: 30 original patches in six families. Every preset is a set of overrides on the init
 // patch, and every one answers to the performance: pressure and slide (timbre) are routed in the matrix, and the
-// four macros are assigned to the moves a player (or an agent) would reach for first — see GGS_PRESET_INFO.
+// first four macros are assigned to the moves a player (or an agent) would reach for first — see GGS_PRESET_INFO.
 // The output gains were levelled by measurement (scripts/level-presets.mjs): a single note at velocity 0.8 lands
 // around -18 LUFS, so swapping presets doesn't upset a mix.
 

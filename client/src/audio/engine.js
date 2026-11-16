@@ -395,9 +395,10 @@ export class AudioEngine {
   /**
    * Schedule a note on a channel. duration in seconds (null = held until noteOff).
    * opts.expression / releaseVelocity: the note's performance (core/expression.js); exprSeconds: the length its
-   * curves are spread over (the note's own length, even when a clip end cuts the note short).
+   * curves are spread over (the note's own length, even when a clip end cuts the note short); beat: the song
+   * position at `time` (see beatAt), given by the transport for the notes it schedules.
    */
-  triggerNote(channelId, key, velocity, time, duration, { pan = 0, force = false, pitch: autoPitch = 0, expression = null, exprSeconds = null, releaseVelocity = null } = {}) {
+  triggerNote(channelId, key, velocity, time, duration, { pan = 0, force = false, pitch: autoPitch = 0, expression = null, exprSeconds = null, releaseVelocity = null, beat = null } = {}) {
     const ch = getChannel(this.project, channelId);
     const strip = this.strips.get(channelId);
     if (!ch || !strip) return null;
@@ -439,7 +440,9 @@ export class AudioEngine {
     }
     const buffer = ch.instrument.kind === 'sampler' ? this.samples.get(p.sampleId) : null;
     const expr = expression || releaseVelocity !== null ? { expression, seconds: exprSeconds ?? duration ?? 1, releaseVelocity: releaseVelocity ?? 0.5 } : null;
-    const v = playNote(this.ctx, dest, ch.instrument, { time, duration, key: k, velocity, glideFrom, buffer, expr, rig: strip.ggs });
+    // (the transport says where in the song its notes are; a note played by hand asks the clock)
+    const at = ch.instrument.kind === 'ggs' ? beat ?? this.beatAt(time) : null;
+    const v = playNote(this.ctx, dest, ch.instrument, { time, duration, key: k, velocity, glideFrom, buffer, expr, rig: strip.ggs, beat: at });
     if (!v) {
       if (dest !== bus) { try { dest.disconnect(); } catch { /* ignore */ } } // the note's panner, unused
       return null;
@@ -454,6 +457,18 @@ export class AudioEngine {
     };
     if (p.mono) this.monoLast.set(channelId, v);
     return v;
+  }
+
+  /**
+   * The clock that tempo-locked modulation follows, in beats, at a context time: the song position while it plays —
+   * so playback and a render hear the same thing at the same bar. With the transport stopped there is no song: notes
+   * played by hand share a clock that starts with the first one after a silence (a chord hears one pattern).
+   */
+  beatAt(time) {
+    const song = this.transport.beatAt(time);
+    if (song !== null) return song;
+    if (!this.voices.size || !(this.liveOrigin <= time)) this.liveOrigin = time;
+    return ((time - this.liveOrigin) * this.bpm) / 60;
   }
 
   /** Live note (computer keyboard / MIDI / piano roll click). Returns a handle for noteOff. */
@@ -843,6 +858,16 @@ export class Transport {
     return this.anchor.time + (tick - this.anchor.tick) / this.anchor.rate;
   }
 
+  /** The song (or pattern) position in beats at a context time, null when stopped. Unlike positionAt: no side effects. */
+  beatAt(time) {
+    if (!this.playing || !this.segments.length) return null;
+    let seg = this.segments[0];
+    for (let i = this.segments.length - 1; i > 0; i--) {
+      if (this.segments[i].time <= time) { seg = this.segments[i]; break; }
+    }
+    return (seg.tick + (time - seg.time) * seg.rate) / PPQ;
+  }
+
   syncPoint() {
     const time = this.ctx.currentTime + 0.01;
     return { time, tick: this.positionAt(time), bpm: this.engine.bpm };
@@ -1011,9 +1036,12 @@ export class Transport {
           pitch = Math.round(automationValueAt(automation, n.start - clip.start + clip.offset) * 48 - 24);
         }
       }
-      eng.triggerNote(n.channelId, n.key, n.velocity, Math.max(time, now), n.length / this.anchor.rate, {
+      const at = Math.max(time, now);
+      eng.triggerNote(n.channelId, n.key, n.velocity, at, n.length / this.anchor.rate, {
         pan: n.pan, pitch, expression: n.expression || null, releaseVelocity: n.releaseVelocity ?? null,
-        exprSeconds: (n.fullLength ?? n.length) / this.anchor.rate
+        exprSeconds: (n.fullLength ?? n.length) / this.anchor.rate,
+        // in this pass of the loop (a note nudged ahead of bar 1 is just before it, not at the end of the last pass)
+        beat: (this.anchor.tick + (at - this.anchor.time) * this.anchor.rate) / PPQ
       });
     }
     if (eng.metronome && this.engine.realtime) {

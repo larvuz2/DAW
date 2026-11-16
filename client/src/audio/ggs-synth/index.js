@@ -73,7 +73,7 @@ export class GgsChannel {
     this.input = ctx.createGain();
     this.input.connect(dest); // until the effects are in: straight through
     this.fx = null;
-    this.voices = new Set();
+    this.voices = new Map(); // sounding notes: node → what ends it here (see dispose)
     this.watching = false;
     this.report = null; // { values: Float32Array [sources…, targets…], start, at }
     this.macros = MACROS.map((key) => {
@@ -113,7 +113,7 @@ export class GgsChannel {
     });
     // the effects processor also builds a newly chosen wavetable before any voice needs it
     if (this.fx && (FX_KEYS.some((k) => k in d) || TABLE_KEYS.some((k) => k in d))) this.fx.port.postMessage({ type: 'params', values: d });
-    for (const node of this.voices) node.port.postMessage({ type: 'params', values: d });
+    for (const node of this.voices.keys()) node.port.postMessage({ type: 'params', values: d });
   }
 
   /** Automation ended: the macros go back to the patch's own values. */
@@ -128,7 +128,7 @@ export class GgsChannel {
   setWatch(on) {
     this.watching = !!on;
     if (!on) this.report = null;
-    for (const node of this.voices) node.port.postMessage({ type: 'watch', on: this.watching });
+    for (const node of this.voices.keys()) node.port.postMessage({ type: 'watch', on: this.watching });
   }
 
   /** A voice's report. The newest note wins; an older one is only shown once the newer has gone quiet. */
@@ -148,11 +148,17 @@ export class GgsChannel {
   setTempo(bpm) {
     this.bpm = bpm;
     this.fx?.port.postMessage({ type: 'tempo', bpm });
-    for (const node of this.voices) node.port.postMessage({ type: 'tempo', bpm });
+    for (const node of this.voices.keys()) node.port.postMessage({ type: 'tempo', bpm });
   }
 
   dispose() {
     this.disposed = true;
+    // notes that still sound have nowhere to play: end them here. (Cut off from the output, a processor may never be
+    // asked for another block — it would never report its end, and its voice would stay in the engine's books.)
+    for (const [node, end] of [...this.voices]) {
+      try { node.parameters.get('kill').setValueAtTime(1, this.ctx.currentTime); } catch { /* ignore */ }
+      end();
+    }
     for (const src of this.macros) { try { src.stop(); src.disconnect(); } catch { /* ignore */ } }
     this.fx?.port.postMessage({ type: 'close' });
     for (const n of [this.input, this.fx]) { try { n?.disconnect(); } catch { /* ignore */ } }
@@ -163,8 +169,9 @@ export class GgsChannel {
  * One GGS note (called from playNote). `rig` is the channel's GgsChannel. Returns null (the voice ends through its
  * release), or t when the worklet isn't loaded in this context yet (the note is skipped; the load is under way).
  * The voice gets `v.expr` = its pitch / pressure / timbre AudioParams, for live MPE input.
+ * `beat`: the song position at t (engine.beatAt) — without it the voice counts beats from the context's own clock.
  */
-export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, rig, seed }) {
+export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, rig, seed, beat }) {
   if (!ggsReady(ctx)) { loadGgsModule(ctx); return t; }
   const params = instrument.params;
   let releaseVelocity = expr?.releaseVelocity ?? 0.5;
@@ -174,6 +181,8 @@ export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, 
       numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
       processorOptions: {
         params: compact(params), key, velocity: velRaw, start: t, bpm: rig?.bpm || 120,
+        // where the song stands at t (in beats): what "free" LFOs and tempo-locked patterns follow
+        beat: beat ?? undefined,
         // the same note at the same time always gets the same "random" parts: renders repeat exactly
         seed: seed ?? hash32(Math.round(t * ctx.sampleRate) ^ Math.imul(key + 1, 0x85ebca6b)),
         glideFrom: glideFrom || 0, legato: !!glideFrom, watch: !!rig?.watching
@@ -204,23 +213,28 @@ export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, 
     if (e.pressure) scheduleCurve(v.expr.pressure, e.pressure, t, seconds);
     if (e.timbre) scheduleCurve(v.expr.timbre, e.timbre, t, seconds);
   }
-  if (rig) {
-    rig.macros.forEach((src, i) => src.connect(P.get(MACROS[i])));
-    rig.voices.add(node);
-  }
   // a source-like handle for Voice: stop() = hard stop, onended when the processor says the note is over
   const src = {
     onended: null,
     stop(time) { try { kill.setValueAtTime(1, Math.max(time, ctx.currentTime)); } catch { /* ignore */ } }
   };
-  node.port.onmessage = (ev) => {
-    if (ev.data?.type === 'mod') { rig?.heard(ev.data); return; }
-    if (ev.data?.type !== 'ended') return;
+  let over = false;
+  const end = () => {
+    if (over) return;
+    over = true;
     node.port.onmessage = null;
     rig?.voices.delete(node);
     rig?.macros.forEach((m, i) => { try { m.disconnect(P.get(MACROS[i])); } catch { /* ignore */ } });
     try { node.disconnect(); } catch { /* ignore */ }
     src.onended?.();
+  };
+  if (rig) {
+    rig.macros.forEach((m, i) => m.connect(P.get(MACROS[i])));
+    rig.voices.set(node, end);
+  }
+  node.port.onmessage = (ev) => {
+    if (ev.data?.type === 'mod') rig?.heard(ev.data);
+    else if (ev.data?.type === 'ended') end();
   };
   v.add(src);
   node.connect(v.out);

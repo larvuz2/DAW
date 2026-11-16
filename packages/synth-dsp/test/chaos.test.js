@@ -122,7 +122,7 @@ const voiceRun = (params, seed, blocks = 400) => {
   const v = new GgsVoice({ sampleRate: 48000, params, key: 60, velocity: 0.8, seed, bpm: 120 });
   const L = new Float32Array(128 * blocks);
   const R = new Float32Array(128 * blocks);
-  for (let b = 0; b < blocks; b++) v.process(L, R, b * 128, 128, { pitch: 0, pressure: 0, timbre: 0, time: (b * 128) / 48000 });
+  for (let b = 0; b < blocks; b++) v.process(L, R, b * 128, 128, { pitch: 0, pressure: 0, timbre: 0 });
   return { L, v };
 };
 const same = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; };
@@ -147,7 +147,7 @@ test('in a voice: free until routed, its own path per note or the same for all, 
     const v = new GgsVoice({ sampleRate: 48000, params: turing, key: 60, velocity: 0.8, seed: 1, bpm });
     const out = [];
     const L = new Float32Array(128), R = new Float32Array(128);
-    for (let b = 0; b < 1500; b++) { v.process(L, R, 0, 128, { pitch: 0, pressure: 0, timbre: 0, time: (b * 128) / 48000 }); out.push(v.src[MOD_SOURCES.indexOf('chaos1')]); }
+    for (let b = 0; b < 1500; b++) { v.process(L, R, 0, 128, { pitch: 0, pressure: 0, timbre: 0 }); out.push(v.src[MOD_SOURCES.indexOf('chaos1')]); }
     return out;
   };
   const slow = levels(120);
@@ -156,34 +156,193 @@ test('in a voice: free until routed, its own path per note or the same for all, 
   assert.ok(Math.abs(firstChange(slow) / firstChange(fast) - 2) < 0.1, 'a sixteenth at 240 bpm is half as long as at 120');
 });
 
-test('a tempo-synced turing pattern on the shared path follows the clock: late notes are in step', () => {
-  const p = { ...SINE, chaos1Type: 'turing', chaos1Sync: '1/16', chaos1Char: 0.3, chaos1Steps: 8, chaos1Path: 'same', mod1Src: 'chaos1', mod1Dst: 'level', mod1Amt: 0.5, level: 0.5 };
-  const at = MOD_SOURCES.indexOf('chaos1');
-  // the pattern as two voices hear it: one from the start of the song, one that begins 37.4 s later
-  const trace = (startTime, blocks, seed) => {
-    const v = new GgsVoice({ sampleRate: 48000, params: p, key: 60, velocity: 0.8, seed, bpm: 120 });
-    const L = new Float32Array(128), R = new Float32Array(128);
-    const out = [];
-    for (let b = 0; b < blocks; b++) { v.process(L, R, 0, 128, { pitch: 0, pressure: 0, timbre: 0, time: startTime + (b * 128) / 48000 }); out.push(v.src[at]); }
-    return out;
-  };
-  const late = 37.4;
-  const lateBlocks = Math.round((late * 48000) / 128);
-  const early = trace(0, lateBlocks + 600, 1);
-  const joined = trace((lateBlocks * 128) / 48000, 600, 99);
+// a voice's chaos1 once per 128-frame block; `beat` = where in the song the note starts
+const CH1 = MOD_SOURCES.indexOf('chaos1');
+const chaosTrace = (params, { beat = 0, blocks = 600, seed = 1, bpm = 120, size = 128, tempoAt = -1, tempo = 0, fs = 48000 } = {}) => {
+  const v = new GgsVoice({ sampleRate: fs, params, key: 60, velocity: 0.8, seed, bpm, beat });
+  const L = new Float32Array(size), R = new Float32Array(size);
+  const out = [];
+  for (let b = 0; b < blocks; b++) {
+    if (b === tempoAt) v.setTempo(tempo);
+    v.process(L, R, 0, size, { pitch: 0, pressure: 0, timbre: 0 });
+    out.push(v.src[CH1]);
+  }
+  return out;
+};
+const LOCKED = { ...SINE, chaos1Type: 'turing', chaos1Sync: '1/16', chaos1Char: 0.3, chaos1Steps: 8, chaos1Path: 'same', mod1Src: 'chaos1', mod1Dst: 'level', mod1Amt: 0.5, level: 0.5 };
+const BEATS_PER_BLOCK = (128 / 48000) * 2; // at 120 bpm
+
+test('a tempo-synced turing pattern on the shared path follows the song: late notes are in step, on the grid', () => {
+  // the pattern as two voices hear it: one from the start of the song, one that begins 37.4 s (74.8 beats) later
+  const lateBlocks = Math.round((37.4 * 48000) / 128);
+  const early = chaosTrace(LOCKED, { blocks: lateBlocks + 600 });
+  const joined = chaosTrace(LOCKED, { beat: lateBlocks * BEATS_PER_BLOCK, seed: 99 });
   for (let b = 0; b < 600; b++) assert.equal(joined[b], early[lateBlocks + b], `block ${b}: the late note hears the step the early one hears`);
   assert.ok(new Set(joined).size >= 3, 'and the pattern is moving');
-  // the steps sit on the sixteenth grid of the clock (a sixteenth at 120 bpm = 0.125 s = 46.875 blocks)
-  const changes = [];
-  for (let b = 1; b < 3000; b++) if (early[b] !== early[b - 1]) changes.push(b);
-  assert.ok(changes.length > 20);
-  for (const b of changes) { const grid = ((b + 1) * 128) / 48000 / 0.125; assert.ok(Math.abs(grid - Math.round(grid)) < 0.03, `a step at block ${b} is on the grid`); }
+  // the steps sit on the sixteenth grid of the song (a sixteenth at 120 bpm = 0.125 s = 46.875 blocks)
+  const onGrid = (x, beat0, what) => {
+    let changes = 0;
+    for (let b = 1; b < x.length; b++) {
+      if (x[b] === x[b - 1]) continue;
+      changes++;
+      // the value of block b is the one at its end: the step's edge lies inside that block
+      const steps = (beat0 + (b + 1) * BEATS_PER_BLOCK) * 4;
+      const into = steps - Math.floor(steps + 1e-6);
+      assert.ok(into < BEATS_PER_BLOCK * 4 + 1e-6, `${what}: the step heard at block ${b} began ${into.toFixed(4)} steps earlier`);
+    }
+    assert.ok(changes > 20, `${what}: ${changes} steps`);
+  };
+  onGrid(early.slice(0, 3000), 0, 'from the start');
+  // wherever in the song a note begins — on a bar line, between two frames, far in — its steps are the song's
+  for (const beat of [16, 3.3337, 1 / 3, 12345.678]) onGrid(chaosTrace(LOCKED, { beat, blocks: 1500 }), beat, `a note at beat ${beat}`);
+  // a step whose edge falls exactly on a block's end: every voice counts it in, however it got there
+  const exact = { ...LOCKED, chaos1Sync: '1/4' }; // a beat = 24000 frames = 187.5 blocks of 128, 1500 blocks of 16
+  const a = chaosTrace(exact, { size: 16, blocks: 6100 });
+  const b = chaosTrace(exact, { size: 16, blocks: 3100, beat: 2 });
+  for (let i = 0; i < 3100; i++) assert.equal(b[i], a[3000 + i], `control block ${i}`);
+  assert.notEqual(a[1499], a[1498], 'the step that begins on beat 1 is heard in the block that ends there');
+  // …also where the sums do not come out even: at 44.1 kHz and 90 bpm a note that starts on frame 1200 reaches the
+  // edge at frame 58 800 as step 7.999999999999999, a note from the start as step 8
+  const from0 = chaosTrace(LOCKED, { fs: 44100, bpm: 90, size: 16, blocks: 3700 });
+  const from1200 = chaosTrace(LOCKED, { fs: 44100, bpm: 90, size: 16, blocks: 3625, beat: ((1200 / 44100) * 90) / 60, seed: 4 });
+  for (let i = 0; i < 3625; i++) assert.equal(from1200[i], from0[75 + i], `44.1 kHz, control block ${i}`);
+  assert.notEqual(from0[3674], from0[3673], 'that edge is a step of the pattern');
+  // a note asked for a hair before the song's start waits on the first step
+  assert.equal(chaosTrace(LOCKED, { beat: -0.01, blocks: 1 })[0], early[0]);
   // not synced, or path "note": each note has its own clock again
-  const own = { ...p, chaos1Path: 'note' };
-  const a = new GgsVoice({ sampleRate: 48000, params: own, key: 60, velocity: 0.8, seed: 1, bpm: 120 });
-  assert.equal(a.chaosc[0].locked, false);
-  assert.equal(new GgsVoice({ sampleRate: 48000, params: { ...p, chaos1Sync: 'off' }, key: 60, velocity: 0.8, seed: 1 }).chaosc[0].locked, false);
-  assert.equal(new GgsVoice({ sampleRate: 48000, params: { ...p, chaos1Type: 'lorenz' }, key: 60, velocity: 0.8, seed: 1 }).chaosc[0].locked, false);
+  assert.equal(new GgsVoice({ sampleRate: 48000, params: { ...LOCKED, chaos1Path: 'note' }, key: 60, velocity: 0.8, seed: 1, bpm: 120 }).chaosc[0].locked, false);
+  assert.equal(new GgsVoice({ sampleRate: 48000, params: { ...LOCKED, chaos1Sync: 'off' }, key: 60, velocity: 0.8, seed: 1 }).chaosc[0].locked, false);
+  assert.equal(new GgsVoice({ sampleRate: 48000, params: { ...LOCKED, chaos1Type: 'lorenz' }, key: 60, velocity: 0.8, seed: 1 }).chaosc[0].locked, false);
+});
+
+test('the turing tape can be entered anywhere: seeking gives what stepping gives, at no cost that grows', () => {
+  const TURING = CHAOS_TYPES.indexOf('turing');
+  for (const character of [0, 0.004, 0.1, 0.5, 1]) {
+    for (const len of [2, 3, 8, 16, 31, 32]) {
+      // one generator walks the tape a step at a time; fresh ones jump straight to a step
+      // (far enough that every step of a short loop has been renewed by the turn count alone: 256 turns)
+      const last = len <= 3 ? 1700 : 700;
+      const walker = new Chaos(11);
+      const walked = [];
+      const regs = [];
+      for (let step = 0; step <= last; step++) { walked.push(walker.at(step + 0.5, character, len)); regs.push(walker.reg); }
+      for (const step of [0, 1, len - 1, len, len + 1, 33, 64, 257, 700, last - 1, last]) {
+        const jumper = new Chaos(11);
+        assert.equal(jumper.at(step + 0.5, character, len), walked[step], `character ${character}, ${len} steps: step ${step}`);
+        assert.equal(jumper.reg, regs[step], `character ${character}, ${len} steps: the whole register at step ${step}, not only the bits that sound`);
+      }
+      // backwards, and a change of the settings: the answer depends on the position and the settings alone
+      assert.equal(walker.at(100.5, character, len), walked[100]);
+      const other = new Chaos(11);
+      other.at(50.5, 0.9, 5);
+      assert.equal(other.at(300.5, character, len), walked[300]);
+    }
+  }
+  // the stepping the per-note path does (advance) is the same tape
+  const adv = new Chaos(11);
+  const viaAt = new Chaos(11);
+  for (let step = 1; step <= 200; step++) assert.equal(adv.advance(1, TURING, 1, 0.4, 7), viaAt.at(step + 1e-3, 0.4, 7), `step ${step}`);
+  // a locked loop is the starting pattern, turning; full mutation never loops
+  const lockedLoop = Array.from({ length: 64 }, (_, k) => new Chaos(5).at(k + 0.5, 0, 5));
+  for (let k = 5; k < 64; k++) assert.equal(lockedLoop[k], lockedLoop[k - 5]);
+  assert.ok(new Set(lockedLoop).size >= 2);
+  // the slowest mutation there is still renews every step of the loop within 256 turns: a pattern that mutates at
+  // all is not the starting pattern for ever, and no bit is older than that
+  const turns = (character) => Array.from({ length: 2 * 256 + 8 }, (_, turn) => new Chaos(5).at(turn * 4 + 0.5, character, 4));
+  assert.ok(new Set(turns(1e-12)).size > 2, 'the loop has changed');
+  assert.equal(new Set(turns(0)).size, 1, 'a locked loop has not: the same step of every turn');
+  // bar 250 000 of a song, days into a jam, mutations so rare that the walk back is as long as it gets: no wait
+  const t0 = process.hrtime.bigint();
+  let sum = 0;
+  for (let i = 0; i < 150; i++) {
+    for (const [character, len] of [[0, 16], [1e-9, 32], [0.001, 2], [0.3, 16]]) sum += new Chaos(i).at(4e6 + i * 977.5, character, len);
+  }
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  assert.ok(Number.isFinite(sum));
+  assert.ok(ms < 400, `600 notes entering the tape four million steps in took ${ms.toFixed(1)} ms (stepping there would take seconds)`);
+  // different seeds, different tapes; positions before the start are the start
+  assert.notDeepEqual(Array.from({ length: 32 }, (_, k) => new Chaos(1).at(k + 0.5, 0.5, 8)), Array.from({ length: 32 }, (_, k) => new Chaos(2).at(k + 0.5, 0.5, 8)));
+  assert.equal(new Chaos(3).at(-7.2, 0.5, 8), new Chaos(3).at(0, 0.5, 8));
+});
+
+test('the song clock of a voice: a tempo change never jumps, a turned knob moves every note to the same tape', () => {
+  // the tempo doubles under a held note: the pattern carries on from where it was, at twice the speed
+  const steady = chaosTrace(LOCKED, { blocks: 2000 });
+  const doubled = chaosTrace(LOCKED, { blocks: 2000, tempoAt: 1000, tempo: 240 });
+  for (let b = 0; b < 1000; b++) assert.equal(doubled[b], steady[b]);
+  const changesIn = (x, from, to) => { let n = 0; for (let b = from + 1; b < to; b++) if (x[b] !== x[b - 1]) n++; return n; };
+  assert.ok(Math.abs(changesIn(doubled, 1000, 2000) / changesIn(steady, 1000, 2000) - 2) < 0.25, 'twice the steps per second after the change');
+  // …and a note that starts after the change, at the same place in the song, hears the same steps
+  const beatAtChange = 1000 * BEATS_PER_BLOCK;
+  const after = chaosTrace(LOCKED, { beat: beatAtChange, blocks: 1000, bpm: 240, seed: 5 });
+  for (let b = 0; b < 1000; b++) assert.equal(after[b], doubled[1000 + b], `block ${b} after the tempo change`);
+  // slowing down does not send the tape backwards (no step is heard twice, none skipped)
+  const slowed = chaosTrace({ ...LOCKED, chaos1Char: 0 }, { blocks: 3000, tempoAt: 900, tempo: 60 });
+  const lockedTape = chaosTrace({ ...LOCKED, chaos1Char: 0 }, { blocks: 3000 });
+  const seq = (x) => x.filter((v, i) => i === 0 || v !== x[i - 1]);
+  const s = seq(slowed);
+  assert.deepEqual(s, seq(lockedTape).slice(0, s.length), 'the same steps in the same order, only later');
+  // the mutation knob turned under a held note: from then on it hears what a new note hears
+  const v = new GgsVoice({ sampleRate: 48000, params: LOCKED, key: 60, velocity: 0.8, seed: 1, bpm: 120 });
+  const L = new Float32Array(128), R = new Float32Array(128);
+  for (let b = 0; b < 700; b++) v.process(L, R, 0, 128, {});
+  for (const edit of [{ chaos1Char: 0.05, chaos1Steps: 11 }, { chaos1Char: 0.8, chaos1Steps: 5 }, { chaos1Char: 0 }, { chaos1Steps: 3 }]) {
+    const beat = (v.frames / 48000) * 2; // where the held note stands (120 bpm)
+    v.setParams(edit);
+    const held = [];
+    for (let b = 0; b < 300; b++) { v.process(L, R, 0, 128, {}); held.push(v.src[CH1]); }
+    const fresh = chaosTrace({ ...v.p }, { beat, blocks: 300, seed: 3 });
+    assert.deepEqual(held, fresh, JSON.stringify(edit));
+  }
+  // a "free" LFO follows the same clock: a tempo-synced one counts beats (a late note is in phase, a tempo change
+  // keeps it on the grid), one in hertz counts seconds
+  const lfoAt = MOD_SOURCES.indexOf('lfo1');
+  const lfo = (params, opts) => {
+    const voice = new GgsVoice({ sampleRate: 48000, params: { ...SINE, mod1Src: 'lfo1', mod1Dst: 'level', mod1Amt: 0.1, lfo1Trig: 'free', lfo1Shape: 'saw', ...params }, key: 60, velocity: 0.8, seed: opts.seed || 1, bpm: opts.bpm || 120, beat: opts.beat || 0 });
+    const out = [];
+    for (let b = 0; b < opts.blocks; b++) { if (b === opts.tempoAt) voice.setTempo(opts.tempo); voice.process(L, R, 0, 128, {}); out.push(voice.src[lfoAt]); }
+    return out;
+  };
+  const close = (x, y, what) => { for (let i = 0; i < x.length; i++) assert.ok(Math.abs(x[i] - y[i]) < 1e-9, `${what}: block ${i} (${x[i]} / ${y[i]})`); };
+  const synced = lfo({ lfo1Sync: '1/4' }, { blocks: 1200 });
+  close(lfo({ lfo1Sync: '1/4' }, { blocks: 500, beat: 700 * BEATS_PER_BLOCK, seed: 9 }), synced.slice(700), 'a late note, synced');
+  const hz = lfo({ lfo1Rate: 1.7 }, { blocks: 1200 });
+  close(lfo({ lfo1Rate: 1.7 }, { blocks: 500, beat: 700 * BEATS_PER_BLOCK, seed: 9 }), hz.slice(700), 'a late note, in hertz');
+  // after a tempo change the synced LFO is where a note that starts there finds it
+  const changed = lfo({ lfo1Sync: '1/4' }, { blocks: 1200, tempoAt: 600, tempo: 90 });
+  close(lfo({ lfo1Sync: '1/4' }, { blocks: 600, beat: 600 * BEATS_PER_BLOCK, bpm: 90 }), changed.slice(600), 'through a tempo change');
+});
+
+test('a chaos path chosen while the source is not routed is the path it takes when it is', () => {
+  const base = { ...SINE, chaos1Type: 'drift', chaos1Rate: 5 };
+  const route = { mod1Src: 'chaos1', mod1Dst: 'pitch', mod1Amt: 0.2 };
+  const heard = (seed, edits) => {
+    const v = new GgsVoice({ sampleRate: 48000, params: { ...base, ...route }, key: 60, velocity: 0.8, seed, bpm: 120 });
+    const L = new Float32Array(128), R = new Float32Array(128);
+    for (const e of edits) { v.setParams(e); for (let b = 0; b < 40; b++) v.process(L, R, 0, 128, {}); }
+    const out = [];
+    for (let b = 0; b < 200; b++) { v.process(L, R, 0, 128, {}); out.push(v.src[CH1]); }
+    return out;
+  };
+  // route off → path "same" → route on: two different notes now wander together, exactly as far apart as in time
+  const off = { mod1Src: 'none' };
+  const a = heard(1, [off, { chaos1Path: 'same' }, { mod1Src: 'chaos1' }]);
+  const b = heard(2, [off, { chaos1Path: 'same' }, { mod1Src: 'chaos1' }]);
+  assert.deepEqual(a, b);
+  // …and back to "note": each its own way again
+  const c = heard(1, [{ chaos1Path: 'same' }, off, { chaos1Path: 'note' }, { mod1Src: 'chaos1' }]);
+  const d = heard(2, [{ chaos1Path: 'same' }, off, { chaos1Path: 'note' }, { mod1Src: 'chaos1' }]);
+  assert.notDeepEqual(c, d);
+});
+
+test('the preview survives settings that are not numbers', () => {
+  for (const type of CHAOS_TYPES) {
+    for (const bad of [{ character: NaN }, { character: 'x' }, { steps: NaN }, { character: Infinity, steps: -Infinity }]) {
+      const p = chaosPreview({ type, ...bad }, 120, 8);
+      assert.ok(p.every((v) => v >= -1 && v <= 1), `${type} ${JSON.stringify(bad)}`);
+      assert.ok(Math.max(...p) - Math.min(...p) > 0.1, `${type} still moves`);
+    }
+  }
 });
 
 test('a drawn LFO shape: steps are held in order, glide when smoothed, and travel in documents', () => {
@@ -193,10 +352,11 @@ test('a drawn LFO shape: steps are held in order, glide when smoothed, and trave
   assert.equal(base.lfo1Steps, 4);
   // one value per control block for one second (2 Hz: two cycles of four steps, an eighth of a second each)
   const trace = (params, opts = {}) => {
-    const v = new GgsVoice({ sampleRate: 48000, params, key: 60, velocity: 0.8, seed: 1, bpm: 120 });
+    // (`from`: the note starts that many seconds into the song — two beats a second at 120 bpm)
+    const v = new GgsVoice({ sampleRate: 48000, params, key: 60, velocity: 0.8, seed: 1, bpm: 120, beat: (opts.from || 0) * 2 });
     const L = new Float32Array(16), R = new Float32Array(16);
     const out = [];
-    for (let b = 0; b < 3000; b++) { v.process(L, R, 0, 16, { pitch: 0, pressure: 0, timbre: 0, time: (opts.from || 0) + (b * 16) / 48000 }); out.push(v.src[at]); }
+    for (let b = 0; b < 3000; b++) { v.process(L, R, 0, 16, { pitch: 0, pressure: 0, timbre: 0 }); out.push(v.src[at]); }
     return out;
   };
   const hard = trace(base);

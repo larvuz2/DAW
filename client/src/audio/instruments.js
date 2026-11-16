@@ -566,7 +566,7 @@ export function playNote(ctx, dest, instrument, opts) {
     else if (BAND[kind]) natural = BAND[kind](v, ctx, p, args);
     else if (WORLD[kind]) natural = WORLD[kind](v, ctx, p, args);
     else if (kind === 'plugin') natural = pluginVoice(v, ctx, instrument, args);
-    else if (kind === 'ggs') natural = ggsVoice(v, ctx, instrument, { ...args, expr: opts.expr, rig: opts.rig });
+    else if (kind === 'ggs') natural = ggsVoice(v, ctx, instrument, { ...args, expr: opts.expr, rig: opts.rig, beat: opts.beat });
     const bend = opts.expr?.expression?.pitch;
     if (bend && kind !== 'ggs') bendVoice(v, bend, t, Math.max(0.001, opts.expr.seconds));
   } catch (err) {
