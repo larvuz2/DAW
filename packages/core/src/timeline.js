@@ -18,14 +18,17 @@ export function swingTicks(start, swing) {
 
 /**
  * Notes of one pattern whose start lies in [from, to) (pattern-local ticks, no looping).
- * Returns [{ channelId, key, start, length, velocity, pan, noteId }]
+ * Returns [{ channelId, key, start, length, velocity, pan, noteId, expression, releaseVelocity, fullLength }]
  */
 export function patternNotesInRange(pattern, from, to) {
   const out = [];
   for (const [channelId, list] of Object.entries(pattern.notes || {})) {
     for (const n of list) {
       if (n.start >= from && n.start < to) {
-        out.push({ channelId, key: n.key, start: n.start, local: n.start, length: n.length, velocity: n.velocity, pan: n.pan || 0, noteId: n.id });
+        out.push({
+          channelId, key: n.key, start: n.start, local: n.start, length: n.length, velocity: n.velocity, pan: n.pan || 0, noteId: n.id,
+          expression: n.expression, releaseVelocity: n.releaseVelocity, fullLength: n.length
+        });
       }
     }
   }
@@ -61,7 +64,9 @@ export function songNotesInRange(project, from, to) {
           if (abs < lo || abs >= hi) continue;
           out.push({
             channelId, key: n.key, start: abs, local: n.start, length: Math.max(1, Math.min(n.length, ce - abs)),
-            velocity: n.velocity, pan: n.pan || 0, noteId: n.id, clipId: clip.id
+            velocity: n.velocity, pan: n.pan || 0, noteId: n.id, clipId: clip.id,
+            // fullLength: a note cut by the clip end still plays its curves at their own pace
+            expression: n.expression, releaseVelocity: n.releaseVelocity, fullLength: n.length
           });
         }
       }

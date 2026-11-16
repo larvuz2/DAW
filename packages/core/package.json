@@ -12,6 +12,7 @@
     "test": "node --test --test-timeout=90000 test/*.test.js"
   },
   "dependencies": {
+    "@greanteadawy/synth-dsp": "*",
     "immer": "^11.1.0"
   }
 }

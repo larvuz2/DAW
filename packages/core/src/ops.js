@@ -11,12 +11,13 @@ import {
 } from './model.js';
 import { SCALES } from './music.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
+import { EXPRESSION_DIMS, sanitizeCurve } from './expression.js';
 
 export const OP_TYPES = [
   'project/update', 'project/replace',
   'channel/add', 'channel/update', 'channel/remove', 'channel/move',
   'pattern/add', 'pattern/update', 'pattern/remove', 'pattern/move',
-  'notes/add', 'notes/update', 'notes/remove', 'notes/set',
+  'notes/add', 'notes/update', 'notes/remove', 'notes/set', 'notes/expression',
   'track/add', 'track/update',
   'clip/add', 'clip/update', 'clip/remove',
   'mixer/add', 'mixer/update',
@@ -387,6 +388,34 @@ export function applyOp(d, op) {
       p.notes[op.channelId] = (op.notes || []).map(sanitizeNote).sort((a, b) => a.start - b.start || a.key - b.key);
       return;
     }
+    case 'notes/expression': {
+      // Patch the performance of existing notes: each curve named in `expression` is replaced (null/[] removes it),
+      // curves not named are kept — so a pitch edit and a pressure edit of the same note never overwrite each other.
+      const p = pat(d, op.patternId);
+      const list = p.notes[op.channelId] || [];
+      // a few notes: look them up one by one (mapping the whole list would draft every note of a big pattern)
+      const updates = op.notes || [];
+      const byId = updates.length > 8 ? new Map(list.map((n) => [n.id, n])) : null;
+      for (const upd of updates) {
+        const n = upd && (byId ? byId.get(upd.id) : list.find((x) => x.id === upd.id));
+        if (!n) continue;
+        if ('releaseVelocity' in upd) {
+          if (upd.releaseVelocity === null || upd.releaseVelocity === undefined) delete n.releaseVelocity;
+          else n.releaseVelocity = num(upd.releaseVelocity, 0.5, 0, 1);
+        }
+        if (!('expression' in upd)) continue;
+        if (!upd.expression || typeof upd.expression !== 'object') { delete n.expression; continue; }
+        const next = {};
+        for (const dim of EXPRESSION_DIMS) {
+          const src = dim in upd.expression ? upd.expression[dim] : n.expression?.[dim];
+          const curve = src ? sanitizeCurve(dim, Array.isArray(src) ? src : src.points) : null;
+          if (curve) next[dim] = curve;
+        }
+        if (Object.keys(next).length) n.expression = next;
+        else delete n.expression;
+      }
+      return;
+    }
     case 'track/add': {
       req(d.playlist.tracks.length < MAX_TRACKS, `Max ${MAX_TRACKS} playlist tracks`);
       const count = Math.max(1, Math.min(op.ids?.length || op.count || 1, MAX_TRACKS - d.playlist.tracks.length));
@@ -578,6 +607,7 @@ export function describeOps(ops, project) {
       case 'notes/set': return `Wrote ${op.notes?.length || 0} notes for ${name(project?.channels, op.channelId)} (${name(project?.patterns, op.patternId)})`;
       case 'notes/remove': return `Removed notes from ${name(project?.channels, op.channelId)}`;
       case 'notes/update': return `Edited ${op.notes?.length || 0} notes`;
+      case 'notes/expression': return `Shaped the expression of ${op.notes?.length || 0} note(s) on ${name(project?.channels, op.channelId)}`;
       case 'clip/add': return `Placed ${(op.clips || [op.clip]).length} clip(s) in playlist`;
       case 'clip/update': return 'Moved/edited playlist clips';
       case 'clip/remove': return `Removed ${(op.ids || [op.id]).length} clip(s)`;

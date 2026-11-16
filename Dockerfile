@@ -7,6 +7,7 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/core/package.json packages/core/
+COPY packages/synth-dsp/package.json packages/synth-dsp/
 COPY server/package.json server/
 COPY client/package.json client/
 RUN npm ci --no-audit --no-fund
@@ -14,7 +15,7 @@ COPY packages packages
 COPY server server
 COPY client client
 RUN npm run build && npm prune --omit=dev --no-audit --no-fund \
-  && rm -rf client/src client/test client/public client/index.html client/vite.config.js server/test packages/*/test
+  && rm -rf client/src client/test client/public client/index.html client/vite.config.js server/test packages/*/test packages/*/scripts
 
 # ---- runtime
 FROM node:22-alpine

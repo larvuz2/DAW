@@ -3,6 +3,7 @@ export * from './ids.js';
 export * from './music.js';
 export * from './instruments.js';
 export * from './effects.js';
+export * from './expression.js';
 export * from './model.js';
 export * from './ops.js';
 export * from './timeline.js';

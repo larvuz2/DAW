@@ -1,4 +1,5 @@
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
+import { GGS_PARAMS, GGS_PRESETS } from '@greanteadawy/synth-dsp';
 
 // Instrument catalog. Every channel in the Channel Rack has an instrument:
 //   { kind: 'kick' | 'synth' | ..., preset: 'Punchy', params: {...} }
@@ -268,6 +269,12 @@ export const INSTRUMENTS = {
       'Riser Noise': { osc1Wave: 'noise', osc1Level: 1, osc2Wave: 'sawtooth', osc2Level: 0.15, unison: 3, unisonDetune: 25, filterType: 'lowpass', cutoff: 14000, resonance: 1.5, keyTrack: 0, filterEnv: 0, attack: 0.05, decay: 1, sustain: 1, release: 0.4, gain: 0.45 },
       'Reverse Swell': { osc1Wave: 'noise', osc1Level: 0.8, osc2Wave: 'sawtooth', osc2Level: 0.2, unison: 3, filterType: 'highpass', cutoff: 1200, keyTrack: 0, filterEnv: 0, attack: 1.5, decay: 0.1, sustain: 1, release: 0.03, gain: 0.45 }
     }
+  },
+  ggs: {
+    label: 'GGS Synth', category: 'synth', melodic: true, defaultKey: 60, color: '#46c79a', expressive: true,
+    description: 'Wavetable / FM hybrid synthesizer: 3 wavetable oscillators (unison, warp, phase modulation) + sub + noise, 2 routable filters, 4 envelopes, 4 LFOs, 16-slot modulation matrix, 4 macros and built-in drive, chorus, delay and reverb. Every note has its own pitch, pressure and slide (timbre) curves — route them in the matrix. Its params live in packages/synth-dsp (the engine); use the synth tools (describe_synth, set_synth_*) rather than raw params.',
+    params: GGS_PARAMS,
+    presets: GGS_PRESETS
   },
   fm: {
     label: 'FM Synth', category: 'synth', melodic: true, defaultKey: 60, color: '#8f6cf0',

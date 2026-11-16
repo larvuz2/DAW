@@ -7,6 +7,7 @@ import { uid } from './ids.js';
 import { INSTRUMENTS, makeInstrument } from './instruments.js';
 import { createEffect, EFFECTS } from './effects.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
+import { sanitizeExpression } from './expression.js';
 
 export const PROJECT_FORMAT = 'greanteadawy-project';
 export const PROJECT_VERSION = 1;
@@ -352,6 +353,12 @@ export function sanitizeNote(nt) {
     velocity: num(nt.velocity, 0.8, 0, 1)
   };
   if (nt.pan !== undefined && nt.pan !== 0) out.pan = num(nt.pan, 0, -1, 1);
+  // the performance: how the note is let go, and its pitch / pressure / timbre curves (see expression.js)
+  if (nt.releaseVelocity !== undefined && nt.releaseVelocity !== null) out.releaseVelocity = num(nt.releaseVelocity, 0.5, 0, 1);
+  if (nt.expression) {
+    const expression = sanitizeExpression(nt.expression);
+    if (expression) out.expression = expression;
+  }
   return out;
 }
 
