@@ -92,6 +92,10 @@ cut each other off), step note (root key) and mixer routing. Drop a sample on th
   off), reverse, a velocity-sensitive low-pass **cutoff**, gain and an amp envelope.
 - Presets worth knowing: *Lo-fi Keys*, *Strings*, *Riser Noise*, *Reverse Swell* (subtractive synth), *Felt Piano* (FM),
   *Sub Drop* (808).
+- **GGS Synth**: a channel with this instrument shows the synth editor here instead of plain knobs — tabs for
+  oscillators (waveform + spectrum), filters (response curve), envelopes & LFOs, the modulation matrix and effects,
+  four named macros, patch export/import and a touch pad that plays pressure (up/down) and slide (left/right) with
+  the pointer. See [GGS Synth](ggs-synth.md).
 
 ## Piano roll (F7)
 
@@ -99,7 +103,11 @@ cut each other off), step note (root key) and mixer routing. Drop a sample on th
   selects), **Erase** (or right-click), **Chord stamp** (choose major, minor, 7ths, 9ths… and click to place a chord).
 - Snap grid, quantize (Ctrl+Q), legato, humanize, octave up/down, scale highlighting (key + scale), ghost notes of other
   channels, zoom and key height.
-- Keys: Ctrl+A/C/V/D, Delete, ↑/↓ transpose (Shift = octave), ←/→ nudge. Velocity lane at the bottom.
+- Keys: Ctrl+A/C/V/D, Delete, ↑/↓ transpose (Shift = octave), ←/→ nudge.
+- **The lane at the bottom** edits, per note: *Velocity*, *Release vel.*, or the note's own **Pitch**, **Pressure**
+  or **Slide** curve. Curve lanes have Draw / Line / Points tools and ready-made shapes (bend, scoop, fall, vibrato,
+  swell…); select a note to shape only that note. Pitch curves are also drawn over the notes. Copies of a note keep
+  its performance. See [Per-note expression](expression-engine.md).
 - Click the keyboard on the left to audition notes.
 
 ## Playlist (F5) & song mode
@@ -175,6 +183,9 @@ for (permissions), its files and fingerprint, with a warning to install only plu
   octave) or a **MIDI keyboard** (MIDI button in the toolbar, Web MIDI capable browsers).
 - Press **Record** (●) and play while the transport runs: notes are written into the current pattern (optionally
   quantized — Settings → Studio).
+- **MPE controllers** work as they should: each finger bends, presses and slides its own note, and Record keeps
+  that as the note's curves. An ordinary keyboard's pitch wheel, aftertouch and mod wheel do the same for all its
+  notes. Pressure and slide are heard on GGS Synth channels; pitch on every instrument.
 
 ### Recording audio (vocals, guitar, anything with a microphone)
 

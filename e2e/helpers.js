@@ -3,6 +3,12 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 
 export const ADMIN = { username: 'producer', password: 'correct-horse-42', displayName: 'Pat Producer' };
 
+/**
+ * For specs that set their own launchOptions: E2E_CHROMIUM runs the tests in a Chromium that is already installed
+ * (see playwright.config.js). Spread it into launchOptions.
+ */
+export const chromiumPath = process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {};
+
 /** Connect an MCP client ("Claude") to the test server, optionally with a personal API token. */
 export async function connectMcp(baseURL, token) {
   const client = new Client({ name: 'e2e-claude', version: '1.0.0' });

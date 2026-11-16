@@ -8,6 +8,7 @@ skills for *developing* GreanTeaDawy live in [`.claude/skills/`](../.claude/skil
 |-------|----------------------------------|
 | [`greanteadawy-beatmaking`](greanteadawy-beatmaking/SKILL.md) | make a beat / track / loop from an idea — genre recipes, sound palette, the build order |
 | [`greanteadawy-arranging`](greanteadawy-arranging/SKILL.md) | turn loops into a song — forms, energy, fills, transitions, band parts |
+| [`greanteadawy-sound-design`](greanteadawy-sound-design/SKILL.md) | design an original synth sound (GGS Synth patches, modulation, macros) or make a part expressive — per-note bends, vibrato, pressure and slide |
 | [`greanteadawy-mixing`](greanteadawy-mixing/SKILL.md) | mix, master, make it louder, fix mud/harshness, deliver files — by the numbers with `render_mix` |
 | [`greanteadawy-spatial-mix`](greanteadawy-spatial-mix/SKILL.md) | make an Atmos-style 3D / binaural / 5.1 / 7.1.4 version |
 | [`greanteadawy-plugin-author`](greanteadawy-plugin-author/SKILL.md) | write your own instrument, effect, sample instrument or note generator plugin (templates + a packer) |

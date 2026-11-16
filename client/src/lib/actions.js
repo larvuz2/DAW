@@ -356,8 +356,14 @@ export async function importMidi() {
       used.add(ins);
       const avg = tr.notes.reduce((a, n) => a + n.key, 0) / tr.notes.length;
       const preset = tr.isDrum ? null : avg < 48 ? 'Sub Bass' : avg < 60 ? 'Warm Keys' : 'Pluck';
-      ops.push({ type: 'channel/add', nameInsert: true, channel: { id, name: tr.name.slice(0, 32), kind: tr.isDrum ? 'perc' : 'synth', preset: preset || undefined, mixerTrack: ins } });
-      ops.push({ type: 'notes/set', patternId, channelId: id, notes: tr.notes.map((n) => ({ id: uid('n'), key: n.key, start: n.start, length: n.length, velocity: n.velocity })) });
+      // a track played with pressure or slide needs an instrument that listens to them
+      const touch = !tr.isDrum && tr.notes.some((n) => n.expression?.pressure || n.expression?.timbre);
+      const channel = touch ? { kind: 'ggs', preset: 'Touch Lead' } : { kind: tr.isDrum ? 'perc' : 'synth', preset: preset || undefined };
+      ops.push({ type: 'channel/add', nameInsert: true, channel: { id, name: tr.name.slice(0, 32), ...channel, mixerTrack: ins } });
+      ops.push({
+        type: 'notes/set', patternId, channelId: id,
+        notes: tr.notes.map((n) => ({ id: uid('n'), key: n.key, start: n.start, length: n.length, velocity: n.velocity, ...(n.expression ? { expression: n.expression } : {}), ...(n.releaseVelocity !== undefined ? { releaseVelocity: n.releaseVelocity } : {}) }))
+      });
       for (const n of tr.notes) maxEnd = Math.max(maxEnd, n.start + n.length);
     }
     const bar = ticksPerBar(p);

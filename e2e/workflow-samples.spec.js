@@ -3,13 +3,13 @@
 // microphone, alone and over the song) and Claude's edit_sample — in a real browser.
 import { test, expect } from '@playwright/test';
 import { trackPitch, findNotes, decodeWav } from '@greanteadawy/core';
-import { ADMIN, connectMcp, makeWav, menuItem, voiceWav } from './helpers.js';
+import { ADMIN, connectMcp, makeWav, menuItem, voiceWav, chromiumPath } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 test.use({
   launchOptions: {
     args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
-    ...(process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {}) // see playwright.config.js
+    ...chromiumPath
   },
   permissions: ['microphone']
 });

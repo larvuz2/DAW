@@ -1,7 +1,8 @@
 # GreanTeaDawy — notes for Claude
 
 GreanTeaDawy is a pattern-based browser DAW (channel rack, step sequencer, piano roll, playlist,
-mixer, automation) with an MCP server so Claude can produce music in it. Node.js ≥ 20.19 backend, React +
+mixer, automation) with a wavetable/FM synth (the GGS Synth), per-note expression (MPE-style pitch / pressure / slide
+curves) and an MCP server so Claude can produce music in it. Node.js ≥ 20.19 backend, React +
 Web Audio frontend, plain ESM JavaScript (no TypeScript), MIT licensed.
 
 ## Layout
@@ -15,6 +16,9 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
   src/effects.js      effect catalog (same idea); automatable params are backed by AudioParams in the client
   src/spatial.js      3D object coordinates, speaker layouts (5.1/7.1/7.1.4), panning gains, ADM XML
   src/plugins.js      plugin manifest validation, permissions, param values, cleaning generator output
+  src/expression.js   per-note curves (pitch / pressure / timbre in normalized note time): sanitize, evaluate, flatten,
+                      simplify, transform, makeCurve shapes     src/mpe.js  MPE/MIDI controller decoder
+  src/evaluate.js     evaluateComposition: a lint of the song as written (evaluate_composition)
   src/music.js        notes, scales, chords, roman numerals     src/notation.js  step strings ("x---x---")
   src/builders.js     chord/bass/melody/roll generators
   src/templates.js    genre starter projects: build() + the menu order; each genre is src/templates/<id>.js { label, spec }
@@ -23,6 +27,9 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
                       applyEdit = one named op (what edit_sample sends); every op returns a NEW clip (undo keeps old ones)
   src/autotune.js     YIN pitch tracking, vibrato-proof note segmentation, correction curve, TD-PSOLA, WSOLA, pitch shift
   src/midi.js wav.js (multichannel/extensible + extra chunks) summary.js timeline.js constants.js
+packages/synth-dsp/  @greanteadawy/synth-dsp — the GGS Synth engine: plain JS, NO dependencies, no Node/DOM APIs (it runs in
+                      an AudioWorklet and in Node). params.js (flat schema), voice.js, fx.js, wavetables.js, presets.js,
+                      patch.js (documents), render.js (headless); scripts/bench.mjs, scripts/level-presets.mjs
 server/src/
   index.js            createServer(): express app, security headers, auth, /api, /mcp, static client, WebSocket hub
   auth/               users.js (scrypt, API tokens gtd_…), sessions.js (cookie gtd_session), http.js, routes.js
@@ -32,8 +39,10 @@ server/src/
   api.js              REST routes          backend.js  local/remote backend used by MCP tools
   ffmpeg.js           optional ffmpeg detection + safe conversions (MP3/AAC/Ogg/Opus/FLAC/ALAC/AIFF)
   plugins.js zip.js sandbox.js   user plugins: store + worklet harness, hardened zip reader, generator sandbox page
-  mcp/                tools.js (server factory), tools/*.js (78 tools; production.js = groove/fills/transitions,
-                      export.js, spatial.js, plugins.js), guide.js (what Claude reads: notation + mixing-by-numbers),
+  synth-worker.js     renders + analyses GGS notes in a worker thread (analyze_synth_patch: no browser needed)
+  mcp/                tools.js (server factory), tools/*.js (94 tools; production.js = groove/fills/transitions,
+                      export.js, spatial.js, plugins.js, synth.js = GGS patches, expression.js = per-note curves +
+                      evaluate_composition), guide.js (what Claude reads: notation + mixing-by-numbers),
                       prompts.js, http.js, stdio.js
 client/src/
   state/store.js      zustand store: auth, project (optimistic ops + undo/redo), UI windows/prefs
@@ -42,13 +51,16 @@ client/src/
                       band.js + models.js + modelPool.js/modelWorker.js (physical models pre-rendered in workers),
                       world.js (flutes, beatbox, Indian & East Asian voices; their strings are models.js models),
                       spatial.js (SpatialRig: binaural / speakers / objects), plugins.js (plugin voices & effects),
+                      ggs-synth/ (worklet.js = ggs-voice + ggs-fx processors, index.js = GgsChannel + ggsVoice,
+                      module.js = the one Vite-specific import of the worklet URL),
                       editWorker.js (slow sample edits, pitch analysis/correction off the main thread)
   lib/                actions.js, jobs.js (browser jobs for MCP), sandbox.js (generator iframe), keyboard.js, hooks.js,
                       version.js (app name + version from client/package.json, shown in the About dialog),
                       audioEdit.js (decode at native rate, worker calls, WAV save/replace, the sample-edit job),
                       recorder.js (MicSession: getUserMedia → AudioWorklet capture, meter, monitor)
   components/         SampleLibrary.jsx (Samples tab: folders, search, select mode), WaveEditor.jsx + PitchView.jsx,
-                      Recorder.jsx
+                      Recorder.jsx, SynthEditor.jsx (GGS Synth, inside Channel settings), ExpressionLane.jsx (the
+                      piano roll's pitch / pressure / slide lane)
                       … one file per window (Playlist, ChannelRack, PianoRoll, Mixer, …) + ui/ primitives
 client/public/        recorder-worklet.js (served as /recorder-worklet.js: CSP script-src 'self' allows addModule)
 e2e/                  Playwright specs (real browser + MCP client acting as Claude)
@@ -62,9 +74,11 @@ docs/                 user & developer docs; docs/MCP.md is generated
 ```bash
 npm install
 npm run dev          # server :3001 + Vite :5173 (proxy /api /mcp /ws)
-npm test             # core, server and client unit/integration tests (node:test)
+npm test             # core, synth-dsp, server and client unit/integration tests (node:test)
+npm run bench:synth  # GGS Synth CPU per voice (compare with docs/audio-benchmarks.md)
 npm run lint         # ESLint (must be clean)
-npm run test:e2e     # builds the client, runs Playwright against a throwaway server (port 3199)
+npm run test:e2e     # builds the client, runs Playwright against a throwaway server (port 3199);
+                     # E2E_CHROMIUM=/path/to/chromium uses an installed browser instead of `playwright install`
 npm run screenshots  # regenerates docs/screenshots/*.png
 npm run docs:mcp     # regenerates docs/MCP.md from the live tool definitions
 npm run plugin:pack -- <folder> | --examples   # validate + zip a plugin
@@ -118,6 +132,14 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   that gets validated/cleaned (`cleanGeneratedNotes`, `sanitizePluginValues`, harness `clean`). Installing needs a
   browser session and `trust: true`; never add a path that installs or enables a plugin from MCP/API tokens. A
   project must keep working when a plugin is missing (silent channel, pass-through effect, settings kept).
+- **Notes carry a performance**: optional `expression` ({ pitch, pressure, timbre } curves in normalized note time)
+  and `releaseVelocity`. Edit them with the `notes/expression` op (patches one curve, keeps the others). Any code
+  that creates notes from notes (copy, duplicate, paste, import) must carry `expressionFields(n)` and `pan`.
+- **GGS Synth** (`ggs`): its ~214 flat params live in `packages/synth-dsp/src/params.js` (the catalog imports them).
+  One AudioWorklet processor per note; the patch travels in `processorOptions`, and gate / kill / pitch / pressure /
+  timbre / macros are AudioParams — never make note timing depend on port messages (offline renders must repeat).
+  No allocation or string-keyed lookups in the render path; no `Math.random()` in the engine (seeded per note).
+  Presets are levelled by measurement (`scripts/level-presets.mjs --write` after changing one). See the `ggs-synth` skill.
 - **Spatial**: an insert with `spatial.enabled` is a 3D object; the `SpatialRig` (not the stereo router) connects it.
   Exports are rendered by the `spatial` job; positions automate `spatialX/Y/Z`. See `docs/spatial.md`.
 - **Samples**: a sample's audio can be replaced (wave editor "Replace original", `edit_sample saveAs=replace`): the id stays,
@@ -160,8 +182,8 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
 ## Project skills & agents
 
 See `.claude/skills/` (add-instrument, add-effect, add-mcp-tool, add-project-op, spatial-audio, plugin-system,
-write-plugin, export-formats, test-and-qa, docs-and-release) and
+write-plugin, export-formats, ggs-synth, test-and-qa, docs-and-release) and
 `.claude/agents/` (`qa-reviewer` — read-only code review; `music-industry-advisor` — read-only product advice from a
 20-year music-industry veteran's perspective). The top-level `skills/` folder is different: skills for *users* making
-music with GreanTeaDawy from Claude Desktop / claude.ai (beat making, mixing by numbers, spatial, arranging, plugin
-authoring) — keep them in sync with the MCP tools and `guide.js`.
+music with GreanTeaDawy from Claude Desktop / claude.ai (beat making, sound design & expression, mixing by numbers,
+spatial, arranging, plugin authoring) — keep them in sync with the MCP tools and `guide.js`.

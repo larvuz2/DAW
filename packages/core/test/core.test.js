@@ -447,7 +447,7 @@ test('world templates: Indian Fusion and East Asian Lo-fi use the collections; t
 
 test('genre templates: reverbs on send buses, kick sidechains, every part inside its pattern, heard and in the scale', async () => {
   const { createProjectFromTemplate, INSTRUMENTS, scalePitchClasses } = await import('../src/index.js');
-  const genres = ['drill', 'afrobeats', 'reggaeton', 'dnb', 'synthwave', 'disco', 'neosoul', 'bossanova', 'cinematic', 'beatbox'];
+  const genres = ['drill', 'afrobeats', 'reggaeton', 'dnb', 'synthwave', 'disco', 'neosoul', 'bossanova', 'cinematic', 'beatbox', 'expressive'];
   for (const t of genres) {
     const p = createProjectFromTemplate(t);
     const fed = new Set(p.mixer.flatMap((m) => m.sends.map((s) => s.to)));

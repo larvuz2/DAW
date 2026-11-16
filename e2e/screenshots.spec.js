@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { packPlugin } from '../scripts/pack-plugin.mjs';
-import { ADMIN, connectMcp, makeWav, menuItem, voiceWav } from './helpers.js';
+import { ADMIN, connectMcp, makeWav, menuItem, voiceWav, chromiumPath } from './helpers.js';
 
 const OUT = 'docs/screenshots';
 test.skip(!process.env.SCREENSHOTS, 'set SCREENSHOTS=1 (npm run screenshots) to regenerate README images');
@@ -14,7 +14,7 @@ test.use({
   viewport: { width: 1600, height: 940 },
   deviceScaleFactor: 1,
   // the recorder screenshot records from Chromium's fake microphone
-  launchOptions: { args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] }
+  launchOptions: { args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'], ...chromiumPath }
 });
 
 /** Lay out the studio windows (x, y, w, h) and close the rest. */
@@ -249,4 +249,45 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await phone.waitForTimeout(600);
   await phone.screenshot({ path: `${OUT}/mobile.png` });
   await ctx.close();
+});
+
+// The GGS Synth and expression images. Kept apart so they can be regenerated on their own:
+//   SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.js -g "GGS Synth"
+test('GGS Synth screenshots', async ({ browser, baseURL }) => {
+  fs.mkdirSync(OUT, { recursive: true });
+  const page = await browser.newPage();
+  await page.goto('/');
+  const status = await (await page.request.get('/api/auth/status')).json();
+  if (status.setupRequired) await page.request.post('/api/auth/setup', { data: ADMIN });
+  else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
+  await page.goto('/');
+  await expect(page.locator('.toolbar')).toBeVisible();
+  const claude = await connectMcp(baseURL);
+  await claude.call('create_project', { name: 'Expressive Synths', template: 'expressive' });
+  await expect(page).toHaveTitle(/Expressive Synths/);
+  const lead = await page.evaluate(() => {
+    const { store } = window.greanteadawy;
+    const p = store.getState().project;
+    const ch = p.channels.find((c) => c.name === 'Lead');
+    store.setState({ selectedChannelId: ch.id, pianoRollChannelId: ch.id, selectedPatternId: p.patterns.find((x) => x.name === 'Lead').id, browserOpen: false });
+    return ch.id;
+  });
+  expect(lead).toBeTruthy();
+
+  // the synth editor (oscillators) next to the modulation matrix of the same patch
+  await layout(page, { channelSettings: [10, 10, 860, 870] });
+  await expect(page.locator('.ggs-osc canvas').first()).toBeVisible();
+  await page.screenshot({ path: `${OUT}/ggs-synth.png` });
+  await page.locator('.ggs-tabs button', { hasText: 'Matrix' }).click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: `${OUT}/ggs-matrix.png`, clip: { x: 10, y: 50, width: 860, height: 830 } });
+
+  // the piano roll: pitch curves over the notes, the pitch lane underneath
+  await layout(page, { pianoRoll: [10, 10, 1580, 600] });
+  await page.locator('.pr-lane').selectOption('pitch');
+  await page.locator('.pr-lane-bar select').nth(2).selectOption('2');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/expression.png`, clip: { x: 0, y: 44, width: 1600, height: 622 } });
+  await claude.close();
+  await page.close();
 });

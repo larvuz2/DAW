@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.8.0 — GGS Synth, per-note expression, MPE
+
+**GGS Synth** — a new instrument (Browser → Synths), built from scratch in `packages/synth-dsp`
+- Three wavetable oscillators (24 band-limited tables, unison up to 8, six warp modes, FM between oscillators), a sub
+  and a noise source, two routable filters (low/high/band-pass at 12 or 24 dB, notch, peak, a tuned comb; drive and
+  key tracking), four envelopes, four LFOs (free or tempo-synced, per note or shared), four macros and a 16-route
+  modulation matrix; built-in drive, chorus, delay and reverb.
+- **30 presets** in six families (pads, leads, bass, keys, sequences, experimental), each with four named macros and
+  a stated response to pressure and slide, levelled by measurement to −18 LUFS per note.
+- An **editor** in the Channel window: waveform and spectrum of every oscillator, filter response curves, envelope and
+  LFO shapes, the matrix, effects, patch export/import, and a touch pad that plays pressure and slide with the pointer.
+- Runs in an AudioWorklet, one processor per note; realtime and offline renders share one deterministic path. Selective
+  2× oversampling (only for patches that can alias). Measured: tuning within 0.1 cent, oscillator aliasing below
+  −80 dB, 32 voices × 3 oscillators in under a fifth of a core — see `docs/audio-benchmarks.md`.
+- A new project template, **Expressive synths**: a 24-bar piece on six GGS patches with a full performance in the notes.
+
+**Per-note expression**
+- Every note can carry its own **pitch**, **pressure** and **slide** (timbre) curve and a **release velocity**. Curves
+  live in normalized note time, so moving, resizing, duplicating and quantizing notes keeps them.
+- The piano roll's bottom lane edits them: freehand, line and point tools, ready-made shapes (bend, scoop, fall,
+  vibrato, swell, ramp, pulse); pitch curves are drawn over the notes; copies keep their performance.
+- Pitch curves bend **every** instrument, each note alone; pressure and slide drive the GGS Synth's matrix.
+- **MPE input**: each finger of an MPE controller moves its own note, live and recorded into the note's curves;
+  ordinary keyboards map pitch wheel, aftertouch and mod wheel the same way.
+- **MIDI files**: channels with curves export as MPE tracks and import back into curves.
+- A new op, `notes/expression`, patches one curve without touching the others (undoable, synced live).
+
+**Claude (MCP)** — 16 new tools, 94 in all
+- `describe_synth`, `create_synth_patch`, `get_synth_patch`, `update_synth_patch`, `set_synth_oscillator`,
+  `set_synth_filter`, `set_synth_envelope`, `set_synth_lfo`, `set_synth_modulation`, `set_synth_effect`.
+- `analyze_synth_patch` renders a note or chord **on the server** (no browser) and measures it.
+- `set_note_expression`, `get_note_expression`, `transform_note_expression`, `copy_note_expression`; `add_notes` takes
+  expression inline; `get_pattern` and the project summary show it.
+- `evaluate_composition`: a check of the song as written — notes outside the key, flat velocities, chords on a mono
+  patch, curves nothing responds to, unplaced patterns.
+- `add_automation` can target a GGS channel's `macro1`…`macro4`.
+
+**Notes for existing projects**
+- Nothing changes in how existing projects sound: the new note fields are optional and the legacy instruments are
+  untouched. The project format version stays 1.
+- `npm test` now also runs `packages/synth-dsp`. E2E: set `E2E_CHROMIUM=/path/to/chromium` to use an installed browser.
+
 ## 0.7.1 — ten new genre templates
 
 - Ten new genre templates, each pre-mixed with shared reverb/delay buses and (where there is a kick) kick-keyed

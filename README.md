@@ -4,7 +4,7 @@
 
 GreanTeaDawy is an open-source, self-hosted beat-making studio: channel rack and step sequencer, piano roll, playlist,
 mixer with effects, automation, sampler and audio clips, all running in the browser with a Node.js backend. Its
-built-in [MCP](https://modelcontextprotocol.io) server gives Claude 78 music-production tools, so you can say
+built-in [MCP](https://modelcontextprotocol.io) server gives Claude 94 music-production tools, so you can say
 *"make a dark trap beat at 145 BPM and mix it for streaming"* and watch every edit appear live in your studio.
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
@@ -30,14 +30,22 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 78 music-pro
   choke groups, per-channel groove (nudge in ms, swing share), mini piano-roll previews for melodic channels.
 - **Expressive velocity** — a hardware-style squared curve, and softer notes are darker (drums, filters, FM, sampler,
   piano/guitar/bass tone).
+- **GGS Synth** — an original wavetable / FM hybrid synthesizer: 3 wavetable oscillators (24 band-limited tables,
+  unison, warp, FM), sub + noise, 2 routable filters, 4 envelopes, 4 LFOs, 4 macros, a 16-route modulation matrix
+  and built-in drive / chorus / delay / reverb, with an editor that shows waveforms, spectra, filter responses and
+  envelope shapes. 30 presets levelled by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
+- **Per-note expression (MPE-style)** — every note has its own pitch, pressure and slide curve and a release
+  velocity: draw them in the piano roll's expression lane, play them in from an MPE controller (or any keyboard),
+  have Claude write them. Bend one note of a chord; pitch curves work on every instrument.
+  → [docs/expression-engine.md](docs/expression-engine.md)
 - **Instruments** — synthesized kick, snare, clap, hats, toms, rim, cowbell, cymbal, shaker, perc; 808 bass with glide
-  and distortion; 3-oscillator subtractive synth; FM synth; **sampler** for your own audio; and a GarageBand-style
+  and distortion; 3-oscillator subtractive synth; FM synth; the **GGS Synth**; **sampler** for your own audio; and a GarageBand-style
   band: modelled **grand piano**, **electric piano** (tine/reed), **drawbar organ** (percussion, rotary), **guitar**
   (acoustic/nylon/electric), **bass guitar** (finger/pick/slap/upright) and **strings** (ensemble or solo; legato,
   staccato, pizzicato). Four world collections: **flutes** (concert, pan, recorder, tin whistle, ocarina),
   **beatbox** (mouth kick, snares, hats, bass, scratch/click-roll FX), **Indian** (sitar with jawari and sympathetic
   strings, tanpura, tabla bols, bansuri, shehnai, santoor, harmonium) and **East Asian** (koto, guzheng, pipa,
-  shamisen, erhu, shakuhachi, dizi, suona, taiko, gong): 47 instruments, about 200 presets, plus Japanese
+  shamisen, erhu, shakuhachi, dizi, suona, taiko, gong): 48 instruments, about 230 presets, plus Japanese
   pentatonic and Indian thaat scales.
 - **Piano roll** — draw/select/erase tools, chord stamp, snap, quantize, legato, humanize, scale highlighting, ghost
   notes, velocity lane, copy/paste/duplicate, keyboard nudging.
@@ -76,9 +84,13 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 78 music-pro
 **Claude integration (MCP)**
 
 - **Streamable HTTP** (`/mcp`) and **stdio** (for Claude Desktop) transports.
-- 78 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
+- 94 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
   lines with 808 slides), melodies, rolls, transforms, arrangement with markers, automation, mixer and effects,
   samples, versions, undo, play/stop, MIDI and stem export.
+- **Sound design & expression** — `create_synth_patch`, `set_synth_oscillator` / `_filter` / `_envelope` / `_lfo` /
+  `_modulation` / `_effect` build a GGS Synth patch section by section; `analyze_synth_patch` renders and measures
+  it on the server (no browser needed); `set_note_expression` writes per-note pitch / pressure / slide curves
+  (bend, scoop, vibrato, swell…); `evaluate_composition` checks the song as written before you listen.
 - **Production tools** — `apply_groove` (boom bap, Dilla, lo-fi, trap, drill, house, afrobeats feels), `add_fill`
   (snare rolls, tom runs, hat rolls, drop-outs…), `add_transition` (risers, swells, snare builds, impacts on the
   downbeat).
@@ -114,6 +126,7 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 78 music-pro
 | [![World collections](docs/screenshots/world.png)](docs/screenshots/world.png) **World collections** — the Indian Fusion template, sitar settings | [![Sign in](docs/screenshots/login.png)](docs/screenshots/login.png) **Sign in** |
 | [![Wave editor](docs/screenshots/wave-editor.png)](docs/screenshots/wave-editor.png) **Wave editor** — select, cut, fade, stretch, pitch shift | [![Pitch correction](docs/screenshots/pitch-correction.png)](docs/screenshots/pitch-correction.png) **Pitch correction** — auto-tune and notes moved by hand |
 | [![Recorder](docs/screenshots/recorder.png)](docs/screenshots/recorder.png) **Recorder** — takes over the song, placed on the playlist | [![About](docs/screenshots/about.png)](docs/screenshots/about.png) **About** — app name and version (ⓘ, top right) |
+| [![GGS Synth](docs/screenshots/ggs-synth.png)](docs/screenshots/ggs-synth.png) **GGS Synth** — wavetable oscillators, spectra, macros, touch pad | [![Expression](docs/screenshots/expression.png)](docs/screenshots/expression.png) **Per-note expression** — pitch curves over the notes, the expression lane |
 
 ## Quick start
 
@@ -207,6 +220,9 @@ Add HTTPS for other computers with the bundled Caddy profile (`docker compose --
 | [User guide](docs/user-guide.md) | every window, tool and shortcut |
 | [Making music with Claude](docs/claude-mcp.md) | connecting, tokens, `render_mix`, tips |
 | [MCP reference](docs/MCP.md) | all tools and parameters (generated) |
+| [GGS Synth](docs/ggs-synth.md) | the wavetable/FM synth: signal path, modulation, presets, patch documents |
+| [Per-note expression](docs/expression-engine.md) | pitch / pressure / slide curves, the expression lane, MPE input, MIDI |
+| [Audio benchmarks](docs/audio-benchmarks.md) | measured aliasing, tuning, CPU and the loudness policy of the synth |
 | [Spatial mixing](docs/spatial.md) | 3D objects, binaural, 5.1 / 7.1.4, ADM |
 | [Plugins](docs/plugins.md) | write, pack and install instruments, effects, generators |
 | [Docker](docs/docker.md) | image, compose, HTTPS, backups |

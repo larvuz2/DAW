@@ -283,3 +283,17 @@ test('evaluate_composition flags what will not sound as written', async () => {
   const clean = JSON.parse((await call('evaluate_composition')).split('\n{').pop().replace(/^/, '{'));
   assert.equal(clean.counts.issue, 0);
 });
+
+test('the sound-design skill teaches recipes the tools accept', async () => {
+  const fs = await import('node:fs');
+  const text = fs.readFileSync(new URL('../../skills/greanteadawy-sound-design/recipes.md', import.meta.url), 'utf8');
+  const recipes = [...text.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => JSON.parse(m[1]));
+  assert.ok(recipes.length >= 6);
+  for (const [i, patch] of recipes.entries()) {
+    const out = await call('create_synth_patch', { name: `Recipe ${i + 1}`, patch });
+    assert.match(out, /Created GGS Synth/, `recipe ${i + 1}`);
+    // every recipe sounds: a note of it has a level
+    const data = JSON.parse((await call('analyze_synth_patch', { channel: `Recipe ${i + 1}`, noteSeconds: 0.6 })).split('\n{').pop().replace(/^/, '{'));
+    assert.ok(data.lufs > -45 && data.peakDb < 0, `recipe ${i + 1}: ${data.lufs} LUFS, peak ${data.peakDb} dBFS`);
+  }
+});

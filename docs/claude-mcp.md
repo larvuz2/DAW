@@ -60,7 +60,15 @@ Use the URL form `https://your-server/mcp?token=gtd_…`. Treat that URL like a 
 
 ## What Claude can do
 
-78 tools in nine groups — see the full [MCP reference](MCP.md):
+94 tools in eleven groups — see the full [MCP reference](MCP.md):
+
+- **GGS Synth** ([guide](ggs-synth.md)): `describe_synth` (the reference), `create_synth_patch`, `get_synth_patch`,
+  `update_synth_patch`, `set_synth_oscillator` / `_filter` / `_envelope` / `_lfo` / `_modulation` / `_effect`, and
+  **analyze_synth_patch**, which renders a note or chord on the server — no browser needed — and measures pitch,
+  loudness, spectrum and envelope, optionally with pressure / slide / pitch curves.
+- **Expression** ([guide](expression-engine.md)): `set_note_expression` (per-note pitch / pressure / slide curves as
+  shapes or points, release velocity), `get_note_expression`, `transform_note_expression`, `copy_note_expression`,
+  and **evaluate_composition** — a check of the song as written (keys, dynamics, voices, curves nothing hears).
 
 - **Projects**: status, list/create/open/duplicate/delete projects, get the song as a readable summary, update tempo,
   key, scale, swing, time signature, versions (save/list/restore), undo.

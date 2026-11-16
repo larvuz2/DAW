@@ -23,6 +23,9 @@
   op system (`applyOps`, `prepareOps`, `describeOps`), instrument/effect catalogs, music theory, notation parsers,
   generators (chords, basslines, melodies, rolls), templates, MIDI import/export, WAV codec, audio analysis and
   human-readable project summaries for Claude.
+- **`packages/synth-dsp`** — the GGS Synth engine in plain JavaScript with no dependencies: voice, effects, band-limited
+  wavetables, parameter schema, presets, patch documents and a headless renderer. The browser runs it in an
+  AudioWorklet; the server runs it in a worker thread (`analyze_synth_patch`). Core imports its schema and presets.
 - **`server`** — Express app, WebSocket hub, stores, auth, REST API and the MCP server.
 - **`client`** — React UI, zustand store, WebSocket sync and the Web Audio engine.
 
@@ -33,6 +36,10 @@ A project is plain JSON: `bpm`, `timeSig`, `swing`, `key`, `scale`, `channels[]`
 and `mixer[]` (insert 0 = master; volume, pan, routing, sends, effects). Time is measured in ticks
 (`PPQ = 96` per beat, 24 per 16th step). Everything loaded from disk, imported or restored passes through
 `normalizeProject`, which fills defaults, clamps values, drops invalid references and breaks routing cycles.
+
+A note is `{ id, key, start, length, velocity }` plus optional `pan`, `releaseVelocity` and `expression` — its own
+pitch / pressure / timbre curves in normalized note time (`core/expression.js`; see
+[expression-engine.md](expression-engine.md)). The op `notes/expression` patches one curve without touching the others.
 
 ## Ops: the only way to edit
 
@@ -89,6 +96,11 @@ Jobs time out, fail fast when the tab closes, and only the owning user's tab can
   pizzicato are **physical models rendered into buffers** (`audio/models.js`, pure JS): `modelPool.js` prewarms every
   note a project plays in background Web Workers (`modelWorker.js`) into an LRU cache (≈ 96 MB), offline renders wait
   for them, and a note that still isn't ready renders on the spot.
+- **GGS Synth** (`audio/ggs-synth/`, engine in `packages/synth-dsp`): one AudioWorklet processor per note. The patch
+  travels with the note (`processorOptions`); gate, kill, pitch, pressure, timbre and the macros are AudioParams, so
+  nothing depends on message timing and offline renders repeat. Each GGS channel keeps an effects processor and four
+  constant sources (the macros). Expression curves are scheduled as AudioParam ramps (`scheduleCurve` in `dsp.js`);
+  other instruments follow a pitch curve through the detune of their sources.
 - **Spatial** (`audio/spatial.js`, coordinates/layouts/ADM in `core/spatial.js`): a `SpatialRig` takes 3D-object
   inserts out of the stereo routing — HRTF `PannerNode`s into the master (binaural monitoring/export), per-speaker
   gains into a `ChannelMerger` (5.1/7.1/7.1.4, bed = master on L/R, objects skip the master bus) or one merger channel

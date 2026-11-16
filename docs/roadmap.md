@@ -67,6 +67,24 @@ genre-aware "bass-heavy" hint.
 | World collections | flutes (5), beatbox (5), Indian (7) and East Asian (10) instruments; sitar/tanpura/santoor/koto/guzheng/pipa/shamisen as physical models with jawari, sympathetic strings and skin hits; Indian Fusion and East Asian Lo-fi templates; Japanese pentatonic and thaat scales | `core/instruments.js`, `client/audio/world.js`, `models.js`, `core/templates.js`, `core/music.js` |
 | UI fixes | selected clips/notes no longer pick up dropdown sizing; windows drag from anywhere on the title bar | `styles.css`, `ui/Window.jsx` |
 
+## 0.8.0 — what was added
+
+The GGS Synth (an original wavetable / FM hybrid with a modulation matrix, 30 levelled presets and an editor),
+per-note expression (pitch, pressure and slide curves in every note: piano-roll lane, MPE input and recording, MPE
+MIDI files), sixteen MCP tools for both — including `analyze_synth_patch`, the first tool that renders audio on the
+server without a browser — and `evaluate_composition`. Details: [ggs-synth.md](ggs-synth.md),
+[expression-engine.md](expression-engine.md), [audio-benchmarks.md](audio-benchmarks.md).
+
+Next for the synth and expression:
+- **Chord explorer** in the piano roll (suggestions by key and function, voice-leading, drag chords in) with matching
+  MCP tools; optional just intonation.
+- **User preset library** (save a patch per account, list it next to the factory presets) — today a patch travels
+  as a document (Export / Import, `get_synth_patch` → `create_synth_patch`).
+- **Wavetable import** (single-cycle files and tables sliced from audio) and a wavetable editor.
+- A **headless song renderer** on the server (the synth already renders there; the mixer and the other instruments
+  still need the browser), then WebAssembly for the voice loop if profiling asks for it.
+- Synth params beyond the macros as automation targets; effect sends per voice; a second modulation page.
+
 ## Still open (next candidates)
 
 **Must-have**
@@ -81,7 +99,7 @@ genre-aware "bass-heavy" hint.
   the playlist), with a wave editor and pitch correction.
 - Time-stretching for audio clips on the playlist (the wave editor can stretch a sample; clips still only repitch),
   sampler slicing and velocity layers, comping several takes into one.
-- Per-note slide flag in the piano roll, per-pattern swing, MIDI CC / mod wheel, tempo automation.
+- ~~Per-note slide flag in the piano roll, MIDI CC / mod wheel~~ — done in 0.8.0 as per-note pitch curves and MPE/mod-wheel input. Still open: per-pattern swing, tempo automation.
 - Plugins: a plugin's own custom UI panel (sandboxed iframe) instead of generated knobs; MIDI-effect plugins (arp,
   chord, scale) applied at playback; sharing a project together with the plugins it uses.
 - Spatial: Dolby-certified ADM/IAB delivery needs Dolby's tools; a head-tracked binaural preview.

@@ -268,3 +268,67 @@ test('MPE decoder: per-note bend, pressure and slide; master channel; ordinary k
   assert.equal(k.message([0xb0, 123, 0]).filter((e) => e.type === 'off').length, 3);
   assert.deepEqual(k.held(), []);
 });
+
+test('the Expressive Synths template: six GGS patches, a performance in the notes, nothing the checker would flag', async () => {
+  const { createProjectFromTemplate, evaluateComposition, songLength, ticksPerBar, ticksToSeconds } = await import('../src/index.js');
+  const p = createProjectFromTemplate('expressive');
+  assert.deepEqual(p.channels.map((c) => c.instrument.kind), Array(6).fill('ggs'));
+  assert.deepEqual(p.channels.map((c) => c.instrument.preset), ['Velvet Pad', 'Glass Horizon', 'Deep Sub', 'Bell Sequence', 'Pluck Garden', 'Touch Lead']);
+  assert.equal(songLength(p) / ticksPerBar(p), 24);
+  const seconds = ticksToSeconds(songLength(p), p.bpm);
+  assert.ok(seconds > 60 && seconds < 75, `${seconds}s`);
+  const lead = p.channels.find((c) => c.name === 'Lead');
+  const notes = p.patterns.flatMap((pt) => pt.notes[lead.id] || []);
+  // independent pitch, pressure and slide on the lead
+  for (const dim of ['pitch', 'pressure', 'timbre']) assert.ok(notes.filter((n) => n.expression?.[dim]).length >= 3, `lead notes with ${dim} curves`);
+  assert.ok(notes.some((n) => !n.expression), 'and plain notes between them');
+  for (const c of p.channels) assert.ok(p.patterns.some((pt) => (pt.notes[c.id] || []).some((n) => n.expression)), `${c.name} is performed`);
+  const e = evaluateComposition(p);
+  assert.deepEqual(e.findings.filter((f) => f.level !== 'info').map((f) => `${f.where}: ${f.message}`), []);
+  // transposing a template keeps every curve
+  const inA = createProjectFromTemplate('expressive', { key: 'A' });
+  assert.equal(inA.patterns.flatMap((pt) => Object.values(pt.notes).flat()).filter((n) => n.expression).length, p.patterns.flatMap((pt) => Object.values(pt.notes).flat()).filter((n) => n.expression).length);
+});
+
+test('MIDI: expression leaves as MPE and comes back as curves; plain tracks are unchanged', async () => {
+  const { projectToMidi, parseMidi, createEmptyProject, createChannel, createPattern, curveValueAt: at } = await import('../src/index.js');
+  const p = createEmptyProject({ bpm: 120 });
+  p.channels = [createChannel({ id: 'lead', name: 'Lead', kind: 'ggs' }), createChannel({ id: 'keys', name: 'Keys', kind: 'piano' })];
+  const bend = [{ t: 0, v: 0 }, { t: 0.5, v: 2 }, { t: 1, v: 2 }];
+  const press = [{ t: 0, v: 0.1, c: 'smooth' }, { t: 0.5, v: 0.9, c: 'smooth' }, { t: 1, v: 0.2 }];
+  p.patterns = [createPattern({ id: 'a', length: 768, notes: {
+    lead: [
+      { id: 'n1', key: 60, start: 0, length: 384, velocity: 0.8, expression: { pitch: bend } },
+      { id: 'n2', key: 64, start: 0, length: 384, velocity: 0.7, releaseVelocity: 0.9, expression: { pressure: press, timbre: [{ t: 0, v: 0.25 }] } },
+      { id: 'n3', key: 67, start: 0, length: 192, velocity: 0.6 },
+      { id: 'n4', key: 72, start: 384, length: 192, velocity: 0.8, expression: { pitch: [{ t: 0, v: -1 }, { t: 0.25, v: 0 }] } }
+    ],
+    keys: [{ id: 'k1', key: 48, start: 0, length: 96, velocity: 0.5 }]
+  } })];
+  const midi = parseMidi(projectToMidi(p, { mode: 'pattern' }));
+  const lead = midi.tracks.find((t) => t.name === 'Lead');
+  assert.equal(lead.mpe, true);
+  assert.equal(lead.isDrum, false, 'MIDI channel 10 is an ordinary member channel in an MPE zone');
+  const by = Object.fromEntries(lead.notes.map((n) => [n.key, n]));
+  assert.deepEqual(lead.notes.map((n) => [n.key, n.start, n.length]), [[60, 0, 384], [64, 0, 384], [67, 0, 192], [72, 384, 192]]);
+  assert.equal(new Set(lead.notes.filter((n) => n.start === 0).map((n) => n.channel)).size, 3, 'simultaneous notes sit on different MIDI channels');
+  // each note has its own curves back, close to what was written
+  for (const t of [0, 0.25, 0.5, 0.75, 1]) assert.ok(Math.abs(at(by[60].expression.pitch, t) - at(bend, t)) < 0.06, `bend at ${t}`);
+  assert.equal(by[60].expression.pressure, undefined);
+  for (const t of [0, 0.25, 0.5, 0.75, 0.95]) assert.ok(Math.abs(at(by[64].expression.pressure, t) - at(press, t)) < 0.04, `pressure at ${t}`);
+  assert.ok(Math.abs(at(by[64].expression.timbre, 0.5) - 0.25) < 0.01);
+  assert.equal(by[64].expression.pitch, undefined, 'the E was never bent');
+  assert.equal(by[64].releaseVelocity, 0.9);
+  assert.equal(by[67].expression, undefined);
+  assert.equal(by[67].releaseVelocity, undefined);
+  assert.ok(Math.abs(at(by[72].expression.pitch, 0) + 1) < 0.02 && Math.abs(at(by[72].expression.pitch, 1)) < 0.02);
+  for (const n of lead.notes) for (const c of Object.values(n.expression || {})) assert.ok(c.length <= 64);
+  // a channel without curves is written exactly as before (one MIDI channel, no controllers)
+  const keys = midi.tracks.find((t) => t.name === 'Keys');
+  assert.deepEqual(keys.notes.map((n) => [n.key, n.start, n.length, n.expression]), [[48, 0, 96, undefined]]);
+  assert.equal(keys.mpe, false);
+  // mpe: false exports plain notes
+  const plain = parseMidi(projectToMidi(p, { mode: 'pattern', mpe: false })).tracks.find((t) => t.name === 'Lead');
+  assert.ok(plain.notes.every((n) => !n.expression));
+  assert.equal(new Set(plain.notes.map((n) => n.channel)).size, 1);
+});

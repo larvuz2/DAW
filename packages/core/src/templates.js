@@ -23,9 +23,10 @@ import neosoul from './templates/neosoul.js';
 import bossanova from './templates/bossanova.js';
 import cinematic from './templates/cinematic.js';
 import beatbox from './templates/beatbox.js';
+import expressive from './templates/expressive.js';
 
 // in the order the template menus list them
-const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox };
+const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox, expressive };
 
 export const TEMPLATES = {
   default: { label: 'Default (4 drum channels)', bpm: 130 },
