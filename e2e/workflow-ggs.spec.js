@@ -352,7 +352,7 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   await expect(ggs.locator('.ggs-route-says').last()).toHaveText('Pitch −30 ct ↔ +30 ct as LFO 1 swings −1 ↔ 1, depth scaled by pressure');
   await expect(ggs.locator('.ggs-route-says', { hasText: /^Filter 1 cutoff [\d.]+ k?Hz → [\d.]+ kHz as slide goes 0 → 1/ })).toHaveCount(1);
   const added = (await instrument()).params;
-  const slot = [...Array(16)].map((_, i) => i + 1).find((i) => added[`mod${i}Src`] === 'lfo1' && added[`mod${i}Dst`] === 'pitchFine' && added[`mod${i}Via`] === 'pressure');
+  const slot = [...Array(64)].map((_, i) => i + 1).find((i) => added[`mod${i}Src`] === 'lfo1' && added[`mod${i}Dst`] === 'pitchFine' && added[`mod${i}Via`] === 'pressure');
   expect(slot).toBeTruthy();
   await rows.last().locator('button').click();
   await expect(rows).toHaveCount(before);
@@ -391,7 +391,7 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   expect(await f1.locator('select option').count()).toBe(21);
 
   // ---- envelopes: nodes set times and sustain, round handles bend a slope, the picture is the patch
-  await tab('Envelopes');
+  await tab('Modulators');
   await expect(ggs.locator('.ggs-envedit svg')).toHaveCount(4);
   await expect(ggs.locator('.ggs-lfo canvas')).toHaveCount(4);
   const env = ggs.locator('.ggs-env').first();
@@ -468,6 +468,179 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   // Glass Horizon rings out for seconds: the voice is released, then gone
   await expect.poll(() => page.evaluate(() => [...window.greanteadawy.engine().voices].every((v) => v.noteEnd !== null))).toBe(true);
   await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 15000 }).toBe(0);
+});
+
+test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for the depth, live dots, chaos, eight macros', async () => {
+  const { channels } = await ids();
+  const ggs = page.locator('.ggs');
+  const instrument = () => page.evaluate((cid) => window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
+  const routesNow = async () => {
+    const p = (await instrument()).params;
+    return [...Array(64)].map((_, i) => i + 1).filter((i) => p[`mod${i}Src`] !== 'none' && p[`mod${i}Dst`] !== 'none' && p[`mod${i}Amt`]).map((i) => ({ slot: i, source: p[`mod${i}Src`], target: p[`mod${i}Dst`], amount: p[`mod${i}Amt`] }));
+  };
+  const find = async (source, target) => (await routesNow()).find((r) => r.source === source && r.target === target);
+  const tab = (name) => ggs.locator('.ggs-tabs button', { hasText: name }).click();
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Init' } } }]), channels.Lead);
+  await expect.poll(async () => (await routesNow()).length).toBe(0);
+
+  // ---- eight macros; the ones a patch does not use are dimmed and say so
+  const macros = ggs.locator('.ggs-head .knob');
+  await expect(macros).toHaveCount(9); // 8 macros + gain
+  await expect(ggs.locator('.ggs-head .knob.unused')).toHaveCount(8);
+  // ---- the source bar: every source as a chip, none routed yet
+  await expect(ggs.locator('.ggs-src')).toHaveCount(25);
+  await expect(ggs.locator('.ggs-src.used')).toHaveCount(0);
+
+  // ---- drop a source on a knob: a route appears, the knob gets a ring, its own value stays
+  await tab('Filters');
+  const cutoff = ggs.locator('.ggs-filter').first().locator('.knob').first();
+  await expect(cutoff).toHaveClass(/assignable/);
+  await expect(cutoff.locator('.knob-ring')).toHaveCount(0);
+  const before = (await instrument()).params.f1Cutoff;
+  await ggs.locator('.ggs-src[data-source="lfo1"]').dragTo(cutoff);
+  await expect.poll(async () => (await find('lfo1', 'f1Cutoff'))?.amount).toBe(0.25);
+  await expect(cutoff.locator('.knob-ring')).toHaveCount(1);
+  await expect(cutoff).toHaveAttribute('title', /Modulated by LFO 1\. Alt-drag: depth of LFO 1/);
+  await expect(ggs.locator('.ggs-src[data-source="lfo1"]')).toHaveClass(/used/);
+  expect((await instrument()).params.f1Cutoff).toBe(before);
+  // dropping the same source again does not add a second route
+  await ggs.locator('.ggs-src[data-source="lfo1"]').dragTo(cutoff);
+  expect((await routesNow()).length).toBe(1);
+
+  // ---- Alt-drag changes the depth of that route, a plain drag still turns the knob
+  const box = await cutoff.locator('svg').boundingBox();
+  const drag = async (dy, alt) => {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    if (alt) await page.keyboard.down('Alt');
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + dy, { steps: 4 });
+    await page.mouse.up();
+    if (alt) await page.keyboard.up('Alt');
+  };
+  await drag(-32, true); // 32 px of 160 = 0.2 of the knob's travel
+  await expect.poll(async () => (await find('lfo1', 'f1Cutoff')).amount).toBeCloseTo(0.45, 2);
+  expect((await instrument()).params.f1Cutoff).toBe(before);
+  await drag(-140, true);
+  await expect.poll(async () => (await find('lfo1', 'f1Cutoff')).amount).toBe(1); // it stops at the end
+  await drag(250, true); // through zero and out the other side: the route does not vanish on the way
+  await expect.poll(async () => (await find('lfo1', 'f1Cutoff'))?.amount).toBeLessThan(-0.4);
+  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  // moves of one control in a row are one undo step, as for every knob: back to the depth it was dropped with
+  await expect.poll(async () => (await find('lfo1', 'f1Cutoff')).amount).toBe(0.25);
+  await drag(-160, true);
+  await expect.poll(async () => (await find('lfo1', 'f1Cutoff')).amount).toBe(1);
+  await drag(20, false);
+  await expect.poll(async () => (await instrument()).params.f1Cutoff).toBeLessThan(before);
+
+  // ---- the knob's menu: add a second source, pick which one Alt-drag moves, remove one
+  await cutoff.click({ button: 'right' });
+  const menu = page.locator('.context-menu');
+  await expect(menu.locator('.cm-header')).toHaveText('Filter 1 cutoff');
+  await menu.locator('.cm-item', { hasText: 'Modulate with' }).hover();
+  await menu.locator('.cm-item', { hasText: /^Chaos$/ }).hover();
+  await menu.locator('.cm-item', { hasText: 'Chaos 1' }).click();
+  await expect.poll(async () => (await find('chaos1', 'f1Cutoff'))?.amount).toBe(0.25);
+  await expect(cutoff.locator('.knob-ring')).toHaveCount(2);
+  await drag(-16, true); // the route just added is the one Alt-drag moves
+  await expect.poll(async () => (await find('chaos1', 'f1Cutoff')).amount).toBeCloseTo(0.35, 2);
+  expect((await find('lfo1', 'f1Cutoff')).amount).toBe(1);
+  await cutoff.click({ button: 'right' });
+  await menu.locator('.cm-item', { hasText: 'LFO 1' }).hover();
+  await menu.locator('.cm-item', { hasText: 'Remove' }).click();
+  await expect.poll(async () => (await find('lfo1', 'f1Cutoff'))).toBeUndefined();
+  await expect(cutoff.locator('.knob-ring')).toHaveCount(1);
+  // a control that is not a modulation target has no ring, no drop zone
+  await expect(ggs.locator('.ggs-filter').first().locator('.knob', { hasText: 'Key track' })).not.toHaveClass(/assignable/);
+
+  // ---- a macro: route macro 5 from its chip; it is named after what it moves and is no longer dimmed
+  await ggs.locator('.ggs-src[data-source="macro5"]').dragTo(ggs.locator('.ggs-filter').first().locator('.knob', { hasText: 'Resonance' }));
+  await expect.poll(async () => (await find('macro5', 'f1Res'))?.amount).toBe(0.25);
+  await expect(ggs.locator('.ggs-head .knob .knob-label', { hasText: 'F1 res' })).toHaveCount(1);
+  await expect(ggs.locator('.ggs-head .knob.unused')).toHaveCount(7);
+
+  // ---- live: hold a note and the dot on the modulated knob follows the chaos, the chips show their sources
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { chaos1Type: 'rossler', chaos1Rate: 8 } } } }]), channels.Lead);
+  const live = () => page.evaluate((cid) => { const v = window.greanteadawy.engine().ggsLive(cid); return v ? Array.from(v) : null; }, channels.Lead);
+  expect(await live()).toBeNull();
+  const dot = cutoff.locator('.knob-live');
+  await expect(dot).toBeHidden();
+  const pad = ggs.locator('.ggs-pad');
+  await pad.scrollIntoViewIfNeeded();
+  const b = await pad.boundingBox();
+  await page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.2);
+  await page.mouse.down();
+  await expect.poll(async () => (await live())?.length).toBe(26 + 40); // every source, then every target
+  await expect(dot).toBeVisible();
+  const where = async () => `${await dot.getAttribute('cx')},${await dot.getAttribute('cy')}`;
+  const first = await where();
+  await expect.poll(where).not.toBe(first); // it moves: chaos at 8 Hz
+  // the report says what the voice is doing: velocity 0.8, pressure from the pad, the chaos value in −1…1
+  const SRC = { velocity: 9, pressure: 10, chaos1: 24 };
+  const v = await live();
+  expect(v[SRC.velocity]).toBeCloseTo(0.8, 2);
+  expect(v[SRC.pressure]).toBeGreaterThan(0.6);
+  expect(Math.abs(v[SRC.chaos1])).toBeLessThanOrEqual(1);
+  const meter = ggs.locator('.ggs-src[data-source="pressure"] .ggs-meter i');
+  await expect.poll(async () => parseFloat(await meter.evaluate((el) => el.style.width))).toBeGreaterThan(60);
+  await page.mouse.up();
+  await expect.poll(live, { timeout: 8000 }).toBeNull(); // the note ends: nothing is live any more
+  await expect(dot).toBeHidden();
+
+  // ---- modulators: two chaos generators with their own controls
+  await tab('Modulators');
+  await expect(ggs.locator('.ggs-chaos')).toHaveCount(2);
+  const chaos2 = ggs.locator('.ggs-chaos').nth(1);
+  await expect(chaos2).toHaveClass(/idle/);
+  await expect(chaos2.locator('.knob-label', { hasText: 'Steps' })).toHaveCount(0);
+  await chaos2.locator('select').first().selectOption('turing');
+  await expect(chaos2.locator('.knob-label', { hasText: 'Steps' })).toHaveCount(1);
+  await expect(chaos2.locator('.knob-label', { hasText: 'Mutation' })).toHaveCount(1);
+  await expect(chaos2.locator('.cs-desc')).toContainText('shift register');
+
+  // ---- the matrix: a chip opens it filtered to that source; 64 slots
+  await ggs.locator('.ggs-src[data-source="chaos1"]').click();
+  await expect(ggs.locator('.ggs-tabs button.on')).toHaveText(/Matrix/);
+  const rows = ggs.locator('.ggs-matrix tbody tr:not(.ggs-route-says)');
+  await expect(rows).toHaveCount(1);
+  await expect(ggs.locator('.ggs-matrix .ggs-ptable-count')).toHaveText('1 of 2 routes · 2/64 slots');
+  await expect(ggs.locator('.ggs-route-says')).toContainText('as Chaos 1 swings −1 ↔ 1');
+  await ggs.locator('.ggs-matrix input[type=search]').fill('');
+  await expect(rows).toHaveCount(2);
+  await ggs.locator('.ggs-matrix-quick button', { hasText: 'Analog drift' }).click();
+  await expect.poll(async () => (await find('chaos2', 'pitchFine'))?.amount).toBe(0.06);
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
+});
+
+test('chaos renders the same every time, and macro 8 automates', async () => {
+  const { channels } = await ids();
+  await claude.call('update_channel', { channel: 'Lead', preset: 'Init', params: { oscAPos: 0, oscARand: 0, f1On: false } });
+  await claude.call('set_synth_chaos', { channel: 'Lead', chaos: 1, type: 'lorenz', rate: 6 });
+  await claude.call('set_synth_modulation', { channel: 'Lead', mode: 'replace', routes: [{ source: 'chaos1', target: 'pitch', amount: 0.25 }] });
+  const render = () => page.evaluate(async () => {
+    const { store, render } = window.greanteadawy;
+    const project = store.getState().project;
+    const r = await render(project, { mode: 'pattern', patternId: project.patterns[0].id, loops: 1, tail: 0.2, encode: false, sampleRate: 44100 });
+    return Array.from(r.buffer.getChannelData(0).subarray(0, 44100));
+  });
+  const a = await render();
+  const b = await render();
+  let worst = 0;
+  let peak = 0;
+  for (let i = 0; i < a.length; i++) { worst = Math.max(worst, Math.abs(a[i] - b[i])); peak = Math.max(peak, Math.abs(a[i])); }
+  expect(peak).toBeGreaterThan(0.05);
+  expect(worst).toBeLessThan(1e-6);
+  // without the chaos the same notes are a different sound
+  await claude.call('set_synth_modulation', { channel: 'Lead', mode: 'replace', routes: [{ source: 'macro8', target: 'pitch', amount: 0.5 }] });
+  const plain = await render();
+  let differs = 0;
+  for (let i = 0; i < a.length; i++) differs = Math.max(differs, Math.abs(a[i] - plain[i]));
+  expect(differs).toBeGreaterThan(0.05);
+  // macro 8 is an automation target like the first four: held at 1 it lifts the pitch an octave
+  expect(await claude.call('add_automation', { name: 'Eight', target: { type: 'channel', channel: 'Lead', param: 'macro8' }, startBar: 1, bars: 1, points: [{ bar: 0, value: 1 }, { bar: 1, value: 1 }] })).toMatch(/Added automation "Eight"/);
+  const key = await page.evaluate((cid) => { const p = window.greanteadawy.store.getState().project; return Object.values(p.patterns[0].notes[cid])[0].key; }, channels.Lead);
+  const up = await renderAndProbe({ base: hz(key), octave: hz(key + 12) }, { mode: 'song', from: 0.05, to: 0.3 });
+  expect(up.levels.octave).toBeGreaterThan(up.levels.base + 20);
+  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.dispatch(st.project.automations.map((x) => ({ type: 'automation/remove', id: x.id }))); });
 });
 
 test('Claude designs a patch, performs it note by note and the browser renders the result', async () => {

@@ -1,4 +1,5 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
+import { onFrame } from './frames.js';
 
 // 'log' needs min > 0; 'cube' is for ranges that start at zero (times): fine steps near the bottom, coarse at the top
 function toNorm(v, min, max, curve) {
@@ -43,16 +44,30 @@ export function useRafCallback(fn) {
   }, []);
 }
 
+/** What a dragged modulation source carries (see the synth editor's source bar). */
+export const SOURCE_MIME = 'application/x-ggs-source';
+
 /**
  * Rotary knob. Drag up/down (Shift = fine), wheel to nudge, double-click to reset.
+ *
+ * A knob that something modulates can show it:
+ *   rings      [{ lo, hi, color }] in the knob's own units — one thin arc per modulation route, outside the track
+ *   live       () => value | null, asked every animation frame — a bright dot where the control really is right now
+ *   onAltDrag  (delta) — Alt + drag changes a modulation depth instead of the value (delta in knob travel, 0..1)
+ *   onDropSource (id)  — a modulation source was dropped on the knob
+ *   onContextMenu
  */
 export function Knob({
   value, min = 0, max = 1, curve, def, step, onChange, size = 30, label, unit, color = 'var(--accent)',
-  bipolar = false, title, disabled = false, showValue = false
+  bipolar = false, title, disabled = false, showValue = false, rings, live, onAltDrag, onDropSource, onContextMenu, className = ''
 }) {
   const ref = useRef(null);
   const drag = useRef(null);
+  const dot = useRef(null);
+  const altMove = useRef(0);
+  const [over, setOver] = useState(false);
   const emit = useRafCallback((v) => onChange?.(v));
+  const emitAlt = useRafCallback(() => { const d = altMove.current; altMove.current = 0; if (d) onAltDrag?.(d); });
   const n = Math.max(0, Math.min(1, toNorm(value ?? 0, min, max, curve)));
 
   const setNorm = (nn) => {
@@ -66,10 +81,16 @@ export function Knob({
     if (disabled || e.button !== 0) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { y: e.clientY, n };
+    drag.current = { y: e.clientY, n, alt: e.altKey && !!onAltDrag };
   };
   const onPointerMove = (e) => {
     if (!drag.current) return;
+    if (drag.current.alt) {
+      altMove.current += (drag.current.y - e.clientY) / (e.shiftKey ? 800 : 160);
+      drag.current.y = e.clientY;
+      emitAlt();
+      return;
+    }
     const dy = drag.current.y - e.clientY;
     setNorm(drag.current.n + dy / (e.shiftKey ? 800 : 160));
   };
@@ -113,17 +134,63 @@ export function Knob({
   const valueArc = bipolar ? (angle >= centerA ? arc(centerA, angle) : arc(angle, centerA)) : arc(a0, angle);
   const [px, py] = pt(angle, r - 3);
   const tip = title || `${label ? `${label}: ` : ''}${formatValue(value, { unit, step })}`;
+  const angleOf = (v) => a0 + sweep * Math.max(0, Math.min(1, toNorm(v, min, max, curve)));
+  /** An arc on its own radius (the modulation rings sit outside the track). */
+  const ringPath = (rad, from, to) => {
+    if (to - from < 3) { const mid = (from + to) / 2; from = mid - 1.5; to = mid + 1.5; } // a clipped range still shows as a tick
+    const [x1, y1] = pt(from, rad);
+    const [x2, y2] = pt(to, rad);
+    return `M${x1} ${y1} A${rad} ${rad} 0 ${to - from > 180 ? 1 : 0} 1 ${x2} ${y2}`;
+  };
+
+  // the live dot follows the audio thread without re-rendering: one attribute write per frame, when it moved
+  useEffect(() => {
+    if (!live) return undefined;
+    let shown = null;
+    return onFrame(() => {
+      const el = dot.current;
+      if (!el) return;
+      const v = live();
+      const at = v === null || v === undefined || Number.isNaN(v) ? null : Math.round(Math.max(0, Math.min(1, toNorm(v, min, max, curve))) * 500) / 500;
+      if (at === shown) return;
+      shown = at;
+      if (at === null) { el.style.display = 'none'; return; }
+      const deg = ((a0 + sweep * at) * Math.PI) / 180;
+      el.setAttribute('cx', c + r * Math.cos(deg));
+      el.setAttribute('cy', c + r * Math.sin(deg));
+      el.style.display = '';
+    });
+  }, [live, min, max, curve, c, r]);
+
+  const dragOver = (e) => {
+    if (!onDropSource || disabled || !e.dataTransfer.types.includes(SOURCE_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'link';
+    if (!over) setOver(true);
+  };
+  const dropped = (e) => {
+    setOver(false);
+    const source = e.dataTransfer.getData(SOURCE_MIME);
+    if (!source || !onDropSource || disabled) return;
+    e.preventDefault();
+    onDropSource(source);
+  };
 
   return (
-    <div className={`knob ${disabled ? 'disabled' : ''}`} title={tip} role="slider" tabIndex={disabled ? -1 : 0}
+    <div className={`knob ${disabled ? 'disabled' : ''} ${onDropSource ? 'assignable' : ''} ${over ? 'drop' : ''} ${rings?.length ? 'modulated' : ''} ${className}`} title={tip} role="slider" tabIndex={disabled ? -1 : 0}
       aria-label={label || title || 'Knob'} aria-valuemin={min} aria-valuemax={max} aria-valuenow={typeof value === 'number' ? value : undefined}
-      aria-valuetext={formatValue(value, { unit, step })} aria-disabled={disabled || undefined} onKeyDown={onKeyDown}>
+      aria-valuetext={formatValue(value, { unit, step })} aria-disabled={disabled || undefined} onKeyDown={onKeyDown}
+      onContextMenu={onContextMenu} onDragOver={dragOver} onDragLeave={() => setOver(false)} onDrop={dropped}>
       <svg ref={ref} width={size} height={size} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
         onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel} onDoubleClick={onDoubleClick}>
         <path d={arc(a0, a0 + sweep)} stroke="var(--knob-track)" strokeWidth="3" fill="none" strokeLinecap="round" />
         {valueArc && <path d={valueArc} stroke={color} strokeWidth="3" fill="none" strokeLinecap="round" />}
         <circle cx={c} cy={c} r={r - 4} fill="var(--knob-face)" />
         <line x1={c} y1={c} x2={px} y2={py} stroke="var(--knob-pointer)" strokeWidth="2" strokeLinecap="round" />
+        {rings?.slice(0, 3).map((ring, i) => (
+          <path key={i} className="knob-ring" d={ringPath(r + 3.6 + i * 2.6, angleOf(ring.lo), angleOf(ring.hi))} stroke={ring.color} strokeWidth="1.7" fill="none" strokeLinecap="round" />
+        ))}
+        {live && <circle ref={dot} className="knob-live" r="2.3" style={{ display: 'none' }} />}
       </svg>
       {label && <div className="knob-label">{label}</div>}
       {showValue && <div className="knob-value">{formatValue(value, { unit, step })}</div>}

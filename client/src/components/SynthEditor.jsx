@@ -1,13 +1,15 @@
 // The GGS Synth editor: shown in the Channel window for channels whose instrument is the GGS Synth. Every control is
 // one of the synth's flat params (packages/synth-dsp/src/params.js) and every change is a channel/update op, so it
 // is undoable, synced live and heard on notes that are already sounding.
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { sanitizeParams } from '@greanteadawy/core';
 import {
   GGS_PARAMS, GGS_PRESET_INFO, OSC_IDS, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO, MOD_TARGET_INFO, FILTER_TYPES, FILTER_INFO,
+  MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, CHAOS_INFO, chaosPreview, macroLabel, macroUsed, modSourceLabel, modTargetLabel,
   ggsParamDef, ggsDefaults, wavetablePreview, wavetableSpectrum, modulationRoutes, describeRoute, paramsToPatch, patchToParams, paramsToSection, sectionToParams, syncBeats
 } from '@greanteadawy/synth-dsp';
 import { useStore } from '../state/store.js';
+import { getEngine, onEngineReady } from '../audio/index.js';
 import { Knob } from './ui/Knob.jsx';
 import { Select } from './ui/Controls.jsx';
 import { download, pickFile } from '../lib/actions.js';
@@ -16,8 +18,15 @@ import { FilterGraph } from './synth/FilterGraph.jsx';
 import { PresetBrowser } from './synth/PresetBrowser.jsx';
 import { WavetablePicker } from './synth/WavetablePicker.jsx';
 import { ParamTable } from './synth/ParamTable.jsx';
+import { SourceBar, SourceMeter } from './synth/SourceBar.jsx';
+import { SOURCE_GROUPS, sourceFamily, sourceColor, ringsOf, liveTarget, liveSource } from './synth/modulation.js';
 
-const TABS = [['osc', 'Oscillators'], ['filter', 'Filters'], ['mod', 'Envelopes & LFOs'], ['matrix', 'Matrix'], ['fx', 'Effects'], ['all', 'All parameters']];
+const TABS = [['osc', 'Oscillators'], ['filter', 'Filters'], ['mod', 'Modulators'], ['matrix', 'Matrix'], ['fx', 'Effects'], ['all', 'All parameters']];
+const FAMILY_LABEL = { env: 'Envelopes', lfo: 'LFOs', chaos: 'Chaos', note: 'The note (velocity, pressure, slide …)', macro: 'Macros' };
+const CHAOS_OPTIONS = CHAOS_TYPES.map((t) => ({ value: t, label: CHAOS_INFO[t].label }));
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// the knobs that are also modulation targets: they show rings, take dropped sources and have a modulation menu
+const TARGET_KEYS = new Set(MOD_TARGETS.filter((t) => ggsParamDef(t)?.type === 'number'));
 const OSC_COLORS = { A: '#46c79a', B: '#5ab8f0', C: '#f59f42' };
 const ENV_COLORS = ['#9ad94f', '#f59f42', '#5ab8f0', '#c86be0'];
 const DEFAULTS = ggsDefaults();
@@ -96,6 +105,20 @@ function LfoView({ shape, phase }) {
   );
 }
 
+/** Twelve cycles of a chaos generator: what kind of movement the settings give (every note takes its own path). */
+function ChaosView({ type, character, steps }) {
+  return (
+    <Scope width={220} height={44} deps={[type, Math.round(character * 100), steps]} title="Twelve cycles of this generator. The path is different for every note unless Path is “same”."
+      draw={(g, w, h) => {
+        const pts = chaosPreview({ type, character, steps }, w, 12, 3);
+        g.strokeStyle = 'rgba(255,255,255,0.1)';
+        g.lineWidth = 1;
+        g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+        line(g, Array.from(pts, (v, i) => [i, h / 2 - v * (h / 2 - 3)]), '#ef7fb0');
+      }} />
+  );
+}
+
 /**
  * A pad to play the patch with a mouse or finger the way an MPE controller would: holding it plays a note, up/down
  * is pressure and left/right is slide — straight into that note's own pressure and timbre inputs.
@@ -153,6 +176,8 @@ function TouchPad({ channel }) {
 
 export function SynthEditor({ channel }) {
   const [tab, setTab] = useState('osc');
+  const [matrixFilter, setMatrixFilter] = useState('');
+  const [active, setActive] = useState({}); // target → the slot whose depth Alt-drag changes there
   const st = useStore.getState();
   const p = channel.instrument.params;
   const info = GGS_PRESET_INFO[channel.instrument.preset] || GGS_PRESET_INFO.Init;
@@ -163,16 +188,115 @@ export function SynthEditor({ channel }) {
   const setDrag = (params, what) => st.dispatch([{ type: 'channel/update', id: channel.id, patch: { instrument: { params } } }], { coalesce: `ggs:${channel.id}:${what}` });
   const pickPreset = (preset) => st.dispatch([{ type: 'channel/update', id: channel.id, patch: { instrument: { preset } } }]);
 
+  const full = { ...DEFAULTS, ...p };
+  const routes = modulationRoutes(full);
+  const freeSlot = () => {
+    for (let i = 1; i <= MOD_SLOTS; i++) if (val(`mod${i}Src`) === 'none' || val(`mod${i}Dst`) === 'none' || !val(`mod${i}Amt`)) return i;
+    return 0;
+  };
+  const addRoute = (source = 'pressure', target = 'f1Cutoff', amount = 0.3, via = 'none') => {
+    const i = freeSlot();
+    if (!i) { st.toast(`All ${MOD_SLOTS} modulation slots are in use`, 'warn'); return 0; }
+    setMany({ [`mod${i}Src`]: source, [`mod${i}Dst`]: target, [`mod${i}Amt`]: amount, [`mod${i}Via`]: via });
+    return i;
+  };
+  const removeRoute = (i) => setMany({ [`mod${i}Src`]: 'none', [`mod${i}Dst`]: 'none', [`mod${i}Amt`]: 0, [`mod${i}Via`]: 'none' });
+  const usedSources = new Set(routes.flatMap((r) => (r.via ? [r.source, r.via] : [r.source])));
+  const used = (source) => usedSources.has(source);
+  const macroNames = Object.fromEntries(Array.from({ length: MACRO_COUNT }, (_, k) => [`macro${k + 1}`, macroLabel(full, k + 1, info.macros)]));
+  const sourceName = (s) => (macroNames[s] && macroNames[s] !== modSourceLabel(s) ? `${modSourceLabel(s)} · ${macroNames[s]}` : modSourceLabel(s));
+
+  // ---- live modulation: while the editor is open the channel's voices report where their modulation stands
+  const live = useCallback(() => getEngine()?.ggsLive(channel.id) ?? null, [channel.id]);
+  useEffect(() => {
+    // (the engine only exists after the first click; the rig of a new channel a moment after the channel)
+    const watch = (on) => getEngine()?.watchGgs(channel.id, on);
+    const off = onEngineReady(() => watch(true));
+    const again = setInterval(() => watch(true), 1000);
+    return () => { off(); clearInterval(again); watch(false); };
+  }, [channel.id]);
+  const latest = useRef(full);
+  latest.current = full;
+  const liveFns = useRef(new Map());
+  /** A stable function per knob that says where its control really is right now (null: no note sounding). */
+  const liveOf = (key) => {
+    let fn = liveFns.current.get(key);
+    if (!fn) {
+      fn = /^macro\d$/.test(key) ? () => liveSource(live(), key) : () => liveTarget(live(), key, latest.current);
+      liveFns.current.set(key, fn);
+    }
+    return fn;
+  };
+
+  // ---- modulating from the knobs: drop a source on a knob or right-click it; Alt-drag sets the depth
+  /** The route Alt-drag changes on a knob: the one last added or chosen there, else the deepest. */
+  const activeRoute = (target) => {
+    const here = routes.filter((r) => r.target === target);
+    return here.find((r) => r.slot === active[target]) || here.sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount))[0] || null;
+  };
+  const modulate = (source, target) => {
+    const same = routes.find((r) => r.source === source && r.target === target && !r.via);
+    const slot = same ? same.slot : addRoute(source, target, 0.25);
+    if (slot) setActive((m) => ({ ...m, [target]: slot }));
+  };
+  const changeDepth = (target, delta) => {
+    const r = activeRoute(target);
+    if (!r) return;
+    const now = latest.current[`mod${r.slot}Amt`] ?? r.amount;
+    // (a depth of exactly 0 would switch the route off and make it vanish from the matrix mid-drag)
+    set(`mod${r.slot}Amt`, clamp(Math.round((now + delta) * 1000) / 1000, -1, 1) || (delta < 0 ? -0.005 : 0.005));
+  };
+  const showInMatrix = (text) => { setMatrixFilter(text); setTab('matrix'); };
+  const knobMenu = (key, d) => (e) => {
+    const here = routes.filter((r) => r.target === key);
+    const chosen = activeRoute(key);
+    st.showContextMenu(e, [
+      { header: modTargetLabel(key, full) },
+      {
+        label: 'Modulate with',
+        submenu: SOURCE_GROUPS.map((group) => ({
+          label: FAMILY_LABEL[sourceFamily(group[0])],
+          submenu: group.map((src) => ({ label: sourceName(src), checked: here.some((r) => r.source === src), onClick: () => modulate(src, key) }))
+        }))
+      },
+      ...(here.length ? ['-'] : []),
+      ...here.map((r) => ({
+        label: `${sourceName(r.source)}${r.via ? ` × ${modSourceLabel(r.via)}` : ''}  ${r.amount > 0 ? '+' : ''}${r.amount.toFixed(2)}`,
+        submenu: [
+          { label: 'Alt-drag sets this depth', checked: chosen?.slot === r.slot, onClick: () => setActive((m) => ({ ...m, [key]: r.slot })) },
+          { label: 'Invert', onClick: () => set(`mod${r.slot}Amt`, -r.amount) },
+          { label: 'Remove', danger: true, onClick: () => removeRoute(r.slot) }
+        ]
+      })),
+      ...(here.length ? [{ label: 'Show in the matrix', onClick: () => showInMatrix(key) }] : []),
+      '-',
+      { label: 'Reset to default', onClick: () => set(key, d.default) }
+    ]);
+  };
+
   /** The control for one param: knob, dropdown or switch, by its definition. */
   const C = (key, opts = {}) => {
     const d = ggsParamDef(key);
     const label = opts.label ?? d.label;
     // every control explains itself on hover (the same text as the All parameters tab)
-    const title = opts.title || d.desc;
+    let title = opts.title || d.desc;
     if (d.type === 'number') {
+      const target = TARGET_KEYS.has(key);
+      const rings = target ? ringsOf(routes, key, full) : null;
+      if (target) {
+        const chosen = rings.length ? activeRoute(key) : null;
+        title += rings.length
+          ? `\nModulated by ${rings.map((r) => sourceName(r.source)).join(', ')}. Alt-drag: depth of ${sourceName(chosen.source)}. Right-click for more.`
+          : '\nDrop a source here, or right-click, to modulate it.';
+      }
       return (
         <Knob key={key} value={val(key)} min={d.min} max={d.max} def={d.default} curve={d.curve} step={d.step} label={label} unit={d.unit}
-          color={opts.color} showValue size={opts.size || 30} bipolar={d.min < 0} title={title} onChange={(v) => set(key, d.step ? Math.round(v) : Math.round(v * 10000) / 10000)} />
+          color={opts.color} showValue size={opts.size || 30} bipolar={d.min < 0} title={title} className={opts.className}
+          rings={rings} live={rings?.length || opts.live ? liveOf(key) : undefined}
+          onAltDrag={target && rings.length ? (delta) => changeDepth(key, delta) : undefined}
+          onDropSource={target ? (src) => MOD_SOURCES.includes(src) && src !== 'none' && modulate(src, key) : undefined}
+          onContextMenu={target ? knobMenu(key, d) : undefined}
+          onChange={(v) => set(key, d.step ? Math.round(v) : Math.round(v * 10000) / 10000)} />
       );
     }
     if (d.type === 'select') {
@@ -204,20 +328,6 @@ export function SynthEditor({ channel }) {
       st.toast(`Not a GGS patch: ${e.message}`, 'error');
     }
   };
-
-  const full = { ...DEFAULTS, ...p };
-  const routes = modulationRoutes(full);
-  const freeSlot = () => {
-    for (let i = 1; i <= MOD_SLOTS; i++) if (val(`mod${i}Src`) === 'none' || val(`mod${i}Dst`) === 'none' || !val(`mod${i}Amt`)) return i;
-    return 0;
-  };
-  const addRoute = (source = 'pressure', target = 'f1Cutoff', amount = 0.3, via = 'none') => {
-    const i = freeSlot();
-    if (!i) { st.toast(`All ${MOD_SLOTS} modulation slots are in use`, 'warn'); return; }
-    setMany({ [`mod${i}Src`]: source, [`mod${i}Dst`]: target, [`mod${i}Amt`]: amount, [`mod${i}Via`]: via });
-  };
-  const removeRoute = (i) => setMany({ [`mod${i}Src`]: 'none', [`mod${i}Dst`]: 'none', [`mod${i}Amt`]: 0, [`mod${i}Via`]: 'none' });
-  const used = (source) => routes.some((r) => r.source === source || r.via === source);
 
   const oscPanel = (x) => {
     const on = val(`osc${x}On`);
@@ -269,7 +379,7 @@ export function SynthEditor({ channel }) {
 
   const envPanel = (i) => (
     <fieldset key={i} className={`param-group ggs-env ${i === 1 || used(`env${i}`) ? '' : 'idle'}`} title={i > 1 && !used(`env${i}`) ? 'Not routed yet: add a route in the Matrix tab' : undefined}>
-      <legend>{i === 1 ? 'Envelope 1 · amp' : `Envelope ${i}`}</legend>
+      <legend>{i === 1 ? 'Envelope 1 · amp' : `Envelope ${i}`}<SourceMeter source={`env${i}`} live={live} className="in-legend" /></legend>
       <EnvelopeEditor env={paramsToSection({ ...DEFAULTS, ...p }, 'envelope', i)} defaults={paramsToSection(DEFAULTS, 'envelope', i)} color={ENV_COLORS[i - 1]} label={`Envelope ${i}`}
         onChange={(f) => setDrag(sectionToParams('envelope', i, f), `env${i}:graph`)} />
       <div className="param-row">{C(`env${i}Delay`)}{C(`env${i}A`, { label: 'A' })}{C(`env${i}Hold`)}{C(`env${i}D`, { label: 'D' })}{C(`env${i}S`, { label: 'S' })}{C(`env${i}R`, { label: 'R' })}</div>
@@ -280,7 +390,7 @@ export function SynthEditor({ channel }) {
     const sync = val(`lfo${i}Sync`);
     return (
       <fieldset key={i} className={`param-group ggs-lfo ${used(`lfo${i}`) ? '' : 'idle'}`} title={used(`lfo${i}`) ? undefined : 'Not routed yet: add a route in the Matrix tab'}>
-        <legend>LFO {i}</legend>
+        <legend>LFO {i}<SourceMeter source={`lfo${i}`} live={live} className="in-legend" /></legend>
         <LfoView shape={val(`lfo${i}Shape`)} phase={val(`lfo${i}Phase`)} />
         <div className="param-row">
           {C(`lfo${i}Shape`)}
@@ -291,19 +401,46 @@ export function SynthEditor({ channel }) {
     );
   };
 
+  const chaosPanel = (i) => {
+    const type = val(`chaos${i}Type`);
+    const kind = CHAOS_INFO[type];
+    const sync = val(`chaos${i}Sync`);
+    return (
+      <fieldset key={`chaos${i}`} className={`param-group ggs-chaos ${used(`chaos${i}`) ? '' : 'idle'}`} title={used(`chaos${i}`) ? undefined : 'Not routed yet: drag its chip from the source bar onto a knob, or add a route in the Matrix tab'}>
+        <legend>Chaos {i}<SourceMeter source={`chaos${i}`} live={live} className="in-legend" /></legend>
+        <ChaosView type={type} character={val(`chaos${i}Char`)} steps={val(`chaos${i}Steps`)} />
+        <div className="param-row">
+          {C(`chaos${i}Type`, { options: CHAOS_OPTIONS })}
+          {sync === 'off' ? C(`chaos${i}Rate`) : <div className="ggs-note" title="Tempo-synced">{syncBeats(sync)} beats</div>}
+          {C(`chaos${i}Sync`)}{C(`chaos${i}Char`, { label: kind.character })}{type === 'turing' && C(`chaos${i}Steps`)}{C(`chaos${i}Path`)}
+        </div>
+        <p className="cs-desc ggs-filter-desc">{kind.desc}</p>
+      </fieldset>
+    );
+  };
+
+  const words = matrixFilter.toLowerCase().split(/\s+/).filter(Boolean);
+  const shownRoutes = routes.map((r) => ({ ...r, says: describeRoute(full, r) }))
+    .filter((r) => words.every((w) => `${r.source} ${r.target} ${r.via || ''} ${sourceName(r.source)} ${r.says}`.toLowerCase().includes(w)));
+
   return (
     <div className="ggs">
       <fieldset className="param-group ggs-head">
         <legend>GGS Synth</legend>
         <div className="param-row">
           <PresetBrowser preset={channel.instrument.preset} onPick={pickPreset} />
-          {[1, 2, 3, 4].map((i) => C(`macro${i}`, { label: info.macros[i - 1], color: '#c86be0', size: 34, title: `Macro ${i}: ${info.macros[i - 1]} (automatable)` }))}
+          {Array.from({ length: MACRO_COUNT }, (_, k) => k + 1).map((i) => C(`macro${i}`, {
+            label: macroNames[`macro${i}`], color: '#c86be0', size: 32, live: true, className: macroUsed(full, i) ? '' : 'unused',
+            title: `Macro ${i}${macroUsed(full, i) ? `: ${macroNames[`macro${i}`]}` : ' — free: drag its chip (M' + i + ') from the source bar onto a knob'}. Automate it in the playlist; the dot shows where automation has it.`
+          }))}
           {C('gain')}
           <button className="btn tiny" onClick={exportPatch} title="Save this patch as a .json document">Export</button>
           <button className="btn tiny" onClick={importPatch} title="Load a patch document">Import</button>
         </div>
         <p className="cs-desc">{info.description} <b>Touch:</b> {info.expression}</p>
       </fieldset>
+
+      <SourceBar used={usedSources} live={live} names={Object.fromEntries(Object.keys(macroNames).map((k) => [k, sourceName(k)]))} onPick={showInMatrix} />
 
       <div className="ggs-tabs" role="tablist">
         {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}{id === 'matrix' ? ` (${routes.length})` : ''}</button>)}
@@ -343,7 +480,7 @@ export function SynthEditor({ channel }) {
         </div>
       )}
 
-      {tab === 'mod' && <div className="ggs-grid">{[1, 2, 3, 4].map(envPanel)}{[1, 2, 3, 4].map(lfoPanel)}</div>}
+      {tab === 'mod' && <div className="ggs-grid">{[1, 2, 3, 4].map(envPanel)}{[1, 2, 3, 4].map(lfoPanel)}{Array.from({ length: CHAOS_COUNT }, (_, k) => chaosPanel(k + 1))}</div>}
 
       {tab === 'matrix' && (
         <div className="ggs-matrix">
@@ -356,13 +493,18 @@ export function SynthEditor({ channel }) {
             <button className="btn tiny" onClick={() => addRoute('velocity', 'f1Cutoff', 0.15)}>Velocity → cutoff</button>
             <button className="btn tiny" onClick={() => addRoute('macro1', 'f1Cutoff', 0.4)}>Macro 1 → cutoff</button>
             <button className="btn tiny" onClick={() => addRoute('timbre', 'f1Morph', 1)} title="For the morph, formant, phaser and comb filters">Slide → filter morph</button>
+            <button className="btn tiny" onClick={() => addRoute('chaos2', 'pitchFine', 0.06)} title="Chaos 2 (drift) on the pitch: every note a few cents off, each in its own way">Analog drift</button>
+          </div>
+          <div className="ggs-browser-top">
+            <input type="search" value={matrixFilter} placeholder="Filter routes: a source, a target, a word…" aria-label="Filter routes" onChange={(e) => setMatrixFilter(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+            <span className="ggs-ptable-count">{shownRoutes.length === routes.length ? `${routes.length} routes` : `${shownRoutes.length} of ${routes.length} routes`} · {routes.length}/{MOD_SLOTS} slots</span>
           </div>
           <table>
             <thead><tr><th>Source</th><th>Target</th><th>Amount</th><th>Via</th><th /></tr></thead>
             <tbody>
-              {routes.flatMap((r) => [
+              {shownRoutes.flatMap((r) => [
                 <tr key={r.slot}>
-                  <td><Select value={r.source} title={MOD_SOURCE_INFO[r.source]} options={MOD_SOURCES.filter((x) => x !== 'none')} onChange={(v) => set(`mod${r.slot}Src`, v)} /></td>
+                  <td><i className="ggs-dot" style={{ background: sourceColor(r.source) }} /><Select value={r.source} title={MOD_SOURCE_INFO[r.source]} options={MOD_SOURCES.filter((x) => x !== 'none')} onChange={(v) => set(`mod${r.slot}Src`, v)} /></td>
                   <td><Select value={r.target} title={MOD_TARGET_INFO[r.target]} options={MOD_TARGETS.filter((x) => x !== 'none')} onChange={(v) => set(`mod${r.slot}Dst`, v)} /></td>
                   <td className="ggs-amt">
                     <input type="range" min={-1} max={1} step={0.01} value={r.amount} aria-label={`Amount of ${r.source} to ${r.target}`} data-nodrag
@@ -373,9 +515,10 @@ export function SynthEditor({ channel }) {
                   <td><button className="tbtn small" onClick={() => removeRoute(r.slot)} aria-label={`Remove route ${r.source} to ${r.target}`} title="Remove">×</button></td>
                 </tr>,
                 // what the route does, in the units of its target
-                <tr key={`${r.slot}-says`} className="ggs-route-says"><td colSpan={5}>{describeRoute(full, r)}</td></tr>
+                <tr key={`${r.slot}-says`} className="ggs-route-says"><td colSpan={5}><SourceMeter source={r.source} live={live} />{r.says}</td></tr>
               ])}
-              {!routes.length && <tr><td colSpan={5} className="ggs-empty">No modulation yet. A route connects a source (envelope, LFO, velocity, the note’s pressure / slide / bend, a macro) to a target.</td></tr>}
+              {routes.length > 0 && !shownRoutes.length && <tr><td colSpan={5} className="ggs-empty">No route matches “{matrixFilter}”. <button className="btn tiny" onClick={() => setMatrixFilter('')}>Show all</button></td></tr>}
+              {!routes.length && <tr><td colSpan={5} className="ggs-empty">No modulation yet. A route connects a source (envelope, LFO, velocity, the note’s pressure / slide / bend, chaos, a macro) to a target. Drag a chip from the source bar onto any knob, or use the buttons above.</td></tr>}
             </tbody>
           </table>
           <p className="cs-desc">Under each route: where it takes its target, from the knob’s position, with this route alone. An amount of 1 is the target’s whole range (cutoff: 10 octaves; pitch: 24 semitones; pitchFine: 1 semitone). {routes.length}/{MOD_SLOTS} slots used.</p>
