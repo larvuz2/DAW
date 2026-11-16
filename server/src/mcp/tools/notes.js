@@ -2,8 +2,9 @@
 import {
   STEP, ticksPerBar, uid, parseNote, noteName, findChannel, findPattern, patternLength, parseStepString, toTicks,
   chordProgressionNotes, bassFromChords, bassLineFromChords, VOICINGS, melodyFromString, melodyLength, quantizeNotes, humanizeNotes, legatoNotes, rollNotes,
-  toStepString, isStepLike, CHORD_TYPES, COLORS, maxPatternLength, MAX_PATTERN_BARS, stepsPerBeat
+  toStepString, isStepLike, CHORD_TYPES, COLORS, maxPatternLength, MAX_PATTERN_BARS, stepsPerBeat, describeExpression, hasExpression
 } from '@greanteadawy/core';
+import { curveArg, withExpression } from './expression.js';
 import { z, ok, projectIdArg, unitArg, annotations as A, normVelocity, growPatternOp, assertFitsPattern, resolveChords, steps, barsOf, uniqueName, assertNameFree } from '../util.js';
 
 const RATE_TICKS = { '1/8': 48, '1/12': 32, '1/16': 24, '1/24': 16, '1/32': 12, '1/48': 8, '1/64': 6 };
@@ -108,7 +109,7 @@ export function registerNoteTools({ tool, backend, load }) {
 
   tool('get_pattern', {
     title: 'Get pattern',
-    description: 'Detailed view of one pattern: per channel a step grid (drums) and the full note list with note ids, names, start/length in steps and velocity — use the ids with update_notes / delete_notes.',
+    description: 'Detailed view of one pattern: per channel a step grid (drums) and the full note list with note ids, names, start/length in steps and velocity, and a summary of each note\'s expression (pitch / pressure / slide curves) — use the ids with update_notes / delete_notes / set_note_expression.',
     inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string().optional().describe('Only this channel') },
     annotations: A.readOnly
   }, async ({ projectId, pattern, channel }) => {
@@ -121,7 +122,7 @@ export function registerNoteTools({ tool, backend, load }) {
       const list = pt.notes[c.id] || [];
       lines.push(`\n${c.name} [${c.id}] — ${list.length} notes`);
       if (list.length && isStepLike(list)) lines.push(`  steps: ${toStepString(list, Math.round(len / STEP), { barSteps: Math.round(ticksPerBar(p) / STEP), group: stepsPerBeat(p) })}`);
-      for (const n of list) lines.push(`  ${n.id}  ${noteName(n.key).padEnd(4)} start ${steps(n.start)}  len ${steps(n.length)}  vel ${Math.round(n.velocity * 100) / 100}${n.pan ? `  pan ${n.pan}` : ''}`);
+      for (const n of list) lines.push(`  ${n.id}  ${noteName(n.key).padEnd(4)} start ${steps(n.start)}  len ${steps(n.length)}  vel ${Math.round(n.velocity * 100) / 100}${n.pan ? `  pan ${n.pan}` : ''}${hasExpression(n) ? `  expr: ${describeExpression(n)}` : ''}`);
     }
     return ok(lines.join('\n'));
   });
@@ -168,12 +169,15 @@ export function registerNoteTools({ tool, backend, load }) {
     start: z.number().min(0).describe('Start position (default unit: steps from pattern start)'),
     length: z.number().positive().optional().describe('Length (default 1 step)'),
     velocity: velocityArg,
-    pan: z.number().min(-1).max(1).optional().describe('Per-note pan')
+    pan: z.number().min(-1).max(1).optional().describe('Per-note pan'),
+    releaseVelocity: z.number().min(0).max(1).optional().describe('How the note is let go (0 slow … 1 snapped; see set_note_expression)'),
+    expression: z.object({ pitch: curveArg.optional(), pressure: curveArg.optional(), timbre: curveArg.optional() }).optional()
+      .describe('Per-note performance curves, as in set_note_expression: e.g. {"pitch":{"shape":"bend","to":2},"pressure":{"shape":"swell","peak":0.9}}')
   });
 
   tool('add_notes', {
     title: 'Add notes (piano roll)',
-    description: 'Write notes into a channel of a pattern (piano roll). Positions/lengths default to 16th-note steps. replace=true clears that channel in the pattern first. Notes past the pattern end extend the pattern.',
+    description: 'Write notes into a channel of a pattern (piano roll). Positions/lengths default to 16th-note steps. replace=true clears that channel in the pattern first. Notes past the pattern end extend the pattern. A note can carry its own expression (pitch / pressure / slide curves) and release velocity — or add them afterwards with set_note_expression.',
     inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string(), notes: z.array(noteSchema).min(1).max(2000), unit: unitArg, replace: z.boolean().optional() },
     annotations: A.edit
   }, async ({ projectId, pattern, channel, notes, unit = 'steps', replace = false }) => {
@@ -181,14 +185,14 @@ export function registerNoteTools({ tool, backend, load }) {
     const pt = findPattern(p, pattern);
     const ch = findChannel(p, channel);
     const defLen = { steps: 1, beats: 0.25, bars: 1 / 16, ticks: STEP }[unit];
-    const list = notes.map((n) => ({
+    const list = notes.map((n) => withExpression({
       id: uid('n'),
       key: parseNote(n.note),
       start: toTicks(n.start, unit, p),
       length: Math.max(1, toTicks(n.length ?? defLen, unit, p)),
       velocity: normVelocity(n.velocity),
       ...(n.pan ? { pan: n.pan } : {})
-    }));
+    }, n, p.bpm));
     const ops = [{ type: replace ? 'notes/set' : 'notes/add', patternId: pt.id, channelId: ch.id, notes: list }];
     const grow = growPatternOp(p, pt, Math.max(...list.map((n) => n.start + n.length)));
     if (grow) ops.unshift(grow);

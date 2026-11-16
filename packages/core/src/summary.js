@@ -5,6 +5,7 @@ import { toStepString, isStepLike, formatNoteList } from './notation.js';
 import { INSTRUMENTS } from './instruments.js';
 import { EFFECTS } from './effects.js';
 import { isSpatialObject } from './spatial.js';
+import { hasExpression } from './expression.js';
 
 const r2 = (x) => Math.round(x * 100) / 100;
 
@@ -38,7 +39,8 @@ export function summarizeProject(project, { notes = true, maxNotes = 64 } = {}) 
         lines.push(`    ${c.name.padEnd(12)} ${toStepString(list, steps, { barSteps: Math.round(bar / STEP), group: stepsPerBeat(project) })}`);
       } else {
         const shown = list.slice(0, maxNotes);
-        lines.push(`    ${c.name.padEnd(12)} ${list.length} notes (note@step+lengthSteps): ${formatNoteList(shown)}${list.length > maxNotes ? ` … +${list.length - maxNotes} more` : ''}`);
+        const expressive = list.filter(hasExpression).length;
+        lines.push(`    ${c.name.padEnd(12)} ${list.length} notes (note@step+lengthSteps): ${formatNoteList(shown)}${list.length > maxNotes ? ` … +${list.length - maxNotes} more` : ''}${expressive ? ` — ${expressive} with expression curves (get_note_expression)` : ''}`);
       }
     }
   }

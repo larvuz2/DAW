@@ -191,3 +191,32 @@ test('playback events and note transforms carry the performance', () => {
   assert.notEqual(expressionFields(note).expression.pitch, expression.pitch, 'a copy, not a shared reference');
   assert.match(describeExpression(note), /pitch 0→\+1 st/);
 });
+
+test('evaluateComposition: findings a producer would flag, sorted by severity', async () => {
+  const { evaluateComposition, formatEvaluation, createEmptyProject, createChannel, createPattern } = await import('../src/index.js');
+  const p = createEmptyProject({ key: 'A', scale: 'minor' });
+  p.channels = [createChannel({ id: 'lead', name: 'Lead', kind: 'ggs', preset: 'Touch Lead', mixerTrack: 1 }), createChannel({ id: 'keys', name: 'Keys', kind: 'piano', mixerTrack: 1 })];
+  const note = (key, start, extra = {}) => ({ id: `n${key}${start}`, key, start, length: 96, velocity: 0.8, ...extra });
+  p.patterns = [createPattern({ id: 'a', name: 'A', notes: {
+    lead: Array.from({ length: 8 }, (_, i) => note(57 + [0, 2, 3, 5, 7, 8, 10, 12][i], i * 96, i === 0 ? { expression: { pressure: [{ t: 0, v: 0 }, { t: 1, v: 1 }] } } : {})),
+    keys: [note(40, 0), note(43, 0), note(47, 0), note(61, 96, { expression: { timbre: [{ t: 0, v: 1 }] } })]
+  } })];
+  const e = evaluateComposition(p);
+  const has = (re) => e.findings.some((f) => re.test(`${f.level} ${f.area} ${f.where}: ${f.message}`));
+  assert.ok(has(/warning arrangement playlist: Nothing is placed/));
+  assert.ok(has(/warning dynamics channel "Lead": Every note has the same velocity/));
+  assert.ok(has(/warning harmony channel "Keys": Plays chords of three or more notes below C3/));
+  assert.ok(has(/issue expression channel "Keys": 1 pressure\/slide curve/));
+  assert.ok(has(/info mix insert 1: Shared by Lead, Keys/));
+  assert.ok(!has(/channel "Lead".*does not route/), 'Touch Lead routes pressure');
+  assert.deepEqual(e.findings.map((f) => f.level), [...e.findings.map((f) => f.level)].sort((a, b) => ['issue', 'warning', 'info'].indexOf(a) - ['issue', 'warning', 'info'].indexOf(b)));
+  assert.match(formatEvaluation(e), /COMPOSITION CHECK — 130 BPM, A minor[\s\S]*ISSUES[\s\S]*WARNINGS[\s\S]*CHANNELS:/);
+  // a clean little song has nothing to fix
+  const ok = createEmptyProject({ key: 'C', scale: 'major' });
+  ok.channels = [createChannel({ id: 'c', name: 'Keys', kind: 'piano', mixerTrack: 1 })];
+  ok.patterns = [createPattern({ id: 'p', notes: { c: [note(60, 0, { velocity: 0.9 }), note(64, 96, { velocity: 0.7 }), note(67, 192)] } })];
+  ok.playlist.clips = [{ id: 'k', kind: 'pattern', refId: 'p', track: 0, start: 0, length: 384, offset: 0, mute: false }];
+  const clean = evaluateComposition(ok);
+  assert.equal(clean.counts.issue + clean.counts.warning, 0);
+  assert.match(formatEvaluation(clean), /Nothing to fix in the notes/);
+});

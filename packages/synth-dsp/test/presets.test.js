@@ -97,7 +97,10 @@ test('patch documents: round trip, partial documents and helpful errors', () => 
   assert.equal(params.mod1Src, 'pressure');
   assert.equal(params.mod2Src, 'none', 'a modulation list replaces all slots');
   assert.equal(params.polyphony, 32);
+  assert.equal(params.oscAOn, true, 'an oscillator the document describes is switched on');
   assert.equal(params.oscBOn, undefined, 'what the document does not mention is left alone');
+  assert.equal(patchToParams({ oscillators: [{ id: 'B', on: false, level: 0.2 }] }).oscBOn, false, 'unless it says otherwise');
+  assert.equal(patchToParams({ filters: [{ id: 2, cutoff: 500 }] }).f2On, true);
 
   assert.deepEqual(sectionToParams('filter', 2, { cutoff: 800, keyTrack: 0.5 }), { f2Cutoff: 800, f2Key: 0.5 });
   assert.equal(paramsToSection(ggsDefaults(), 'envelope', 1).sustain, 1);

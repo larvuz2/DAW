@@ -15,6 +15,8 @@ import { registerProductionTools } from './tools/production.js';
 import { registerExportTools } from './tools/export.js';
 import { registerSpatialTools } from './tools/spatial.js';
 import { registerPluginTools } from './tools/plugins.js';
+import { registerExpressionTools } from './tools/expression.js';
+import { registerSynthTools } from './tools/synth.js';
 import { registerPrompts } from './prompts.js';
 
 export { GUIDE };
@@ -61,6 +63,8 @@ export function createMcpServer(backend) {
   registerExportTools(ctx);
   registerSpatialTools(ctx);
   registerPluginTools(ctx);
+  registerExpressionTools(ctx);
+  registerSynthTools(ctx);
   registerPrompts(ctx);
 
   server.registerResource('guide', 'greanteadawy://guide', {

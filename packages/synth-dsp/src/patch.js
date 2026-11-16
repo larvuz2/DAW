@@ -135,14 +135,16 @@ export function patchToParams(patch) {
     const id = String(o?.id || '').replace(/^osc_?/i, '').toUpperCase();
     if (!OSC_IDS.includes(id)) throw new Error(`Unknown oscillator "${o?.id}". Oscillators: ${OSC_IDS.join(', ')}`);
     const { id: _id, ...fields } = o;
-    Object.assign(out, sectionToParams('oscillator', id, fields));
+    // describing an oscillator means wanting to hear it: it is switched on unless the document says otherwise
+    Object.assign(out, sectionToParams('oscillator', id, { ...(Object.keys(fields).length && !('on' in fields) ? { on: true } : {}), ...fields }));
   }
   const numbered = (list, section, count) => {
     for (const item of listOf(list, `${section}s`)) {
       const id = Number(item?.id);
       if (!(Number.isInteger(id) && id >= 1 && id <= count)) throw new Error(`Unknown ${section} "${item?.id}": use 1..${count}`);
       const { id: _id, ...fields } = item;
-      Object.assign(out, sectionToParams(section, id, fields));
+      const implied = section === 'filter' && Object.keys(fields).length && !('on' in fields) ? { on: true } : {};
+      Object.assign(out, sectionToParams(section, id, { ...implied, ...fields }));
     }
   };
   numbered(patch.filters, 'filter', 2);
@@ -183,4 +185,28 @@ export function describeSynth() {
     effects: { drive: section('drive'), chorus: section('chorus'), delay: section('delay'), reverb: section('reverb') },
     counts: { oscillators: OSC_IDS, filters: 2, envelopes: ENV_COUNT, lfos: LFO_COUNT, macros: MACRO_COUNT, modulationSlots: MOD_SLOTS, params: GGS_PARAMS.length }
   };
+}
+
+const r2 = (x) => Math.round(x * 100) / 100;
+
+/** A patch in a few lines of text: what is on, how it is shaped, what moves it. For summaries and tool replies. */
+export function summarizePatch(params) {
+  const p = { ...ggsDefaults(), ...params };
+  const lines = [];
+  for (const id of OSC_IDS) {
+    if (!p[`osc${id}On`]) continue;
+    const o = paramsToSection(p, 'oscillator', id);
+    const tune = [o.octave && `${o.octave > 0 ? '+' : ''}${o.octave} oct`, o.semi && `${o.semi > 0 ? '+' : ''}${o.semi} st`, o.fine && `${o.fine > 0 ? '+' : ''}${r2(o.fine)} ct`].filter(Boolean).join(' ');
+    lines.push(`Osc ${id}: ${o.table} @ ${r2(o.position)}, level ${r2(o.level)}${tune ? `, ${tune}` : ''}${o.unison > 1 ? `, ${o.unison}× unison (${r2(o.detune)} ct)` : ''}${o.warp !== 'off' ? `, warp ${o.warp} ${r2(o.warpAmount)}` : ''}${o.fmFrom !== 'off' ? `, FM from ${o.fmFrom} ${r2(o.fm)}` : ''} → ${o.to}`);
+  }
+  if (p.subLevel > 0) lines.push(`Sub: ${p.subWave} ${p.subOct} oct, level ${r2(p.subLevel)} → ${p.subDest}`);
+  if (p.noiseLevel > 0) lines.push(`Noise: ${p.noiseType}, level ${r2(p.noiseLevel)} → ${p.noiseDest}`);
+  const filters = [1, 2].filter((i) => p[`f${i}On`]).map((i) => `F${i} ${p[`f${i}Type`]} ${Math.round(p[`f${i}Cutoff`])} Hz res ${r2(p[`f${i}Res`])}${p[`f${i}Drive`] ? ` drive ${r2(p[`f${i}Drive`])}` : ''}${p[`f${i}Key`] ? ` key ${r2(p[`f${i}Key`])}` : ''}`);
+  if (filters.length) lines.push(`Filters: ${filters.join(' · ')}${filters.length > 1 ? ` (${p.filterRoute})` : ''}`);
+  lines.push(`Amp envelope: A ${r2(p.env1A)} D ${r2(p.env1D)} S ${r2(p.env1S)} R ${r2(p.env1R)} s${p.mono ? `; mono${p.legato ? ' legato' : ''}${p.glide ? `, glide ${r2(p.glide)} s` : ''}` : `; ${p.polyphony} voices`}`);
+  const routes = modulationRoutes(p);
+  if (routes.length) lines.push(`Modulation: ${routes.map((r) => `${r.source}${r.via ? `×${r.via}` : ''}→${r.target} ${r.amount > 0 ? '+' : ''}${r2(r.amount)}`).join(', ')}`);
+  const fx = [p.driveAmt > 0 && `drive ${p.driveType} ${r2(p.driveAmt)}`, p.chorusMix > 0 && `chorus ${r2(p.chorusMix)}`, p.delayMix > 0 && `delay ${r2(p.delayMix)} (${p.delaySync === 'free' ? `${Math.round(p.delayTime)} ms` : p.delaySync})`, p.reverbMix > 0 && `reverb ${r2(p.reverbMix)} size ${r2(p.reverbSize)}`].filter(Boolean);
+  lines.push(`Effects: ${fx.join(', ') || 'none'}; gain ${r2(p.gain)}`);
+  return lines.join('\n');
 }

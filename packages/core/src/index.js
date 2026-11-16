@@ -18,3 +18,4 @@ export * from './spatial.js';
 export * from './plugins.js';
 export * from './audioedit.js';
 export * from './autotune.js';
+export * from './evaluate.js';

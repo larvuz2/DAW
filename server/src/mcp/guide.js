@@ -4,7 +4,8 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 
 ## Concepts
 - **Channels** (Channel Rack) = instruments: synthesized drums (kick, snare, clap, hat, tom, rim, cowbell, cymbal, shaker, perc),
-  808 bass (bass808), subtractive synth (synth), FM synth (fm), sampler (the user's uploaded audio) and the band
+  808 bass (bass808), subtractive synth (synth), FM synth (fm), the GGS Synth (ggs: wavetable/FM hybrid with a
+  modulation matrix and per-note expression — see "GGS Synth" below), sampler (the user's uploaded audio) and the band
   instruments: grand piano (piano), electric piano (epiano: tine/reed), drawbar organ (organ), guitar (acoustic, nylon,
   electric), bass guitar (bass: finger/pick/slap/upright) and strings (legato, staccato, pizzicato; ensemble or solo).
   World collections: flutes (flute, panflute, recorder, whistle, ocarina), beatbox (bbkick, bbsnare, bbhat, bbbass,
@@ -17,7 +18,10 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   (eq with high/low-pass, filter, compressor (mix < 1 = parallel), delay, reverb, distortion, chorus, phaser, bitcrusher,
   stereo (width + monoBelow), pump (sidechain ducking: source = a channel, or a tempo grid), limiter), output routing and sends.
 - **Markers** name song sections above the playlist (arrange_song makes them; set_markers edits them).
-- **Automation** clips move a parameter over time (channel volume/pan/pitch/filterCutoff/filterRes, mixer volume/pan, automatable effect params).
+- **Automation** clips move a parameter over time (channel volume/pan/pitch/filterCutoff/filterRes, a GGS Synth's
+  macro1..macro4, mixer volume/pan, automatable effect params).
+- **Expression**: every note can carry its own pitch curve (semitones), pressure curve and slide/timbre curve (0..1)
+  and a release velocity — an MPE performance written into the note (set_note_expression).
 
 ## Time & notes
 - Time unit default is **steps** = 16th notes. 4 steps = 1 beat, 16 steps = 1 bar (4/4). PPQ = 96 ticks/beat, 1 step = 24 ticks.
@@ -51,6 +55,34 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   live on velocity: accents on downbeats, off-beat hats around 0.6–0.7, ghost snares at 0.35–0.5 ("o" = 0.45).
 - Swing (update_project, 0–100): MPC/Ableton swing % ≈ 50 + swing/4 (MPC 54% = 16, 58% = 32, 62% = 48, 66% ≈ a
   triplet shuffle = 64; 100 = 75%, dotted). House 15–25, afrobeats 30–40, boom bap 40–55, lo-fi 50–65.
+
+## GGS Synth & per-note expression
+- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (24 tables; unison,
+  warp, FM between oscillators), sub + noise, 2 filters (serial/parallel; lp/hp/bp/notch/peak/comb, drive), 4 envelopes,
+  4 LFOs, 4 macros, a 16-route modulation matrix and built-in drive/chorus/delay/reverb. 30 presets in six families
+  (pads, leads, bass, keys, sequences, experimental), all levelled to about -18 LUFS per note.
+- describe_synth is the reference (topics: overview, parameters, wavetables, modulation, presets). create_synth_patch
+  makes a channel from a preset or from scratch; set_synth_oscillator / set_synth_filter / set_synth_envelope /
+  set_synth_lfo / set_synth_modulation / set_synth_effect edit one section each; get_synth_patch reads a patch back
+  (format "document" = a portable patch); update_synth_patch applies a document.
+- analyze_synth_patch renders a note or chord on the server (no browser needed) and measures pitch, loudness, spectrum
+  and envelope — optionally with pressure/slide/pitch curves and macro values. Design by ear-with-numbers: change,
+  analyze, compare.
+- Modulation amounts are fractions of the target's range: f1Cutoff 0.3 = 3 octaves, oscAPos 0.5 = half the table,
+  pitch 0.5 = 12 semitones, pitchFine 0.3 = 0.3 semitones (vibrato). "via" multiplies a route by a second source
+  (LFO → pitchFine via pressure = vibrato that grows as the note is pressed).
+- set_note_expression writes per-note curves as shapes (bend, scoop, fall, vibrato, swell, ramp, pulse) or points;
+  get_note_expression reads them; transform_note_expression scales/inverts/smooths; copy_note_expression moves a
+  gesture to other notes. Pitch curves bend ANY instrument, each note alone (bend only the third of a chord).
+  Pressure and slide only do something on a GGS Synth, and only where the patch routes them (every preset does:
+  describe_synth topic "presets" says what pressure and slide do in each).
+- Make lines human: a scoop into important notes (pitch scoop depth 0.5–2), vibrato that starts late on long notes
+  (rateHz 5–6, depth 0.15–0.4, delay 0.3), pressure swells on pads (swell peak 0.8), slide ramps to open a sound
+  through a phrase, a fall at phrase ends. Less is more: shape the 20% of notes that matter.
+- Macros (macro1..macro4) are a patch's performance knobs: set them with set_synth_modulation macros, and automate
+  them over the song with add_automation (target channel, param macro1).
+- evaluate_composition checks the song as written (keys, dynamics, voices, expression that nothing hears, unplaced
+  patterns) — run it before render_mix.
 
 ## The user's samples
 - list_samples / get_sample_info give technical metadata (format, codec, bitrate, sample rate, bit depth, channels, duration, tags)
@@ -171,11 +203,13 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
    Hats: put open & closed hats in the same chokeGroup.
 3. create_pattern per part ("Drums", "Drums Fill", "808", "Chords", "Melody"...), then write_drums / add_chords /
    add_bassline / write_melody / add_notes / add_roll. Add variation: ghost notes, velocity, fills, call-and-response.
-4. Feel: apply_groove for the genre; analyze_sound to tune the 808/kick to the key.
+4. Feel: apply_groove for the genre; analyze_sound to tune the 808/kick to the key; set_note_expression on leads,
+   pads and bass slides (GGS Synth) so lines breathe.
 5. arrange_song into sections (intro, verse, pre, hook, bridge, outro) with energy changes between them; add_fill on
    section ends and add_transition into hooks/drops; automation for filter sweeps.
 6. Mix by the numbers above: levels, high-passes, sidechain (pump source=Kick), shared reverb/delay sends, master limiter.
-7. render_mix target=<genre/platform> (with stems) → read the numbers → fix → repeat until the report is clean.
+7. evaluate_composition (notes, voices, expression) → fix; then render_mix target=<genre/platform> (with stems) →
+   read the numbers → fix → repeat until the report is clean.
 8. save_version, play, and explain what you made. export_stems / render_mix save=true when the user wants files.
 `;
 
@@ -189,5 +223,8 @@ numbers in the guide (gain staging, high-passes, kick-triggered sidechain, share
 add_transition add feel, fills and risers/impacts in one call. place_object / move_object / export_spatial make
 Atmos-style 3D mixes (binaural, 5.1, 7.1.4, ADM); export_audio delivers MP3/AAC/FLAC/… (list_export_formats first).
 list_plugins shows the user's own instrument/effect/generator plugins (use them via add_channel/add_effect/run_generator).
+The GGS Synth (create_synth_patch, set_synth_*, analyze_synth_patch; describe_synth is its reference) is the instrument for original
+sound design, and every note can carry its own pitch / pressure / slide curves (set_note_expression) — use both to make parts expressive.
+evaluate_composition checks the notes before you listen.
 save_version before risky changes.
 After building something, call play so the user can hear it, and describe what you made.`;
