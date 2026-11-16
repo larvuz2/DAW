@@ -170,8 +170,9 @@ export class GgsChannel {
  * release), or t when the worklet isn't loaded in this context yet (the note is skipped; the load is under way).
  * The voice gets `v.expr` = its pitch / pressure / timbre AudioParams, for live MPE input.
  * `beat`: the song position at t (engine.beatAt) — without it the voice counts beats from the context's own clock.
+ * `tune`: cents from the equal-tempered key (the project's tuning); the voice adds it to everything its pitch does.
  */
-export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, rig, seed, beat }) {
+export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, rig, seed, beat, tune }) {
   if (!ggsReady(ctx)) { loadGgsModule(ctx); return t; }
   const params = instrument.params;
   let releaseVelocity = expr?.releaseVelocity ?? 0.5;
@@ -181,6 +182,8 @@ export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, 
       numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
       processorOptions: {
         params: compact(params), key, velocity: velRaw, start: t, bpm: rig?.bpm || 120,
+        // cents from the equal-tempered key, when the project has a tuning of its own
+        tune: tune || undefined,
         // where the song stands at t (in beats): what "free" LFOs and tempo-locked patterns follow
         beat: beat ?? undefined,
         // the same note at the same time always gets the same "random" parts: renders repeat exactly

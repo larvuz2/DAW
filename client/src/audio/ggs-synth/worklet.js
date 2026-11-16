@@ -79,7 +79,7 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
       // frame it really starts on is that moment rounded to a sample (or later, if it was asked for too late)
       const late = (currentFrame + from) / sampleRate - (o.start || 0);
       const beat = (o.beat ?? ((o.start || 0) * o.bpm) / 60) + (late * o.bpm) / 60;
-      this.voice = new GgsVoice({ sampleRate, params: this.pending ? { ...o.params, ...this.pending } : o.params, key: o.key, velocity: o.velocity, seed: o.seed, bpm: o.bpm, beat, glideFrom: o.glideFrom, legato: o.legato });
+      this.voice = new GgsVoice({ sampleRate, params: this.pending ? { ...o.params, ...this.pending } : o.params, key: o.key, tune: o.tune, velocity: o.velocity, seed: o.seed, bpm: o.bpm, beat, glideFrom: o.glideFrom, legato: o.legato });
     }
     const voice = this.voice;
     const ctl = this.ctl;

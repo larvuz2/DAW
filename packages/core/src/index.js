@@ -1,6 +1,13 @@
 export * from './constants.js';
 export * from './ids.js';
 export * from './music.js';
+export * from './harmony.js';
+export * from './chordflow.js';
+export { PROGRESSIONS } from './progressions.js';
+export * from './voicelead.js';
+export * from './patterns.js';
+export * from './rng.js';
+export * from './tuning.js';
 export * from './instruments.js';
 export * from './effects.js';
 export * from './expression.js';

@@ -397,3 +397,13 @@ test('review fixes: silent noise still modulates, long echoes are not cut, table
   prewarmTables(null);
   assert.ok(getWavetable('sync').spectra.length > 1);
 });
+
+test('a note has a place in a tuning: `tune` moves its pitch by cents, on top of everything else', () => {
+  const fs = 44100;
+  const hz = (tune) => purity(voiceOnly({ oscAWave: 'basic', oscAPos: 0 }, [{ key: 69, duration: 1.2, tune }], { sampleRate: fs, seconds: 1.2 }).channels[0], fs, 440, 32768, Math.round(0.3 * fs)).peakHz;
+  const plain = hz(0);
+  assert.ok(Math.abs(plain - 440) < 0.3, `${plain}`);
+  assert.ok(Math.abs(1200 * Math.log2(hz(50) / plain) - 50) < 0.5, 'half a semitone up');
+  assert.ok(Math.abs(1200 * Math.log2(hz(-13.686) / plain) + 13.686) < 0.5, 'a just major third is 13.7 cents flat of the tempered one');
+  assert.equal(hz(undefined), plain, 'no tuning: the note is what it was');
+});

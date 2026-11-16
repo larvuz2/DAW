@@ -172,6 +172,8 @@ export class GgsVoice {
     this.os = this.fs < 80000 && (q === 'high' || (q === 'auto' && needsOversampling(this.p))) ? 2 : 1;
     this.fsI = this.fs * this.os;
     this.key = opts.key ?? 60;
+    // the note's place in the project's tuning: cents away from the equal-tempered key (0 in standard tuning)
+    this.tune = Number.isFinite(opts.tune) ? opts.tune / 100 : 0;
     this.vel = clamp(opts.velocity ?? 0.8, 0, 1);
     this.bpm = opts.bpm || 120;
     // the clock that "free" LFOs and tempo-locked patterns follow: where the song stands at this note's first frame,
@@ -539,7 +541,7 @@ export class GgsVoice {
 
     // ---- pitch
     const glide = this.glideSemis && this.age < this.glide ? this.glideSemis * (1 - this.age / this.glide) : 0;
-    const pitch = this.key + glide + bend + dst[DST.pitch] * 24 + dst[DST.pitchFine];
+    const pitch = this.key + this.tune + glide + bend + dst[DST.pitch] * 24 + dst[DST.pitchFine];
     this.pitchNow = pitch;
     // 2^(semitones/12) once for the note; each oscillator multiplies its own (cached) offset in
     if (pitch !== this.lastPitch) { this.lastPitch = pitch; this.baseHz = 440 * Math.pow(2, (pitch - 69) / 12); }

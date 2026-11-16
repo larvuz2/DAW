@@ -4,7 +4,7 @@
 import {
   PPQ, ticksPerBar, patternLength, songLength, patternNotesInRange, songNotesInRange,
   songAudioInRange, songAudioCovering, songAutomationInRange, automationValueAt, swingTicks,
-  EFFECTS, getChannel, isSpatialObject, SPATIAL_PARAMS, spatialFromNorm, instrumentDefaults
+  EFFECTS, getChannel, isSpatialObject, SPATIAL_PARAMS, spatialFromNorm, instrumentDefaults, tuningCents
 } from '@greanteadawy/core';
 import { playNote, Voice } from './instruments.js';
 import { prewarmModels, prewarmRange } from './modelPool.js';
@@ -442,7 +442,9 @@ export class AudioEngine {
     const expr = expression || releaseVelocity !== null ? { expression, seconds: exprSeconds ?? duration ?? 1, releaseVelocity: releaseVelocity ?? 0.5 } : null;
     // (the transport says where in the song its notes are; a note played by hand asks the clock)
     const at = ch.instrument.kind === 'ggs' ? beat ?? this.beatAt(time) : null;
-    const v = playNote(this.ctx, dest, ch.instrument, { time, duration, key: k, velocity, glideFrom, buffer, expr, rig: strip.ggs, beat: at });
+    // (0 in standard tuning: no note is touched, and renders stay what they were)
+    const tune = tuningCents(this.project.tuning, k);
+    const v = playNote(this.ctx, dest, ch.instrument, { time, duration, key: k, velocity, glideFrom, buffer, expr, rig: strip.ggs, beat: at, tune });
     if (!v) {
       if (dest !== bus) { try { dest.disconnect(); } catch { /* ignore */ } } // the note's panner, unused
       return null;

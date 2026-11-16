@@ -1,5 +1,5 @@
 // Synthesized instruments. Every function schedules one note ("voice") on a Web Audio graph.
-import { midiToFreq, instrumentDefaults, INSTRUMENTS } from '@greanteadawy/core';
+import { midiToFreq, instrumentDefaults, INSTRUMENTS, followsTuning } from '@greanteadawy/core';
 import { noiseSource, shaperCurve, adsr, percEnv, timbre, FLAT_Q, scheduleCurve } from './dsp.js';
 import { BAND } from './band.js';
 import { WORLD } from './world.js';
@@ -37,6 +37,7 @@ export class Voice {
     for (const s of this.sources) {
       try { s.stop(time); } catch { /* not started */ }
     }
+    try { this.tuner?.stop(time + 0.05); } catch { /* not started */ }
   }
 
   /** Note off at `time` (schedules the release phase). */
@@ -63,6 +64,10 @@ export class Voice {
   cleanup() {
     this.done = true;
     try { this.out.disconnect(); } catch { /* ignore */ }
+    if (this.tuner) {
+      try { this.tuner.stop(); } catch { /* ignore */ }
+      try { this.tuner.disconnect(); } catch { /* ignore */ }
+    }
     this.onDone?.(this);
   }
 }
@@ -527,9 +532,25 @@ function bendVoice(v, curve, t, seconds) {
 }
 
 /**
+ * A note's place in a tuning, on a voice made of Web Audio sources: one constant, fed into the detune of every
+ * oscillator and sample player of the voice. It adds to whatever their pitch does (a scoop, a per-note curve, a live
+ * bend), so nothing that schedules the detune itself has to know about it.
+ */
+function tuneVoice(ctx, v, cents, t) {
+  const tones = v.sources.filter((src) => src.detune && typeof src.detune.setValueAtTime === 'function' && !src.isLfo && !(src.frequency && src.frequency.value < 20));
+  if (!tones.length) return;
+  const offset = ctx.createConstantSource();
+  offset.offset.value = cents;
+  for (const src of tones) offset.connect(src.detune);
+  offset.start(Math.max(0, t - 0.01));
+  v.tuner = offset;
+}
+
+/**
  * Start a note. Returns a Voice (already connected to `dest`) or null.
  * opts: { time, duration (s, or null for live notes), key, velocity, glideFrom, buffer,
- *         expr: { expression, seconds, releaseVelocity } — the note's performance, rig — the channel's GgsChannel }
+ *         expr: { expression, seconds, releaseVelocity } — the note's performance, rig — the channel's GgsChannel,
+ *         tune — cents from the equal-tempered key (the project's tuning; 0 or absent = standard) }
  */
 const fullParams = new WeakMap();
 /** Params merged over the instrument defaults (defends against partial/old project data). */
@@ -556,6 +577,8 @@ export function playNote(ctx, dest, instrument, opts) {
   const v = new Voice(ctx, dest, t);
   const key = opts.key;
   const args = { t, vel: velocityGain(velRaw), velRaw, key, ratio: Math.pow(2, (key - 60) / 12), glideFrom: opts.glideFrom, buffer: opts.buffer };
+  // the note's place in the project's tuning (cents from the equal-tempered key): only where a pitch is played
+  const tune = opts.tune && followsTuning(instrument) ? opts.tune : 0;
   let natural;
   try {
     if (DRUMS[kind]) natural = DRUMS[kind](v, ctx, p, args);
@@ -566,9 +589,10 @@ export function playNote(ctx, dest, instrument, opts) {
     else if (BAND[kind]) natural = BAND[kind](v, ctx, p, args);
     else if (WORLD[kind]) natural = WORLD[kind](v, ctx, p, args);
     else if (kind === 'plugin') natural = pluginVoice(v, ctx, instrument, args);
-    else if (kind === 'ggs') natural = ggsVoice(v, ctx, instrument, { ...args, expr: opts.expr, rig: opts.rig, beat: opts.beat });
+    else if (kind === 'ggs') natural = ggsVoice(v, ctx, instrument, { ...args, expr: opts.expr, rig: opts.rig, beat: opts.beat, tune });
     const bend = opts.expr?.expression?.pitch;
     if (bend && kind !== 'ggs') bendVoice(v, bend, t, Math.max(0.001, opts.expr.seconds));
+    if (tune && kind !== 'ggs') tuneVoice(ctx, v, tune, t);
   } catch (err) {
     // one note the Web Audio API refuses must not break the transport (the scheduler would retry the same range on
     // every tick and stack the other notes): drop it, release what it built, say so once per instrument

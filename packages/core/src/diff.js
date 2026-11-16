@@ -1,6 +1,7 @@
 // What changed between two states of a project, in words: for "what would this edit do" (dry runs, batches), for
 // "what did I change since that version", and for a person looking at their version list. Pure: no ids are
 // invented, nothing is rounded in the data — only in the text.
+import { describeTuning } from './tuning.js';
 import { ticksPerBar } from './constants.js';
 import { songLength } from './model.js';
 import { formatNoteText, formatPositionText, formatDuration } from './notation.js';
@@ -110,6 +111,7 @@ export function diffProjects(a, b, { maxLines = 60, maxNotes = 10, ids = true } 
   if (a.bpm !== b.bpm) head.push(`tempo ${num(a.bpm)} → ${num(b.bpm)} BPM`);
   if (!same(a.timeSig, b.timeSig)) head.push(`time signature ${a.timeSig.join('/')} → ${b.timeSig.join('/')}`);
   if (a.key !== b.key || a.scale !== b.scale) head.push(`key ${a.key} ${a.scale} → ${b.key} ${b.scale}`);
+  if (!same(a.tuning, b.tuning)) head.push(`tuning ${describeTuning(a.tuning)} → ${describeTuning(b.tuning)}`);
   if (a.swing !== b.swing) head.push(`swing ${percent(a.swing)} → ${percent(b.swing)}`);
   if (!same(a.spatial, b.spatial)) head.push(a.spatial?.enabled !== b.spatial?.enabled ? `spatial mix ${b.spatial?.enabled ? 'on' : 'off'}` : 'spatial settings changed');
   counts.project = head.length;

@@ -1,4 +1,6 @@
 import { didYouMean } from './suggest.js';
+import { SCALE_LIST, SCALE_FAMILIES, CLASSIC_SCALE_IDS } from './scales.js';
+import { CHORD_LIST } from './chords.js';
 // Music theory helpers: note names, scales and chords.
 // Convention: scientific pitch notation, C4 = MIDI 60 (middle C).
 
@@ -51,47 +53,52 @@ export function midiToFreq(midi) {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-export const SCALES = {
-  major: [0, 2, 4, 5, 7, 9, 11],
-  minor: [0, 2, 3, 5, 7, 8, 10],
-  harmonicMinor: [0, 2, 3, 5, 7, 8, 11],
-  melodicMinor: [0, 2, 3, 5, 7, 9, 11],
-  dorian: [0, 2, 3, 5, 7, 9, 10],
-  phrygian: [0, 1, 3, 5, 7, 8, 10],
-  lydian: [0, 2, 4, 6, 7, 9, 11],
-  mixolydian: [0, 2, 4, 5, 7, 9, 10],
-  locrian: [0, 1, 3, 5, 6, 8, 10],
-  majorPentatonic: [0, 2, 4, 7, 9],
-  minorPentatonic: [0, 3, 5, 7, 10],
-  blues: [0, 3, 5, 6, 7, 10],
-  // Japanese pentatonics (koto, shakuhachi, shamisen)
-  hirajoshi: [0, 2, 3, 7, 8],
-  inSen: [0, 1, 5, 7, 10],
-  iwato: [0, 1, 5, 6, 10],
-  yo: [0, 2, 5, 7, 9],
-  // Indian thaats without a Western mode twin (Bilawal = major, Kalyan = lydian, Khamaj = mixolydian, Kafi = dorian,
-  // Asavari = minor, Bhairavi = phrygian). They are played melodically over a drone, not harmonised in triads.
-  bhairav: [0, 1, 4, 5, 7, 8, 11],
-  todi: [0, 1, 3, 6, 7, 8, 11],
-  purvi: [0, 1, 4, 6, 7, 8, 11],
-  marwa: [0, 1, 4, 6, 7, 9, 11],
-  chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-};
+const SCALE_BY_ID = new Map(SCALE_LIST.map((x) => [x.id, x]));
+
+/** Scale id → semitones above the tonic. The ids of older projects come first, in the order people know. */
+export const SCALES = Object.fromEntries(
+  [...CLASSIC_SCALE_IDS, ...SCALE_LIST.map((x) => x.id).filter((id) => !CLASSIC_SCALE_IDS.includes(id))].map((id) => [id, SCALE_BY_ID.get(id).intervals])
+);
+
+/** Scale id → { id, label, family, intervals, aliases, description }. */
+export const SCALE_INFO = Object.fromEntries(SCALE_LIST.map((x) => [x.id, x]));
+export { SCALE_FAMILIES };
+
+const loose = (name) => String(name ?? '').toLowerCase().replace(/[\s_-]+/g, '');
+const SCALE_NAMES = new Map();
+for (const x of SCALE_LIST) for (const name of [x.id, x.label, ...x.aliases]) if (!SCALE_NAMES.has(loose(name))) SCALE_NAMES.set(loose(name), x.id);
+
+/** The id of a scale from any name people use for it ("aeolian", "Phrygian Dominant", "jazz minor"), or null. */
+export function resolveScale(name) {
+  if (typeof name !== 'string') return null;
+  return Object.hasOwn(SCALES, name) ? name : SCALE_NAMES.get(loose(name)) ?? null;
+}
+
+/** resolveScale, or an error that names the nearest scales. */
+export function requireScale(name) {
+  const id = resolveScale(name);
+  if (id) return id;
+  const names = SCALE_LIST.flatMap((x) => [x.label, ...x.aliases]);
+  throw new Error(`Unknown scale "${name}".${didYouMean(String(name), names)} Known: ${SCALE_LIST.map((x) => x.label).join(', ')}`);
+}
+
+/** The scales by family, for menus: [{ family, scales: [{ id, label, description }] }]. */
+export function scaleGroups() {
+  return SCALE_FAMILIES.map((family) => ({ family, scales: SCALE_LIST.filter((x) => x.family === family) }));
+}
 
 /** Pitch classes (0..11) in a scale. */
 export function scalePitchClasses(root, scale = 'minor') {
   const rootPc = typeof root === 'number' ? ((root % 12) + 12) % 12 : parsePitchClass(root);
-  const steps = SCALES[scale];
   if (rootPc === null || rootPc === undefined) throw new Error(`Invalid key root "${root}"`);
-  if (!steps) throw new Error(`Unknown scale "${scale}".${didYouMean(scale, Object.keys(SCALES))} Known: ${Object.keys(SCALES).join(', ')}`);
-  return steps.map((s) => (rootPc + s) % 12);
+  return SCALES[requireScale(scale)].map((s) => (rootPc + s) % 12);
 }
 
 /** MIDI notes of a scale, starting at root in the given octave, spanning N octaves. */
 export function scaleNotes(root, scale = 'minor', octave = 4, octaves = 1) {
   const rootPc = parsePitchClass(root);
-  const steps = SCALES[scale];
-  if (rootPc === null || !steps) throw new Error(`Invalid scale ${root} ${scale}`);
+  if (rootPc === null) throw new Error(`Invalid key root "${root}"`);
+  const steps = SCALES[requireScale(scale)];
   const base = (octave + 1) * 12 + rootPc;
   const out = [];
   for (let o = 0; o < octaves; o++) for (const s of steps) out.push(base + o * 12 + s);
@@ -99,46 +106,33 @@ export function scaleNotes(root, scale = 'minor', octave = 4, octaves = 1) {
   return out.filter((n) => n >= 0 && n <= 127);
 }
 
-// Chord qualities -> semitone intervals from root
-export const CHORD_TYPES = {
-  '': [0, 4, 7],
-  maj: [0, 4, 7],
-  M: [0, 4, 7],
-  m: [0, 3, 7],
-  min: [0, 3, 7],
-  '-': [0, 3, 7],
-  dim: [0, 3, 6],
-  aug: [0, 4, 8],
-  '+': [0, 4, 8],
-  sus2: [0, 2, 7],
-  sus4: [0, 5, 7],
-  sus: [0, 5, 7],
-  5: [0, 7],
-  6: [0, 4, 7, 9],
-  m6: [0, 3, 7, 9],
-  7: [0, 4, 7, 10],
-  maj7: [0, 4, 7, 11],
-  M7: [0, 4, 7, 11],
-  m7: [0, 3, 7, 10],
-  min7: [0, 3, 7, 10],
-  mMaj7: [0, 3, 7, 11],
-  mMaj9: [0, 3, 7, 11, 14],
-  aug7: [0, 4, 8, 10],
-  '+7': [0, 4, 8, 10],
-  m7b5: [0, 3, 6, 10],
-  dim7: [0, 3, 6, 9],
-  '7sus4': [0, 5, 7, 10],
-  add9: [0, 4, 7, 14],
-  madd9: [0, 3, 7, 14],
-  9: [0, 4, 7, 10, 14],
-  maj9: [0, 4, 7, 11, 14],
-  m9: [0, 3, 7, 10, 14],
-  11: [0, 4, 7, 10, 14, 17],
-  m11: [0, 3, 7, 10, 14, 17],
-  13: [0, 4, 7, 10, 14, 21],
-  maj13: [0, 4, 7, 11, 14, 21],
-  m13: [0, 3, 7, 10, 14, 21]
-};
+const CHORD_BY_KEY = new Map();
+for (const c of CHORD_LIST) for (const k of [c.symbol, ...c.aliases]) CHORD_BY_KEY.set(k, c);
+
+/** Chord quality (the studio's symbol or any spelling it reads) → semitones above the root. */
+export const CHORD_TYPES = Object.fromEntries([...CHORD_BY_KEY].map(([k, c]) => [k, c.intervals]));
+/** The chord dictionary: [{ symbol, name, family, rank, intervals, aliases }]. */
+export const CHORD_INFO = CHORD_LIST;
+/** The symbols the studio writes, one per chord type ("" = major triad). */
+export const CHORD_SYMBOLS = CHORD_LIST.map((c) => c.symbol);
+
+/**
+ * The dictionary entry of a chord quality as people type it: "m7", "min7", "-7", "Maj7", "M7", "7(b9)", "ø" — or null.
+ * Case only matters for a lone "M" (major): everything else is read without it.
+ */
+export function chordType(quality) {
+  const q = String(quality ?? '').trim().replace(/♭/g, 'b').replace(/♯/g, '#');
+  const tries = [q, q.replace(/[()\s]/g, '')];
+  // "M9#11", "Madd9": a capital M that does not start "Maj"/"Min"/"Mi7" means major
+  if (/^M(?!aj|AJ|in|IN|i\d|I\d|a\d|A\d|i$|I$)/.test(q)) tries.push(`maj${q.slice(1)}`, q.slice(1));
+  const low = q.toLowerCase();
+  tries.push(low, low.replace(/[()\s]/g, ''), low.replace(/^(?:min|mi|-)(?!n)/, 'm'));
+  for (const t of tries) {
+    const hit = CHORD_BY_KEY.get(t);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 /** Named chord shapes offered by the piano-roll chord stamp tool. */
 export const STAMP_CHORDS = [
@@ -148,22 +142,27 @@ export const STAMP_CHORDS = [
 ];
 
 /**
- * Parse a chord symbol: "Am", "F#m7", "Bbmaj7", "G7", "Dsus4", "C/E".
- * Returns { root: pitchClass, intervals: number[], bass: pitchClass|null }
+ * Parse a chord symbol: "Am", "F#m7", "Bbmaj7", "G7b9", "Dsus4", "C6/9", "C/E".
+ * Returns { root: pitchClass, intervals: number[], bass: pitchClass|null, quality: the studio's symbol for the type }
  */
 export function parseChord(symbol) {
   const s = String(symbol).trim();
   // root letter may be lower case ("am" = Am); a following "b" is a flat ("bbm7" = Bbm7)
-  const m = /^([A-Ga-g][#b♯♭]?)([^/]*)(?:\/([A-Ga-g][#b♯♭]?))?$/.exec(s);
+  const m = /^([A-Ga-g][#b♯♭]?)(.*)$/.exec(s);
   if (!m) throw new Error(`Invalid chord "${symbol}". Use symbols like Am, F#m7, Bbmaj7, G7, Dsus4, C/E — or roman numerals (i, VI, bVII, V7/V) when the project has a key.`);
-  const root = parsePitchClass(m[1]);
-  const quality = m[2].trim();
-  const intervals = CHORD_TYPES[quality];
-  if (!intervals) {
-    throw new Error(`Unknown chord quality "${quality}" in "${symbol}". Known: ${Object.keys(CHORD_TYPES).filter(Boolean).join(', ')}`);
+  let rest = m[2];
+  let bass = null;
+  // a slash bass is a note name: the "/9" of C6/9 and the "/maj7" of Cm/maj7 belong to the quality
+  const slash = rest.lastIndexOf('/');
+  if (slash >= 0 && /^[A-Ga-g][#b♯♭]?$/.test(rest.slice(slash + 1).trim())) {
+    bass = parsePitchClass(rest.slice(slash + 1).trim());
+    rest = rest.slice(0, slash);
   }
-  const bass = m[3] ? parsePitchClass(m[3]) : null;
-  return { root, intervals: [...intervals], bass };
+  const type = chordType(rest);
+  if (!type) {
+    throw new Error(`Unknown chord quality "${rest.trim()}" in "${symbol}".${didYouMean(rest.trim(), CHORD_SYMBOLS.filter(Boolean))} Known: ${CHORD_SYMBOLS.filter(Boolean).join(', ')}`);
+  }
+  return { root: parsePitchClass(m[1]), intervals: [...type.intervals], bass, quality: type.symbol };
 }
 
 /**
@@ -209,7 +208,10 @@ export function voiceNear(notes, center = 64) {
 }
 
 const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7 };
-const ROMAN_RE = /^([b#♭♯]?)(vii|vi|v|iv|iii|ii|i|VII|VI|V|IV|III|II|I)(°|o|ø|\+|dim|aug)?(maj7|maj9|m7|7|9|11|13|6|sus2|sus4|add9)?$/;
+// accidental, numeral (N = the Neapolitan), then whatever names the quality
+const ROMAN_HEAD = /^([b#♭♯]?)(VII|VI|IV|V|III|II|I|vii|vi|iv|v|iii|ii|i|N)(.*)$/;
+// figured bass → [the seventh it implies, the chord tone in the bass]
+const FIGURES = { 64: ['', 2], 65: ['7', 1], 43: ['7', 2], 42: ['7', 3] };
 const SHARP_SPELLING = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const FLAT_SPELLING = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 // semitones from the relative major's tonic to each mode's tonic
@@ -224,22 +226,91 @@ function keyUsesSharps(key, scale) {
   return [7, 2, 9, 4, 11, 6].includes(major);
 }
 
-/** "V7", "bVII", "ii°" — or a secondary chord like "V7/V" or "vii°/ii". */
+/**
+ * Read a roman numeral: null when it is not one.
+ *   bVII  ii°  V7  IVmaj7  i(add9)  V7#9  — accidental, numeral (case = major/minor), quality
+ *   V7/V  vii°7/ii                         — applied to another degree (the part after "/" is a numeral)
+ *   IV/1  i/5  V7/b7                       — over a bass note (the part after "/" is a scale degree)
+ *   I64  V65  V43  V42  (or V6/5 …)        — figured bass: inversions
+ *   N  N6                                  — the Neapolitan (bII major), in root position / first inversion
+ */
+function parseRoman(text) {
+  // "V6/5" is the figure 65, not a V6 over the fifth degree
+  let t = String(text ?? '').trim().replace(/6\/4$/, '64').replace(/6\/5$/, '65').replace(/4\/3$/, '43').replace(/4\/2$/, '42');
+  let bass = null;
+  let applied = null;
+  const overDegree = /^(.+)\/([b#♭♯]?)([1-7])$/.exec(t);
+  if (overDegree) {
+    bass = { acc: flatSharp(overDegree[2]), degree: Number(overDegree[3]) };
+    t = overDegree[1];
+  }
+  const slash = t.lastIndexOf('/');
+  if (slash > 0) {
+    const target = ROMAN_HEAD.exec(t.slice(slash + 1));
+    if (target && !target[3] && target[2] !== 'N') {
+      applied = t.slice(slash + 1);
+      t = t.slice(0, slash);
+    }
+  }
+  const m = ROMAN_HEAD.exec(t);
+  if (!m) return null;
+  const neapolitan = m[2] === 'N';
+  let suffix = m[3];
+  let figure = null;
+  if (neapolitan) {
+    if (suffix !== '' && suffix !== '6') return null;
+    figure = suffix === '6' ? ['', 1] : null;
+    suffix = '';
+  } else {
+    const fig = /^(.*?)(64|65|43|42)$/.exec(suffix);
+    if (fig) {
+      figure = FIGURES[fig[2]];
+      suffix = fig[1] + figure[0];
+    }
+  }
+  const upper = neapolitan || m[2] === m[2].toUpperCase();
+  const quality = romanQuality(upper, suffix);
+  if (quality === null) return null;
+  return {
+    acc: neapolitan ? 'b' : flatSharp(m[1]), degree: neapolitan ? 2 : ROMAN[m[2].toLowerCase()], upper, quality, figure, applied, bass,
+    // the chord without what was applied to it or put under it, for reading it in another key
+    core: `${m[1]}${m[2]}${neapolitan ? '' : suffix}`
+  };
+}
+
+const flatSharp = (acc) => (acc === '♭' ? 'b' : acc === '♯' ? '#' : acc);
+
+/**
+ * The chord quality a numeral's case and suffix name, as the studio's symbol — or null. Upper case takes the suffix as
+ * written ("V7#9", "IVmaj7", "VII°"); lower case is minor, so its suffix extends a minor chord ("ii7" = m7,
+ * "i(maj7)" = mMaj7) unless it names another kind of chord by itself ("vii°7", "iiø", "vsus4").
+ */
+function romanQuality(upper, suffix) {
+  const plain = suffix.replace(/[()]/g, '');
+  if (upper) return (chordType(suffix) || chordType(plain))?.symbol ?? null;
+  if (/^(°|o$|o7|ø|dim|aug|\+|sus|5$|q)/.test(plain) || /^m(?!aj)/.test(plain)) return chordType(plain)?.symbol ?? null;
+  return CHORD_BY_KEY.get(`m${plain}`)?.symbol ?? CHORD_BY_KEY.get(`m${plain.toLowerCase()}`)?.symbol ?? null;
+}
+
+/** "V7", "bVII", "ii°", "IV/1", "N6" — or a secondary chord like "V7/V" or "vii°/ii". */
 export function isRomanNumeral(s) {
-  const parts = String(s).trim().split('/');
-  return parts.length <= 2 && parts.every((x) => ROMAN_RE.test(x));
+  return typeof s === 'string' && parseRoman(s) !== null;
 }
 
 const PARENT_SCALES = ['major', 'minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonicMinor', 'melodicMinor'];
+// scales with a passing note read their chords in the mode they decorate
+const PARENT_OF = { bebopDominant: 'mixolydian', bebopMajor: 'major', bebopMinor: 'dorian' };
 
 /**
  * The 7-note scale roman numerals, diatonic chords and spelling are read in: 5/6-note scales borrow from the first
  * common 7-note scale that contains them.
  */
-function sevenNoteScale(scale) {
-  const steps = SCALES[scale];
+export function sevenNoteScale(scale) {
+  const id = resolveScale(scale);
+  const steps = SCALES[id];
   if (!steps) return 'major';
-  if (steps.length === 7) return scale;
+  if (steps.length === 7) return id;
+  if (PARENT_OF[id]) return PARENT_OF[id];
   // the first common 7-note scale that holds every note (in-sen → phrygian, iwato → locrian), else major/minor
   return PARENT_SCALES.find((p) => steps.every((x) => SCALES[p].includes(x))) || (steps.includes(3) ? 'minor' : 'major');
 }
@@ -277,56 +348,95 @@ export function spelledNoteName(midi, spell) {
 }
 
 /**
- * Convert a roman numeral (e.g. "i", "VI", "bVII", "ii°", "V7", "IVmaj7") to a chord symbol in a key.
- * Upper case = major, lower case = minor, ° = diminished, + = augmented. The root comes from the
- * scale degree of `scale` (accidentals b/# shift it).
+ * Convert a roman numeral to a chord symbol in a key: "i", "VI", "bVII", "ii°", "V7", "IVmaj7", "V7/V", "IV/1", "N6",
+ * "I64". Upper case = major, lower case = minor; the suffix is any chord quality the studio knows. The root comes
+ * from the scale degree of `scale` (accidentals b/# shift it).
  */
 export function romanToChord(numeral, key = 'C', scale = 'major') {
-  const text = String(numeral).trim();
-  const slash = text.split('/');
-  if (slash.length === 2 && ROMAN_RE.test(slash[1])) {
+  const r = parseRoman(numeral);
+  if (!r) throw new Error(`Invalid roman numeral "${numeral}". Write a degree (I–VII, lower case = minor), then a chord quality: ii7, V7#9, bVII, vii°7, IVmaj7 — "V7/V" applies a chord to another degree, "IV/1" puts it over a bass degree, "I64" inverts it, "N6" is the Neapolitan.`);
+  let symbol;
+  if (r.applied) {
     // secondary chord: "V7/V" = the V7 of the key whose tonic is this key's V
-    const target = ROMAN_RE.exec(slash[1]);
-    const tonicName = romanToChord(slash[1], key, scale).match(/^[A-G][#b]?/)[0];
-    const targetMinor = target[2] === target[2].toLowerCase();
-    return romanToChord(slash[0], tonicName, targetMinor ? 'harmonicMinor' : 'major');
+    const target = parseRoman(r.applied);
+    const tonic = chordRootName(romanToChord(r.applied, key, scale));
+    symbol = romanToChord(r.core, tonic, target.upper ? 'major' : 'harmonicMinor');
+  } else {
+    symbol = plainRoman(r, key, scale);
   }
-  const m = ROMAN_RE.exec(text);
-  if (!m) throw new Error(`Invalid roman numeral "${numeral}"`);
-  const [, acc, rn, qual = '', ext = ''] = m;
-  const degree = ROMAN[rn.toLowerCase()];
-  // Without an accidental the degree comes from the key's own scale (so "VI" in A minor = F);
-  // with one it is relative to the major scale, as in common notation ("bVII" in A minor = G).
-  const pcs = scalePitchClasses(key, acc ? 'major' : sevenNoteScale(scale));
-  let pc = pcs[degree - 1];
-  if (acc === 'b' || acc === '♭') pc = (pc + 11) % 12;
-  if (acc === '#' || acc === '♯') pc = (pc + 1) % 12;
-  const diminished = qual === '°' || qual === 'o' || qual === 'dim' || qual === 'ø';
-  // vii° in a minor key is built on the raised leading tone (B° in C minor), as in classical harmony
+  const root = chordRootName(symbol);
+  let under = null;
+  if (r.figure) {
+    const iv = CHORD_BY_KEY.get(r.quality).intervals[r.figure[1]];
+    if (iv === undefined) throw new Error(`"${numeral}" asks for an inversion its chord has no note for`);
+    under = chordToneName(root, iv);
+  }
+  if (r.bass) {
+    // a bass degree is a degree of the key the progression is in, also under an applied chord
+    const pcs = scalePitchClasses(key, sevenNoteScale(scale));
+    const pc = alterDegree(pcs[r.bass.degree - 1], r.bass.degree, r.bass.acc, pcs[0]);
+    const sharp = r.bass.acc === '#' || (!r.bass.acc && keyUsesSharps(key, scale));
+    under = r.bass.acc ? (sharp ? SHARP_SPELLING : FLAT_SPELLING)[pc] : scaleSpelling(key, scale)(pc);
+  }
+  return under !== null && parsePitchClass(under) !== parsePitchClass(root) ? `${symbol}/${under}` : symbol;
+}
+
+/** A numeral with nothing applied to it and nothing under it, in a key. */
+function plainRoman(r, key, scale) {
+  const { acc, degree, quality } = r;
+  const parent = sevenNoteScale(scale);
+  const pcs = scalePitchClasses(key, parent);
+  // The degree is the key's own (so "VI" in A minor = F). An accidental moves it — unless the key already has that
+  // alteration against major, as pop charts write it: "bVII" in A minor is the same G as "VII", "#IV" in lydian its IV.
+  let pc = alterDegree(pcs[degree - 1], degree, acc, pcs[0]);
+  // A diminished chord on the lowered 6th or 7th of a minor key is built on the raised degree, as in classical harmony
+  // (vii° in C minor = B°, vi° = A°): the lowered degrees carry major chords.
   let raised = false;
-  if (degree === 7 && diminished && !acc && (pc - pcs[0] + 12) % 12 === 10) {
+  const above = (pc - pcs[0] + 12) % 12;
+  if (['dim', 'dim7', 'm7b5'].includes(quality) && !acc && ((degree === 7 && above === 10) || (degree === 6 && above === 8))) {
     pc = (pc + 1) % 12;
     raised = true;
   }
   // spell the root the way the key is written (G# in A minor's vii°, Bb in C major's bVII); a scale with no Western
-  // mode twin (the thaats) spells its own degrees by letter, like its scale does (D bhairav's II = Eb, not D#)
-  if (!acc && !raised && MODE_OFFSET[sevenNoteScale(scale)] === undefined) {
-    return `${scaleSpelling(key, scale)(pc)}${chordQuality(rn, qual, ext)}`;
-  }
-  const sharp = acc === '#' || acc === '♯' || raised || (!acc && keyUsesSharps(key, scale));
-  return `${(sharp ? SHARP_SPELLING : FLAT_SPELLING)[pc]}${chordQuality(rn, qual, ext)}`;
+  // mode twin (the thaats, phrygian dominant…) and the minors with raised degrees spell their own degrees by letter,
+  // like their scale does (D bhairav's II = Eb, D harmonic minor's vii° = C#)
+  if (!acc && !raised && (MODE_OFFSET[parent] === undefined || BY_LETTER.has(parent))) return `${scaleSpelling(key, scale)(pc)}${quality}`;
+  const sharp = acc === '#' || raised || (!acc && keyUsesSharps(key, scale));
+  return `${(sharp ? SHARP_SPELLING : FLAT_SPELLING)[pc]}${quality}`;
 }
 
-/** Chord-symbol quality of a roman numeral: case = major/minor, then °/ø/+ and the extension. */
-function chordQuality(rn, qual, ext) {
-  const upper = rn === rn.toUpperCase();
-  if (qual === '°' || qual === 'o' || qual === 'dim') return ext === '7' ? 'dim7' : 'dim';
-  if (qual === 'ø') return 'm7b5';
-  if (qual === '+' || qual === 'aug') return ext === '7' ? 'aug7' : 'aug';
-  if (upper) return ext;
-  if (ext.startsWith('sus')) return ext;
-  if (ext === 'add9') return 'madd9';
-  return { 7: 'm7', m7: 'm7', 9: 'm9', 11: 'm11', 13: 'm13', 6: 'm6', maj7: 'mMaj7', maj9: 'mMaj9' }[ext] || 'm';
+const MAJOR_DEGREES = [0, 2, 4, 5, 7, 9, 11];
+const BY_LETTER = new Set(['harmonicMinor', 'melodicMinor']);
+
+/** A scale degree (pitch class `pc`, degree 1–7 of a key on `tonic`) with an accidental applied — see plainRoman. */
+function alterDegree(pc, degree, acc, tonic) {
+  if (!acc) return pc;
+  const against = ((pc - tonic - MAJOR_DEGREES[degree - 1] + 18) % 12) - 6; // how the key already alters it: −1 = flat
+  if (acc === 'b' && against >= 0) return (pc + 11) % 12;
+  if (acc === '#' && against <= 0) return (pc + 1) % 12;
+  return pc;
+}
+
+/** "F#m7/A" → "F#". */
+export function chordRootName(symbol) {
+  const m = /^([A-Ga-g])([#b♯♭]?)/.exec(String(symbol).trim());
+  if (!m) throw new Error(`Invalid chord "${symbol}"`);
+  return m[1].toUpperCase() + flatSharp(m[2]);
+}
+
+const LETTER_STEPS = [0, 1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6]; // interval class → how many letters above the root it is written
+
+/** The name of a chord tone, written by letter from its root: the third of Db is F, of F# is A#, the seventh of G is F. */
+export function chordToneName(rootName, interval) {
+  const root = chordRootName(rootName);
+  const pc = (parsePitchClass(root) + interval) % 12;
+  const semis = ((interval % 12) + 12) % 12;
+  // a ninth, eleventh or thirteenth is written as the second, fourth or sixth it is
+  const steps = interval > 12 && semis === 6 ? 3 : LETTER_STEPS[semis];
+  const letter = LETTERS[(LETTERS.indexOf(root[0]) + steps) % 7];
+  const diff = ((pc - LETTER_PC[letter] + 18) % 12) - 6;
+  if (Math.abs(diff) <= 1) return letter + (diff === 1 ? '#' : diff === -1 ? 'b' : '');
+  return (root.includes('b') ? FLAT_SPELLING : SHARP_SPELLING)[pc];
 }
 
 /**

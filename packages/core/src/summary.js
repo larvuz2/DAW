@@ -1,4 +1,5 @@
 // Text summary of a project, so Claude can "see" the beat it is working on.
+import { describeTuning, isStandardTuning } from './tuning.js';
 import { STEP, ticksPerBar, stepsPerBeat } from './constants.js';
 import { patternLength, songLength } from './model.js';
 import { toStepString, isStepLike, formatNoteList } from './notation.js';
@@ -13,7 +14,7 @@ export function summarizeProject(project, { notes = true, maxNotes = 64 } = {}) 
   const bar = ticksPerBar(project);
   const lines = [];
   const songBars = r2(songLength(project) / bar);
-  lines.push(`PROJECT "${project.name}" [${project.id}] — ${project.bpm} BPM, ${project.timeSig.join('/')}, swing ${Math.round(project.swing * 100)}%, key ${project.key} ${project.scale}, song length ${songBars} bars`);
+  lines.push(`PROJECT "${project.name}" [${project.id}] — ${project.bpm} BPM, ${project.timeSig.join('/')}, swing ${Math.round(project.swing * 100)}%, key ${project.key} ${project.scale}${isStandardTuning(project.tuning) ? '' : `, tuning ${describeTuning(project.tuning)}`}, song length ${songBars} bars`);
   lines.push('');
   lines.push(`CHANNELS (${project.channels.length}) — "x" = hit, "X" = accent, "o" = ghost, "-" = rest:`);
   project.channels.forEach((c, i) => {

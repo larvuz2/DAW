@@ -802,6 +802,16 @@ export function instrumentDefaults(kind) {
   return params;
 }
 
+/**
+ * Does this instrument play pitches a tuning can place? Drums and beatbox sounds do not (their "notes" are sounds,
+ * not pitches), nor does a sampler that plays its sample as it is.
+ */
+export function followsTuning(instrument) {
+  const def = INSTRUMENTS[instrument?.kind];
+  if (!def || def.category === 'drums' || def.category === 'beatbox') return false;
+  return !(instrument.kind === 'sampler' && instrument.params?.pitched === false);
+}
+
 /** Clamp/validate a params object against a param definition list. Unknown keys are dropped. */
 export function sanitizeParams(defs, params = {}, { strict = false } = {}) {
   const out = {};

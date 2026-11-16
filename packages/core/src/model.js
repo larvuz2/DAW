@@ -10,6 +10,7 @@ import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from 
 import { sanitizeExpression } from './expression.js';
 import { MACRO_COUNT } from '@greanteadawy/synth-dsp';
 import { didYouMean, brief } from './suggest.js';
+import { normalizeTuning } from './tuning.js';
 
 export const PROJECT_FORMAT = 'greanteadawy-project';
 export const PROJECT_VERSION = 1;
@@ -160,6 +161,7 @@ export function createEmptyProject(opts = {}) {
     swing: 0,
     key: opts.key || 'C',
     scale: opts.scale || 'minor',
+    tuning: normalizeTuning(opts.tuning),
     channels: [],
     patterns: [],
     playlist: { tracks, clips: [] },
@@ -203,6 +205,7 @@ export function normalizeProject(raw) {
   p.timeSig = tsNum >= 1 && tsNum <= 32 && [2, 4, 8, 16].includes(tsDen) ? [tsNum, tsDen] : [4, 4];
   p.key = normalizeKey(raw.key) || 'C';
   p.scale = typeof raw.scale === 'string' && SCALES[raw.scale] ? raw.scale : 'minor';
+  p.tuning = normalizeTuning(raw.tuning);
   const obj = (x) => x && typeof x === 'object' && !Array.isArray(x);
 
   p.mixer = (Array.isArray(raw.mixer) && raw.mixer.length ? raw.mixer : [createMixerInsert(0, { effects: [createEffect('limiter')] })])

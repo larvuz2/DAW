@@ -9,7 +9,8 @@ import {
   createChannel, createPattern, createClip, createTrack, createMixerInsert, createAutomation, createMarker,
   normalizeProject, sanitizeNote, normalizeKey, audioClipFields, MAX_NUDGE_MS, MAX_MARKERS, channelAutomationParams, MACRO_PARAMS
 } from './model.js';
-import { SCALES } from './music.js';
+import { SCALES, resolveScale } from './music.js';
+import { normalizeTuning } from './tuning.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
 import { EXPRESSION_DIMS, sanitizeCurve } from './expression.js';
 
@@ -244,8 +245,15 @@ export function applyOp(d, op) {
         d.key = k;
       }
       if ('scale' in p) {
-        req(SCALES[p.scale], `Unknown scale "${p.scale}". Known: ${Object.keys(SCALES).join(', ')}`);
-        d.scale = p.scale;
+        // (any name people use for a scale: "aeolian", "jazz minor", "phrygian dominant")
+        const scale = resolveScale(p.scale);
+        req(scale, `Unknown scale "${p.scale}". Known: ${Object.keys(SCALES).join(', ')}`);
+        d.scale = scale;
+      }
+      if ('tuning' in p) {
+        // a patch: what is not named stays ({ a4: 432 } keeps the system); null goes back to the standard
+        req(p.tuning === null || (typeof p.tuning === 'object' && !Array.isArray(p.tuning)), 'tuning must be an object { system, root, a4, … } or null for the standard');
+        d.tuning = p.tuning === null ? normalizeTuning(null) : normalizeTuning({ ...d.tuning, ...p.tuning }, { strict: true });
       }
       if ('spatial' in p) {
         req(p.spatial && typeof p.spatial === 'object', 'spatial must be an object { enabled, monitor }');

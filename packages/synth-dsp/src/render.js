@@ -39,7 +39,7 @@ export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120,
     key: n.key ?? 60, velocity: n.velocity ?? 0.8, releaseVelocity: n.releaseVelocity ?? 0.5,
     startFrame: Math.max(0, Math.round((n.start || 0) * fs)),
     endFrame: Math.max(0, Math.round(((n.start || 0) + Math.max(0.005, n.duration ?? 0.5)) * fs)),
-    pitch: n.pitch || null, pressure: n.pressure || null, timbre: n.timbre || null,
+    pitch: n.pitch || null, pressure: n.pressure || null, timbre: n.timbre || null, tune: n.tune || 0,
     seed: n.seed ?? hash32(i * 7919 + 13)
   })).sort((a, b) => a.startFrame - b.startFrame);
   const effects = fx ? new GgsFx({ sampleRate: fs, params: p, bpm }) : null;
@@ -68,7 +68,7 @@ export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120,
     }
     const sounding = active.filter((v) => v.killAt < 0);
     for (let i = 0; i <= sounding.length - Math.round(p.polyphony); i++) sounding[i].killAt = note.startFrame;
-    active.push({ note, voice: new GgsVoice({ sampleRate: fs, params: p, key: note.key, velocity: note.velocity, seed: note.seed, bpm, beat: ((note.startFrame / fs) * bpm) / 60, glideFrom, legato }), killAt: -1, off: false });
+    active.push({ note, voice: new GgsVoice({ sampleRate: fs, params: p, key: note.key, tune: note.tune, velocity: note.velocity, seed: note.seed, bpm, beat: ((note.startFrame / fs) * bpm) / 60, glideFrom, legato }), killAt: -1, off: false });
   };
 
   for (let frame = 0; frame < total; frame += BLOCK) {
