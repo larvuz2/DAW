@@ -36,7 +36,7 @@ export function Fader({ value, max = 1.25, def = 0.8, onChange, height = 120, ti
     <div className="fader" style={{ height }} title={title || `${db} dB`} role="slider" tabIndex={0}
       aria-label={title || 'Volume'} aria-orientation="vertical" aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} aria-valuetext={`${db} dB`}
       onKeyDown={onKeyDown}
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={() => { drag.current = null; }}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
       onDoubleClick={() => onChange?.(def)}
       onWheel={(e) => { e.stopPropagation(); emit(Math.max(0, Math.min(max, fromPos(Math.max(0, Math.min(1, pos + (e.deltaY < 0 ? 0.02 : -0.02))))))); }}>
       <div className="fader-track" />
@@ -47,7 +47,8 @@ export function Fader({ value, max = 1.25, def = 0.8, onChange, height = 120, ti
 }
 
 /** Number that you can drag vertically or double-click to type (e.g. tempo). */
-export function DragNumber({ value, min, max, step = 1, onChange, format = (v) => v, className = '', title, sensitivity = 0.25 }) {
+/** `label` names the control for screen readers (without it they read the whole hover hint). */
+export function DragNumber({ value, min, max, step = 1, onChange, format = (v) => v, className = '', title, label, sensitivity = 0.25 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   const drag = useRef(null);
@@ -65,7 +66,7 @@ export function DragNumber({ value, min, max, step = 1, onChange, format = (v) =
     emit(Math.max(min, Math.min(max, Math.round(v / step) * step)));
   };
   const commit = () => {
-    const v = parseFloat(text);
+    const v = parseFloat(String(text).replace(',', '.')); // (a decimal comma is a decimal point)
     if (Number.isFinite(v)) onChange?.(Math.max(min, Math.min(max, v)));
     setEditing(false);
   };
@@ -77,7 +78,7 @@ export function DragNumber({ value, min, max, step = 1, onChange, format = (v) =
   }
   return (
     <div className={`dragnum ${className}`} title={title || 'Drag up/down or double-click to type'} data-nodrag
-      role="spinbutton" tabIndex={0} aria-valuenow={value} aria-valuemin={min} aria-valuemax={max}
+      role="spinbutton" tabIndex={0} aria-label={label} aria-valuenow={value} aria-valuemin={min} aria-valuemax={max}
       onKeyDown={(e) => {
         const d = { ArrowUp: step, ArrowRight: step, ArrowDown: -step, ArrowLeft: -step }[e.key];
         if (d === undefined) return;

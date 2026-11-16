@@ -21,11 +21,25 @@ function NumberCell({ def, value, onSet }) {
     const c = Math.max(def.min, Math.min(def.max, v));
     onSet(def.key, def.step ? Math.round(c) : c);
   };
+  /** Arrow keys: a hundredth of the range (a tenth with Shift) — left to itself a number field steps by 1, which
+   *  sends a 0…1 parameter straight to its end. */
+  const nudge = (e) => {
+    const dir = e.key === 'ArrowUp' ? 1 : e.key === 'ArrowDown' ? -1 : 0;
+    if (!dir) return false;
+    e.preventDefault();
+    const by = def.step ? (e.shiftKey ? 10 : 1) * def.step : (def.max - def.min) / (e.shiftKey ? 10 : 100);
+    const from = text === null ? value : parseFloat(text);
+    const next = Math.max(def.min, Math.min(def.max, (Number.isFinite(from) ? from : value) + dir * by));
+    setText(String(Math.round(next * 1e6) / 1e6));
+    return true;
+  };
   return (
     <input type="number" className="ggs-ptable-num" aria-label={`${def.group} ${def.label}`} min={def.min} max={def.max} step={def.step || 'any'}
       value={text ?? String(Math.round(value * 10000) / 10000)} title={formatValue(value, { unit: def.unit, step: def.step })}
       onChange={(e) => setText(e.target.value)} onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); /* leaving the field commits, once */ else if (e.key === 'Escape') setText(null); e.stopPropagation(); }} />
+      // (a wheel over a focused number field would change it: the wheel is for scrolling the table)
+      onWheel={(e) => e.currentTarget.blur()}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); /* leaving the field commits, once */ else if (e.key === 'Escape') setText(null); else nudge(e); e.stopPropagation(); }} />
   );
 }
 

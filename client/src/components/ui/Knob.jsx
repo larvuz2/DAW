@@ -53,7 +53,9 @@ export const SOURCE_MIME = 'application/x-ggs-source';
  * A knob that something modulates can show it:
  *   rings      [{ lo, hi, color }] in the knob's own units — one thin arc per modulation route, outside the track
  *   live       () => value | null, asked every animation frame — a bright dot where the control really is right now
- *   onAltDrag  (delta) — Alt + drag changes a modulation depth instead of the value (delta in knob travel, 0..1)
+ *   onAltDrag  (travel, first) — Alt + drag changes a modulation depth instead of the value: `travel` is how far
+ *              the pointer has gone since the press (in knob travel: 1 = the whole range), `first` marks the first
+ *              call of a gesture — so the receiver can fix what it is changing, and from where, for the whole drag
  *   onDropSource (id)  — a modulation source was dropped on the knob
  *   onContextMenu
  */
@@ -64,10 +66,16 @@ export function Knob({
   const ref = useRef(null);
   const drag = useRef(null);
   const dot = useRef(null);
-  const altMove = useRef(0);
+  const alt = useRef(null); // the Alt-drag in progress: { total, sent }
   const [over, setOver] = useState(false);
   const emit = useRafCallback((v) => onChange?.(v));
-  const emitAlt = useRafCallback(() => { const d = altMove.current; altMove.current = 0; if (d) onAltDrag?.(d); });
+  const emitAlt = useRafCallback(() => {
+    const a = alt.current;
+    if (!a || a.total === a.sent) return;
+    const first = a.sent === null;
+    a.sent = a.total;
+    onAltDrag?.(a.total, first);
+  });
   const n = Math.max(0, Math.min(1, toNorm(value ?? 0, min, max, curve)));
   // where the knob stands including moves that have not come back as a new value yet: key presses that arrive
   // faster than the screen redraws add up instead of all starting from the same place
@@ -87,11 +95,13 @@ export function Knob({
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { y: e.clientY, n, alt: e.altKey && !!onAltDrag };
+    alt.current = drag.current.alt ? { total: 0, sent: null } : null;
   };
   const onPointerMove = (e) => {
     if (!drag.current) return;
     if (drag.current.alt) {
-      altMove.current += (drag.current.y - e.clientY) / (e.shiftKey ? 800 : 160);
+      // (Shift may be pressed or let go on the way: each stretch counts at the speed it was dragged with)
+      alt.current.total += (drag.current.y - e.clientY) / (e.shiftKey ? 800 : 160);
       drag.current.y = e.clientY;
       emitAlt();
       return;

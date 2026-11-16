@@ -1,6 +1,7 @@
 import { uid } from './ids.js';
 import { sanitizeParams } from './instruments.js';
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
+import { didYouMean } from './suggest.js';
 
 const n = (key, label, min, max, def, extra = {}) => ({ key, label, type: 'number', min, max, default: def, ...extra });
 const sel = (key, label, options, def, extra = {}) => ({ key, label, type: 'select', options, default: def, ...extra });
@@ -150,7 +151,7 @@ export const EFFECT_TYPES = Object.keys(EFFECTS);
 
 export function getEffectDef(type) {
   const def = EFFECTS[type];
-  if (!def) throw new Error(`Unknown effect "${type}". Available: ${EFFECT_TYPES.join(', ')}`);
+  if (!def) throw new Error(`Unknown effect "${type}".${didYouMean(type, EFFECT_TYPES)} Available: ${EFFECT_TYPES.join(', ')}`);
   return def;
 }
 

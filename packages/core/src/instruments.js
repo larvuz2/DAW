@@ -1,5 +1,6 @@
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
 import { GGS_PARAMS, GGS_PRESETS, migrateParams as migrateGgsParams } from '@greanteadawy/synth-dsp';
+import { didYouMean } from './suggest.js';
 
 // Instrument catalog. Every channel in the Channel Rack has an instrument:
 //   { kind: 'kick' | 'synth' | ..., preset: 'Punchy', params: {...} }
@@ -786,7 +787,7 @@ export const INSTRUMENT_KINDS = Object.keys(INSTRUMENTS);
 
 export function getInstrumentDef(kind) {
   const def = INSTRUMENTS[kind];
-  if (!def) throw new Error(`Unknown instrument "${kind}". Available: ${INSTRUMENT_KINDS.join(', ')}`);
+  if (!def) throw new Error(`Unknown instrument "${kind}".${didYouMean(kind, INSTRUMENT_KINDS)} Available: ${INSTRUMENT_KINDS.join(', ')}`);
   return def;
 }
 
@@ -807,7 +808,8 @@ export function sanitizeParams(defs, params = {}, { strict = false } = {}) {
   for (const [key, value] of Object.entries(params || {})) {
     const p = defs.find((d) => d.key === key);
     if (!p) {
-      if (strict) throw new Error(`Unknown parameter "${key}". Valid: ${defs.map((d) => d.key).join(', ')}`);
+      // (a synth with hundreds of parameters: the nearest names say more than the whole list)
+      if (strict) throw new Error(`Unknown parameter "${key}".${didYouMean(key, defs.map((d) => d.key), defs.length > 40 ? 6 : 3)} ${defs.length > 40 ? `There are ${defs.length} parameters` : `Valid: ${defs.map((d) => d.key).join(', ')}`}`);
       continue;
     }
     out[key] = sanitizeValue(p, value, strict);
@@ -819,11 +821,11 @@ export function sanitizeValue(p, value, strict = false) {
   if (p.type === 'number') {
     const v = typeof value === 'number' ? value : parseFloat(value);
     if (!Number.isFinite(v)) {
-      if (strict) throw new Error(`Parameter "${p.key}" must be a number`);
+      if (strict) throw new Error(`Parameter "${p.key}" must be a number between ${p.min} and ${p.max}${p.unit ? ` ${p.unit}` : ''} (got ${JSON.stringify(value)})`);
       return p.default;
     }
     if (strict && (v < p.min || v > p.max)) {
-      throw new Error(`Parameter "${p.key}" must be between ${p.min} and ${p.max}${p.unit ? ` ${p.unit}` : ''} (got ${v})`);
+      throw new Error(`Parameter "${p.key}" must be between ${p.min} and ${p.max}${p.unit ? ` ${p.unit}` : ''} (got ${v}; the nearest valid value is ${v < p.min ? p.min : p.max})`);
     }
     let c = Math.min(p.max, Math.max(p.min, v));
     if (p.step && p.step >= 1) c = Math.round(c);
@@ -831,7 +833,7 @@ export function sanitizeValue(p, value, strict = false) {
   }
   if (p.type === 'select') {
     if (!p.options.includes(value)) {
-      if (strict) throw new Error(`Parameter "${p.key}" must be one of: ${p.options.join(', ')}`);
+      if (strict) throw new Error(`Parameter "${p.key}" must be one of: ${p.options.join(', ')} (got ${JSON.stringify(value)}).${didYouMean(value, p.options)}`);
       return p.default;
     }
     return value;
@@ -849,7 +851,7 @@ export function makeInstrument(kind, preset, overrides = {}, { strict = false, p
   }
   const presetName = preset && Object.hasOwn(def.presets, preset) ? preset : Object.keys(def.presets)[0];
   if (strict && preset && !Object.hasOwn(def.presets, preset)) {
-    throw new Error(`Unknown preset "${preset}" for ${kind}. Available: ${Object.keys(def.presets).join(', ')}`);
+    throw new Error(`Unknown preset "${preset}" for ${kind}.${didYouMean(preset, Object.keys(def.presets))} Available: ${Object.keys(def.presets).join(', ')}`);
   }
   const params = {
     ...instrumentDefaults(kind),

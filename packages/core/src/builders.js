@@ -3,6 +3,7 @@ import { STEP, PPQ } from './constants.js';
 import { uid } from './ids.js';
 import { parseStepString } from './notation.js';
 import { chordNotes, voiceNear, parseNote, parseChord } from './music.js';
+import { didYouMean } from './suggest.js';
 
 /**
  * Chord voicings (how the chord tones are spread), applied after voice-leading picks the inversion:
@@ -93,7 +94,7 @@ export function chordProgressionNotes(chords, {
   start = 0, chordLength = PPQ * 4, octave = 4, style = 'block', rhythm = 'x-------x-------', rate = STEP * 2,
   velocity = 0.75, voiceLead = true, inversion = 0, gate = 0.9, center = null, voicing = 'close'
 } = {}) {
-  if (!VOICINGS.includes(voicing)) throw new Error(`Unknown voicing "${voicing}". Use: ${VOICINGS.join(', ')}`);
+  if (!VOICINGS.includes(voicing)) throw new Error(`Unknown voicing "${voicing}".${didYouMean(voicing, VOICINGS)} Use: ${VOICINGS.join(', ')}`);
   const out = [];
   let target = center;
   chords.forEach((symbol, ci) => {
@@ -320,18 +321,24 @@ export function bassLineFromChords(chords, line, { start = 0, chordLength = PPQ 
   return out;
 }
 
+const NOTE_VALUE = /^(\d+)\/(\d+)([td])?$/;
+
 /**
- * Tokens of a compact melody string: note:lengthInSteps (default 1 step), "-" or "r" = a rest, optional suffixes (any
- * order) "!" = accent and "~" = slide. Lengths are checked strictly, so "C4:4x" is an error rather than a 4.
+ * Tokens of a compact melody string: note:length (steps, default 1 — or a note value: 1/8, 1/8t, 1/4d), "-" or "r" =
+ * a rest, optional suffixes (any order) "!" = accent and "~" = slide. Lengths are checked strictly, so "C4:4x" is an
+ * error rather than a 4.
  */
 function melodyTokens(str) {
   return String(str).trim().split(/[\s,]+/).filter(Boolean).map((tok) => {
     const flags = /[!~]*$/.exec(tok)[0];
     const [name, lenStr, extra] = tok.slice(0, tok.length - flags.length).split(':');
-    if (!name || extra !== undefined || (lenStr !== undefined && !/^(\d+\.?\d*|\.\d+)$/.test(lenStr))) {
-      throw new Error(`Invalid melody token "${tok}": use note:lengthInSteps with an optional ! (accent) or ~ (slide), e.g. "C5:2", "Eb5:4!", "D5:2~"`);
+    const value = lenStr === undefined ? null : NOTE_VALUE.exec(lenStr);
+    if (!name || extra !== undefined || (lenStr !== undefined && !value && !/^(\d+\.?\d*|\.\d+)$/.test(lenStr))) {
+      throw new Error(`Invalid melody token "${tok}": use note:length — the length in steps ("C5:2") or as a note value ("C5:1/8", "D5:1/8t" triplet, "E5:1/4d" dotted) — with an optional ! (accent) or ~ (slide), e.g. "Eb5:4!", "D5:2~"`);
     }
-    const len = (lenStr ? parseFloat(lenStr) : 1) * STEP;
+    const len = value
+      ? (Number(value[1]) / Number(value[2])) * PPQ * 4 * (value[3] === 't' ? 2 / 3 : value[3] === 'd' ? 1.5 : 1)
+      : (lenStr ? parseFloat(lenStr) : 1) * STEP;
     if (!Number.isFinite(len) || len <= 0) throw new Error(`Invalid melody token "${tok}"`);
     return { tok, name, len, rest: name === '-' || name.toLowerCase() === 'r', accent: flags.includes('!'), slide: flags.includes('~') };
   });

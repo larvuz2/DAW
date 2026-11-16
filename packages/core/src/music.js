@@ -1,3 +1,4 @@
+import { didYouMean } from './suggest.js';
 // Music theory helpers: note names, scales and chords.
 // Convention: scientific pitch notation, C4 = MIDI 60 (middle C).
 
@@ -82,7 +83,7 @@ export function scalePitchClasses(root, scale = 'minor') {
   const rootPc = typeof root === 'number' ? ((root % 12) + 12) % 12 : parsePitchClass(root);
   const steps = SCALES[scale];
   if (rootPc === null || rootPc === undefined) throw new Error(`Invalid key root "${root}"`);
-  if (!steps) throw new Error(`Unknown scale "${scale}". Known: ${Object.keys(SCALES).join(', ')}`);
+  if (!steps) throw new Error(`Unknown scale "${scale}".${didYouMean(scale, Object.keys(SCALES))} Known: ${Object.keys(SCALES).join(', ')}`);
   return steps.map((s) => (rootPc + s) % 12);
 }
 

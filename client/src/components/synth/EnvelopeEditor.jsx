@@ -14,6 +14,8 @@ const LIMITS = { delay: [0, 5], attack: [0.001, 10], hold: [0, 5], decay: [0.005
 const STAGES = ['delay', 'attack', 'hold', 'decay', 'release'];
 const CURVE_OF = { attackCurve: 'attack', decayCurve: 'decay', releaseCurve: 'release' };
 const NAMES = { delay: 'Delay', attack: 'Attack', hold: 'Hold', decay: 'Decay and sustain', release: 'Release', attackCurve: 'Attack curve', decayCurve: 'Decay curve', releaseCurve: 'Release curve' };
+const DOUBLE_MS = 500; // two presses this close together are a double press
+const DOUBLE_SLOP = 3.5; // …and its second press may move this far (graph units) without becoming a drag
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const y = (v) => H - PAD - v * (H - 2 * PAD);
 
@@ -37,6 +39,24 @@ function curveThrough(f) {
   const k = -2 * Math.log(1 / clamp(f, 1e-4, 1 - 1e-4) - 1);
   return clamp(-Math.sign(k) * Math.sqrt(Math.abs(k) / ENV_CURVE_SCALE), -1, 1);
 }
+
+const EDGE_PX = 4; // the last pixels of a slope, where the handle has nowhere left to go
+const OVER_PX = 30; // how much further the pointer travels from there to the end of the range
+
+/**
+ * The curve for a bend handle dragged to fraction `f` of a slope that is `height` pixels tall. In the middle the
+ * handle sits under the pointer (curveThrough). Near the ends that would leave a hole: the half-time point of the
+ * steepest curves is within a pixel of the slope's end, so one pixel would jump from ±0.7 to ±1. There the bend
+ * goes on with the pointer instead — past the end of the slope if need be — and reaches ±1 thirty pixels further.
+ */
+function curveFromHandle(f, height) {
+  const edge = Math.min(0.25, EDGE_PX / Math.max(1, height));
+  if (f >= edge && f <= 1 - edge) return curveThrough(f);
+  const from = curveThrough(f < edge ? edge : 1 - edge);
+  const over = (f < edge ? edge - f : f - (1 - edge)) * height;
+  return clamp(from + Math.sign(from) * (1 - Math.abs(from)) * Math.min(1, over / OVER_PX), -1, 1);
+}
+const round3 = (v) => Math.round(v * 1000) / 1000;
 
 export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-2)', label = 'Envelope' }) {
   const ref = useRef(null);
@@ -74,6 +94,9 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
     return { px: ((e.clientX - r.left) / r.width) * W, py: ((e.clientY - r.top) / r.height) * H };
   };
   const level = (py) => clamp((H - PAD - py) / (H - 2 * PAD), 0, 1);
+  /** Like level, but it goes on above 1 and below 0: a bend handle is followed past the ends of its slope. */
+  const reach = (py) => (H - PAD - py) / (H - 2 * PAD);
+  const tall = H - 2 * PAD;
 
   const apply = (id, px, py) => {
     const d = drag.current;
@@ -90,33 +113,36 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
       case 'hold': onChange({ hold: time('hold', before.attack) }); break;
       case 'decay': onChange({ decay: time('decay', before.hold), sustain: Math.round(level(py) * 1000) / 1000 }); break;
       case 'release': onChange({ release: time('release', before.sustain) }); break;
-      case 'attackCurve': onChange({ attackCurve: curveThrough(level(py)) }); break;
-      case 'decayCurve': onChange({ decayCurve: curveThrough(1 - (level(py) - s) / Math.max(0.001, 1 - s)) }); break;
-      case 'releaseCurve': onChange({ releaseCurve: curveThrough(1 - level(py) / Math.max(0.001, s)) }); break;
+      case 'attackCurve': onChange({ attackCurve: round3(curveFromHandle(reach(py), tall)) }); break;
+      case 'decayCurve': onChange({ decayCurve: round3(curveFromHandle(1 - (reach(py) - s) / Math.max(0.001, 1 - s), tall * (1 - s))) }); break;
+      case 'releaseCurve': onChange({ releaseCurve: round3(curveFromHandle(1 - reach(py) / Math.max(0.001, s), tall * s)) }); break;
       default: break;
     }
   };
 
   const down = (id) => (e) => {
+    // the left button (or a finger) only — and one pointer at a time: a second finger does not take the drag over
+    if (e.button !== 0 || drag.current) return;
     e.preventDefault();
     e.stopPropagation();
+    e.currentTarget.focus?.(); // (preventDefault keeps the press from focusing it: the arrow keys work on what was last touched)
     // a second press on a bend handle right after the first, let go without bending, puts its default back (the
     // pointer is captured by the graph while dragging, so the browser's own double-click would not land on the
     // handle). A press that turns into a drag is a drag, however soon after the last one.
-    const again = lastDown.current.id === id && e.timeStamp - lastDown.current.at < 350;
+    const again = lastDown.current.id === id && e.timeStamp - lastDown.current.at < DOUBLE_MS;
     lastDown.current = { id, at: e.timeStamp };
     ref.current.setPointerCapture(e.pointerId);
     const { px, py } = point(e);
     // attack and hold share a spot while the hold is zero: the first move decides (right = add hold)
     const undecided = (id === 'attack' || id === 'hold') && env.hold < 0.0005;
-    drag.current = { id: undecided ? null : id, scale, env: { ...env }, x0: px, y0: py, bent: false, again, grab: { dx: 0, dy: 0 } };
+    drag.current = { id: undecided ? null : id, pointer: e.pointerId, scale, env: { ...env }, x0: px, y0: py, bent: false, again, grab: { dx: 0, dy: 0 } };
     const n = [...nodes, ...bends].find((q) => q.id === id);
     drag.current.grab = { dx: n.cx - px, dy: n.cy - py };
     setActive(id);
   };
   const move = (e) => {
     const d = drag.current;
-    if (!d) return;
+    if (!d || e.pointerId !== d.pointer) return;
     const { px, py } = point(e);
     if (!d.id) {
       if (Math.abs(px - d.x0) < 2) return;
@@ -126,17 +152,24 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
     // a bend handle only answers to up and down: a sideways wobble must not rewrite the curve from the handle's
     // (pixel-rounded) position
     if (CURVE_OF[d.id] && !d.bent) {
-      if (Math.abs(py - d.y0) < 1) return;
+      // (the second press of a double press may wobble a little — a mouse by a pixel, a finger by more — and is
+      // still a double press)
+      if (Math.abs(py - d.y0) < (d.again ? DOUBLE_SLOP : 1)) return;
       d.bent = true;
     }
     apply(d.id, px + d.grab.dx, py + d.grab.dy);
   };
-  const up = () => {
+  const end = (e, cancelled) => {
     const d = drag.current;
-    if (d?.again && !d.bent && CURVE_OF[d.id]) onChange({ [d.id]: defaults?.[d.id] ?? 0 });
+    if (!d || e.pointerId !== d.pointer) return;
+    if (!cancelled && d.again && !d.bent && CURVE_OF[d.id]) onChange({ [d.id]: defaults?.[d.id] ?? 0 });
+    // a press that bent the curve (or was taken away by the system) is not the first half of a double press
+    if (d.bent || cancelled) lastDown.current = { id: null, at: 0 };
     drag.current = null;
     setActive(null);
   };
+  const up = (e) => end(e, false);
+  const cancel = (e) => end(e, true);
 
   const key = (id) => (e) => {
     const step = e.shiftKey ? 0.25 : 1;
@@ -144,7 +177,9 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
     if (!dir) return;
     e.preventDefault();
     e.stopPropagation();
-    if (CURVE_OF[id]) { if (dir[1]) onChange({ [id]: clamp(Math.round((env[id] - dir[1] * 0.05 * step) * 100) / 100, -1, 1) }); return; }
+    // up moves the handle up: on the attack that is a more negative curve (fast first), on the falling slopes a
+    // more positive one (slow first)
+    if (CURVE_OF[id]) { if (dir[1]) onChange({ [id]: clamp(Math.round((env[id] + (id === 'attackCurve' ? -1 : 1) * dir[1] * 0.05 * step) * 100) / 100, -1, 1) }); return; }
     const out = {};
     if (dir[0]) {
       const [lo, hi] = LIMITS[id];
@@ -163,7 +198,7 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
   return (
     <div className="ggs-envedit" style={{ '--c': color }}>
       <svg ref={ref} viewBox={`0 0 ${W} ${H}`} role="group" aria-label={`${label}: drag the nodes for times and sustain, the round handles to bend a slope`}
-        data-nodrag onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+        data-nodrag onPointerMove={move} onPointerUp={up} onPointerCancel={cancel}>
         <line className="base" x1={PAD} x2={W - PAD} y1={y(0)} y2={y(0)} />
         <line className="base" x1={PAD} x2={W - PAD} y1={y(1)} y2={y(1)} />
         <rect className="sus" x={x.decay} y={PAD} width={SUSTAIN_W} height={H - 2 * PAD} />
@@ -173,7 +208,7 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
           <circle key={b.id} className={`bend ${active === b.id ? 'on' : ''}`} cx={b.cx} cy={b.cy} r={4.5} tabIndex={0} role="slider" aria-label={NAMES[b.id]}
             aria-valuemin={-1} aria-valuemax={1} aria-valuenow={env[b.id]} aria-valuetext={valueText(b.id)} data-node={b.id}
             onPointerDown={down(b.id)} onKeyDown={key(b.id)}>
-            <title>{`${NAMES[b.id]} ${env[b.id].toFixed(2)} — drag up or down to bend, double-click to reset`}</title>
+            <title>{`${NAMES[b.id]} ${env[b.id].toFixed(2)} — drag up or down to bend (keep going past the end of the slope for the steepest bends), arrow keys nudge it, double-click to reset`}</title>
           </circle>
         ))}
         {nodes.map((n) => (
@@ -190,7 +225,7 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
           <label key={id} className={active === id ? 'on' : ''}>
             {name}
             <DragNumber value={env[id]} min={-1} max={1} step={0.01} sensitivity={0.01} format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}`}
-              title={`${NAMES[id]}: drag up/down, or double-click to type (-1 … 1)`} onChange={(v) => onChange({ [id]: Math.round(v * 100) / 100 })} />
+              label={NAMES[id]} title={`${NAMES[id]}: drag up/down, or double-click to type (-1 … 1)`} onChange={(v) => onChange({ [id]: Math.round(v * 100) / 100 })} />
           </label>
         ))}
       </div>

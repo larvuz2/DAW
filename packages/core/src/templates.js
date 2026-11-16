@@ -24,6 +24,7 @@ import bossanova from './templates/bossanova.js';
 import cinematic from './templates/cinematic.js';
 import beatbox from './templates/beatbox.js';
 import expressive from './templates/expressive.js';
+import { didYouMean } from './suggest.js';
 
 // in the order the template menus list them
 const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox, expressive };
@@ -97,7 +98,7 @@ export function createProjectFromTemplate(template = 'default', opts = {}) {
     return p;
   }
   const specFn = GENRES[template]?.spec;
-  if (!specFn) throw new Error(`Unknown template "${template}". Available: ${Object.keys(TEMPLATES).join(', ')}`);
+  if (!specFn) throw new Error(`Unknown template "${template}".${didYouMean(template, Object.keys(TEMPLATES))} Available: ${Object.keys(TEMPLATES).join(', ')}`);
   const spec = specFn();
   if (opts.name) spec.name = opts.name;
   if (opts.bpm) spec.bpm = opts.bpm;

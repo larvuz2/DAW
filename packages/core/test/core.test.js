@@ -491,7 +491,10 @@ test('melody strings: "~" slides into the next note, "!" accents, junk after a l
   // the overlap never runs past the next note, and a slide into the same pitch is a plain re-strike
   assert.deepEqual(melodyFromString('C4:2~ D4:.25').map((n) => n.start + n.length), [54, 54]);
   assert.deepEqual(melodyFromString('C4:2~ C4:2').map((n) => n.length), [48, 46]);
-  for (const bad of ['C4:4x', 'C4:2:2', 'C4:', 'C4:-1', 'C5:1e4', 'C5:1/2', ':2']) {
+  // a length can be a note value: an eighth, a triplet eighth, a dotted quarter
+  assert.equal(melodyLength('C5:1/8 D5:1/8t E5:1/4d'), 48 + 32 + 144);
+  assert.deepEqual(melodyFromString('C5:1/8t D5:1/8t E5:1/8t', { gate: 1 }).map((n) => n.start), [0, 32, 64]);
+  for (const bad of ['C4:4x', 'C4:2:2', 'C4:', 'C4:-1', 'C5:1e4', 'C5:1/0', 'C5:1/8x', 'C5:/8', ':2']) {
     assert.throws(() => melodyFromString(bad), /Invalid melody token/);
     assert.throws(() => melodyLength(bad), /Invalid melody token/);
   }

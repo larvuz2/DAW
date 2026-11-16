@@ -248,12 +248,25 @@ export function SynthEditor({ channel }) {
     const slot = same ? same.slot : addRoute(source, target, 0.25);
     if (slot) setActive((m) => ({ ...m, [target]: slot }));
   };
-  const changeDepth = (target, delta) => {
-    const r = activeRoute(target);
-    if (!r) return;
-    const now = latest.current[`mod${r.slot}Amt`] ?? r.amount;
+  /**
+   * Alt-drag on a knob. The route is chosen once, when the drag begins, and stays the knob's route afterwards —
+   * choosing "the deepest" again on every frame would hand the drag to another route as soon as this one became
+   * shallower than its neighbour. The depth is counted from where it stood at the press, so nothing is lost to
+   * rounding on the way.
+   */
+  const altDrag = useRef(null); // { target, slot, from, travel }
+  const changeDepth = (target, travel, first) => {
+    if (first || altDrag.current?.target !== target) {
+      const r = activeRoute(target);
+      if (!r) return;
+      altDrag.current = { target, slot: r.slot, from: latest.current[`mod${r.slot}Amt`] ?? r.amount, travel: 0 };
+      setActive((m) => (m[target] === r.slot ? m : { ...m, [target]: r.slot }));
+    }
+    const g = altDrag.current;
+    const down = travel < g.travel;
+    g.travel = travel;
     // (a depth of exactly 0 would switch the route off and make it vanish from the matrix mid-drag)
-    set(`mod${r.slot}Amt`, clamp(Math.round((now + delta) * 1000) / 1000, -1, 1) || (delta < 0 ? -0.005 : 0.005));
+    set(`mod${g.slot}Amt`, clamp(Math.round((g.from + travel) * 1000) / 1000, -1, 1) || (down ? -0.005 : 0.005));
   };
   const showInMatrix = (text) => { setMatrixFilter(text); setTab('matrix'); };
   const knobMenu = (key, d) => (e) => {
@@ -314,7 +327,7 @@ export function SynthEditor({ channel }) {
         <Knob key={key} value={val(key)} min={d.min} max={d.max} def={d.default} curve={d.curve} step={d.step} label={label} unit={d.unit}
           color={opts.color} showValue size={opts.size || 30} bipolar={d.min < 0} title={title} className={opts.className}
           rings={rings} live={rings?.length || opts.live ? liveOf(key) : undefined}
-          onAltDrag={target && rings.length ? (delta) => changeDepth(key, delta) : undefined}
+          onAltDrag={target && rings.length ? (travel, first) => changeDepth(key, travel, first) : undefined}
           onDropSource={target ? (src) => MOD_SOURCES.includes(src) && src !== 'none' && modulate(src, key) : undefined}
           onContextMenu={target ? knobMenu(key, d) : opts.menu}
           onChange={(v) => set(key, d.step ? Math.round(v) : Math.round(v * 1e6) / 1e6)} />
@@ -402,7 +415,7 @@ export function SynthEditor({ channel }) {
     <fieldset key={i} className={`param-group ggs-env ${i === 1 || used(`env${i}`) ? '' : 'idle'}`} title={i > 1 && !used(`env${i}`) ? 'Not routed yet: add a route in the Matrix tab' : undefined}>
       <legend>{i === 1 ? 'Envelope 1 · amp' : `Envelope ${i}`}<SourceMeter source={`env${i}`} live={live} className="in-legend" /></legend>
       <EnvelopeEditor env={paramsToSection({ ...DEFAULTS, ...p }, 'envelope', i)} defaults={paramsToSection(DEFAULTS, 'envelope', i)} color={ENV_COLORS[i - 1]} label={`Envelope ${i}`}
-        onChange={(f) => setDrag(sectionToParams('envelope', i, f), `env${i}:graph`)} />
+        onChange={(f) => setDrag(sectionToParams('envelope', i, f), `env${i}:${Object.keys(f).sort().join('+')}`)} />
       <div className="param-row">{C(`env${i}Delay`)}{C(`env${i}A`, { label: 'A' })}{C(`env${i}Hold`)}{C(`env${i}D`, { label: 'D' })}{C(`env${i}S`, { label: 'S' })}{C(`env${i}R`, { label: 'R' })}</div>
     </fieldset>
   );

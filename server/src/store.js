@@ -255,7 +255,8 @@ export class ProjectStore extends EventEmitter {
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async restoreVersion(id, ownerId, versionId, meta = {}) {
+  /** One saved version with the project it holds: { id, name, createdAt, rev, bpm, project }. */
+  async getVersion(id, ownerId, versionId) {
     await this.getOwned(id, ownerId);
     if (!/^[\w-]+$/.test(String(versionId))) throw httpError(400, 'Invalid version id');
     let data;
@@ -264,6 +265,11 @@ export class ProjectStore extends EventEmitter {
     } catch {
       throw httpError(404, `Version ${versionId} not found`);
     }
+    return { ...data, project: normalizeProject(data.project) };
+  }
+
+  async restoreVersion(id, ownerId, versionId, meta = {}) {
+    const data = await this.getVersion(id, ownerId, versionId);
     return this.applyOps(id, [{ type: 'project/replace', project: data.project }], { ...meta, userId: ownerId });
   }
 

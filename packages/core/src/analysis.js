@@ -2,11 +2,14 @@
 // spectral balance, stereo image, onsets, tempo, pitch, key and a rough "what is this sound" guess.
 // Used for uploaded samples (so Claude can pick and tune them) and for mixdowns (render_mix).
 import { noteName } from './music.js';
+import { BARK_EDGES_HZ, BARK_BANDS } from './renders.js';
 
 const PC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const r1 = (x) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
 const r2 = (x) => (Number.isFinite(x) ? Math.round(x * 100) / 100 : null);
 const r3 = (x) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : null);
+/** At most this many spectrum frames per analysis (about three minutes at 44.1 kHz with every frame taken). */
+const SPECTRUM_FRAMES = 4000;
 /** Spectral bands used for "spectral balance" percentages (Hz). */
 const BANDS = [['sub', 20, 60], ['low', 60, 250], ['lowMid', 250, 500], ['mid', 500, 2000], ['highMid', 2000, 6000], ['high', 6000, 20000]];
 const toDb = (x) => (x > 1e-10 ? 20 * Math.log10(x) : -200);
@@ -464,13 +467,20 @@ export function analyzeAudio({ channels: input, sampleRate: fs }, opts = {}) {
   let flatSum = 0;
   let flatFrames = 0;
   const regionStart = silent ? 0 : first;
-  const regionLen = silent ? n : Math.max(1, last - first + 1);
-  const frames = Math.max(1, Math.min(300, Math.ceil(regionLen / N)));
-  const stride = frames > 1 ? (regionLen - N) / (frames - 1) : 0;
+  const regionEnd = silent ? n : last + 1;
+  // Half-overlapping Hann frames on a grid that starts half a frame before the audio does: every sample counts the
+  // same, wherever it falls in a frame, and the grid does not move when the level does. (Frames laid end to end
+  // from the first sample above −60 dB — as this used to do — weigh a kick by where it lands in its frame, and
+  // land elsewhere when the mix is 6 dB quieter: the "same" mix then showed a different balance.) Long audio takes
+  // every m-th frame of the grid, m from the length alone.
+  const hop = N / 2;
+  const every = Math.max(1, Math.ceil(n / hop / SPECTRUM_FRAMES));
   const fLo = Math.max(1, Math.floor(100 / binHz));
   const fHi = Math.min(N / 2, Math.floor(10000 / binHz));
-  for (let f = 0; f < frames; f++) {
-    const start = Math.round(regionStart + Math.max(0, stride) * f);
+  for (let j = 0; ; j++) {
+    const start = (j * every - 1) * hop;
+    if (start >= regionEnd) break;
+    if (start + N <= regionStart) continue;
     const p = powerSpectrum(mono, start, N, re, im);
     let logSum = 0; let linSum = 0; let cnt = 0;
     for (let k = 1; k < p.length; k++) {
@@ -667,8 +677,11 @@ export function analyzeAudio({ channels: input, sampleRate: fs }, opts = {}) {
  * spectrum frame (~0.1 s) so the spectral balance has data.
  * result(): { duration, lufs, loudnessRangeLu, peakDb, truePeakDb (with { truePeak: true }), rmsDb, crestDb, centroidHz,
  *   bandsPercent, stereoWidth, lowWidth (side/mid below 150 Hz), lowPeakHz/lowPeakNote (strongest 25–300 Hz frequency) }
+ * With { bands: true } it also keeps, for every spectrum frame, the energy in the 24 Bark bands (mean square re full
+ * scale, of the mono sum): result().bandFrames — what maskingReport compares between stems. Meters that are fed
+ * the same chunk lengths take their frames at the same moments.
  */
-export function createLevelMeter(fs, { spectrumHopSeconds = 0.5, truePeak = false } = {}) {
+export function createLevelMeter(fs, { spectrumHopSeconds = 0.5, truePeak = false, bands = false } = {}) {
   const coeffs = kWeightCoeffs(fs);
   const tp = truePeak ? createTruePeakMeter() : null;
   const [lb0, lb1, lb2, la1, la2] = lowpassCoeffs(fs, 150);
@@ -681,6 +694,14 @@ export function createLevelMeter(fs, { spectrumHopSeconds = 0.5, truePeak = fals
   const im = new Float64Array(N);
   const total = new Float64Array(N / 2 + 1);
   const hop = Math.max(1, Math.round(fs * 0.1));
+  const bandFrames = bands ? [] : null;
+  // which Bark band each bin belongs to (−1: outside 20 Hz – 15.5 kHz), and bin power → mean square under a Hann window
+  const barkOf = bands ? Int8Array.from({ length: N / 2 + 1 }, (_, k) => {
+    const hz = (k * fs) / N;
+    for (let b = 0; b < BARK_BANDS; b++) if (hz >= BARK_EDGES_HZ[b] && hz < BARK_EDGES_HZ[b + 1]) return b;
+    return -1;
+  }) : null;
+  const toMeanSquare = 16 / (3 * N * N);
   const filters = []; // per channel: K-weighting biquad states
   const energies = [];
   let blockSum = 0;
@@ -761,7 +782,13 @@ export function createLevelMeter(fs, { spectrumHopSeconds = 0.5, truePeak = fals
           im[k] = 0;
         }
         fft(re, im);
-        for (let k = 1; k <= N / 2; k++) total[k] += re[k] * re[k] + im[k] * im[k];
+        const frame = bandFrames ? new Float32Array(BARK_BANDS) : null;
+        for (let k = 1; k <= N / 2; k++) {
+          const power = re[k] * re[k] + im[k] * im[k];
+          total[k] += power;
+          if (frame && barkOf[k] >= 0) frame[barkOf[k]] += power * toMeanSquare;
+        }
+        if (frame) bandFrames.push(frame);
         at += specHop;
       }
       nextSpec = samples + at;
@@ -800,7 +827,8 @@ export function createLevelMeter(fs, { spectrumHopSeconds = 0.5, truePeak = fals
         centroidHz: all > 0 ? Math.round(centroidNum / all) : 0,
         bandsPercent,
         stereoWidth: nch === 2 && mid ? r2(Math.sqrt(side / mid)) : null,
-        invalidSamples: invalid
+        invalidSamples: invalid,
+        ...(bandFrames ? { bandFrames } : {})
       };
     }
   };

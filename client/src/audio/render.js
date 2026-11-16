@@ -12,6 +12,7 @@ const TAP_SIZE = 32768; // AnalyserNode history (max fftSize) — must exceed on
  *   mode: 'song' | 'pattern', patternId, loops (pattern mode), tail (s), sampleRate, samples (Map of decoded buffers),
  *   bitDepth, encode (default true), onProgress(0..1),
  *   stems: [{ channelId, name } | { name, audioClips: true }]   meter these in the same pass (see below)
+ *   masking: true   also keep each stem's Bark-band energies over time (stems[i].bandFrames, for maskingReport)
  * }
  * Returns { blob, seconds, buffer, stems, limiter }. `stems` holds level/loudness/spectrum stats per requested stem, or
  * null when stems weren't requested or the browser can't meter during an offline render (no OfflineAudioContext.suspend).
@@ -44,7 +45,7 @@ export async function renderProject(project, opts = {}) {
   const transport = eng.transport;
   const playMode = songMode ? 'song' : 'pattern';
   const chunked = typeof ctx.suspend === 'function';
-  const taps = chunked && opts.stems?.length ? attachStemTaps(eng, ctx, opts.stems) : null;
+  const taps = chunked && opts.stems?.length ? attachStemTaps(eng, ctx, opts.stems, { bands: !!opts.masking }) : null;
   let collect = () => {};
   // how hard the master limiter works: tells Claude whether the loudness came from squashing
   const limiterFx = eng.inserts[0]?.fx.find((f) => f.type === 'limiter' && f.enabled);
@@ -173,7 +174,7 @@ function attachLimiterMeter(ctx, node, ceilingDb) {
 }
 
 /** Hang a stereo AnalyserNode pair off each stem's tap point. */
-function attachStemTaps(eng, ctx, stems) {
+function attachStemTaps(eng, ctx, stems, meterOpts = {}) {
   const project = eng.project;
   const channelsPerInsert = new Map();
   for (const c of project.channels) channelsPerInsert.set(c.mixerTrack, (channelsPerInsert.get(c.mixerTrack) || 0) + 1);
@@ -217,7 +218,7 @@ function attachStemTaps(eng, ctx, stems) {
       split.connect(a, i);
       return a;
     });
-    taps.push({ ...stem, tap, an, meter: createLevelMeter(ctx.sampleRate) });
+    taps.push({ ...stem, tap, an, meter: createLevelMeter(ctx.sampleRate, meterOpts) });
   }
   return taps;
 }

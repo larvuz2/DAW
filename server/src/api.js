@@ -84,6 +84,7 @@ export function createApiRouter({ store, samples, users, hub, auth, config, publ
     const source = req.body?.source === 'mcp' ? 'mcp' : 'api';
     res.status(201).json(await store.saveVersion(req.params.id, req.user.id, req.body?.name, { source }));
   }));
+  r.get('/projects/:id/versions/:vid', wrap(async (req, res) => res.json(await store.getVersion(req.params.id, req.user.id, req.params.vid))));
   r.post('/projects/:id/versions/:vid/restore', wrap(async (req, res) => {
     const source = req.body?.source === 'mcp' ? 'mcp' : 'api';
     const p = await store.restoreVersion(req.params.id, req.user.id, req.params.vid, { source, undoable: source === 'mcp' });

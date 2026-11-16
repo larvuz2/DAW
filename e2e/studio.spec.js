@@ -73,6 +73,46 @@ test('Claude (MCP, no token on loopback) edits the open project live', async ({ 
   }
 });
 
+test('Claude tries an edit without making it, then makes several as one change', async ({ baseURL }) => {
+  const claude = await connectMcp(baseURL);
+  // what the studio shows, and the revision the server holds
+  const state = () => page.evaluate(() => {
+    const p = window.greanteadawy.store.getState().project;
+    return { patterns: p.patterns.map((x) => x.name), clips: p.playlist.clips.length, notes: p.patterns.reduce((n, x) => n + Object.values(x.notes).reduce((m, list) => m + list.length, 0), 0) };
+  });
+  const rev = async () => (await (await page.request.get(`/api/projects/${await page.evaluate(() => window.greanteadawy.store.getState().project.id)}`)).json()).rev;
+  try {
+    const before = await state();
+    const revBefore = await rev();
+    // a dry run answers and shows the change — the studio does not move
+    const dry = await claude.call('add_notes', { pattern: 'E2E Hook', channel: 'E2E Lead', text: '1.1 C4+Eb4+G4 1/2; 1.3 Bb4 1/8t; > C5 1/8t; > D5 1/8t', dryRun: true });
+    expect(dry).toMatch(/^DRY RUN — nothing was changed\. add_notes is valid; it would answer:\n {2}Added 6 notes/);
+    expect(dry).toMatch(/E2E Lead: \+6 notes\n {6}\+ 1 C4\+D#4\+G4 1\/2\n {6}\+ 1\.3 A#4 1\/8t\n {6}\+ > C5 1\/8t/);
+    await page.waitForTimeout(300);
+    expect(await state()).toEqual(before);
+    expect(await rev()).toBe(revBefore);
+    // a wrong call says what to send instead
+    await expect(claude.call('add_notes', { pattern: 'E2E Hok', channel: 'E2E Lead', text: '1 C4 1/4' })).rejects.toThrow(/Pattern "E2E Hok" not found\. Did you mean "E2E Hook"\?/);
+    // a batch arrives in the studio as one change
+    const out = await claude.call('batch', { calls: [
+      { tool: 'create_pattern', args: { name: 'E2E Bridge', bars: 2 } },
+      { tool: 'add_notes', args: { pattern: 'E2E Bridge', channel: 'E2E Lead', text: '1.1 C4+Eb4+G4 1/2; 1.3 Bb4 1/8t; > C5 1/8t; > D5 1/8t; 2 F4 1bar' } },
+      { tool: 'place_pattern', args: { pattern: 'E2E Bridge', startBar: 9 } }
+    ] });
+    expect(out).toMatch(/^Applied 3 calls as ONE change/);
+    await expect.poll(async () => (await state()).patterns).toContain('E2E Bridge');
+    const after = await state();
+    expect([(await rev()) - revBefore, after.notes - before.notes, after.clips - before.clips]).toEqual([1, 7, 1]);
+    // the text Claude reads back is the text it wrote
+    expect(await claude.call('get_pattern', { pattern: 'E2E Bridge', format: 'text' })).toMatch(/1 C4\+D#4\+G4 1\/2 {2}# \S+\n1\.3 A#4 1\/8t {2}# \S+\n> C5 1\/8t {2}# \S+\n> D5 1\/8t {2}# \S+\n2 F4 1bar/);
+    // and one undo takes the whole batch back
+    await claude.call('undo');
+    await expect.poll(state).toEqual(before);
+  } finally {
+    await claude.close();
+  }
+});
+
 test('render_mix renders and analyses in this browser tab', async ({ baseURL }) => {
   const claude = await connectMcp(baseURL);
   try {
@@ -80,6 +120,24 @@ test('render_mix renders and analyses in this browser tab', async ({ baseURL }) 
     expect(report).toMatch(/LUFS/);
     expect(report).toMatch(/peak/i);
     expect(report).toMatch(/\/api\/exports\//);
+    // every render has an id; the stems are checked for masking
+    expect(report).toMatch(/· render r1\n/);
+    expect(report).toMatch(/\nMasking(:| —)/);
+    expect(report).toMatch(/No earlier render of this pattern to compare with/);
+    // the same project is the same audio — in a real browser, whose mixer does not round the same way twice:
+    // the earlier render is subtracted, and nothing but that rounding is left
+    const again = await claude.call('render_mix', { mode: 'pattern', loops: 1 });
+    expect(again).toMatch(/render r2\n/);
+    expect(again).toMatch(/Compared with render r1 \(\d+ s ago, the same project revision\) — this render is:\n- (Bit-identical|The same audio: subtracting the earlier render leaves (nothing at 16 bits|-(8\d|9\d|1\d\d)(\.\d)? dB relative to the mix))/);
+    // an edit that is heard: the master 6 dB down is 6 LU quieter (the limiter sits before the fader)
+    await claude.call('set_mixer', { insert: 0, volumeDb: -6 });
+    const quieter = await claude.call('render_mix', { mode: 'pattern', loops: 1 });
+    expect(quieter).toMatch(/Compared with render r2 \(\d+ s ago, project revision \d+ → \d+\) — this render is:\n- (5\.\d|6(\.\d)?) LU quieter/);
+    expect(quieter).toMatch(/\n- peaks (5\.\d|6(\.\d)?) dB lower/);
+    expect(quieter).toMatch(/\n- null test: a clear change — what is left after subtracting the earlier render is at -(5|6)(\.\d)? dB relative to the mix/);
+    // back again: compared with the first render there are only the meters to go by, and none of them moved
+    await claude.call('undo');
+    expect(await claude.call('render_mix', { mode: 'pattern', loops: 1, compareTo: 'r1' })).toMatch(/Compared with render r1 [^\n]*\n- (Bit-identical|the same by every meter \(loudness \+?0(\.\d+)? LU, true peak \+?0(\.\d+)? dB, no band moved by 2 points\)\. Not bit-identical)/);
   } finally {
     await claude.close();
   }
@@ -131,9 +189,22 @@ test('versions: save from the UI and restore', async () => {
   if (await page.locator('.modal').isVisible()) await page.locator('.modal .btn.danger, .modal .btn.primary').last().click();
   await expect(page.locator('.ch-name', { hasText: 'E2E Lead' })).toHaveCount(0);
 
+  // "Changes": what is different now, in the words Claude gets from diff_versions
+  const item = win.locator('.version-item', { hasText: 'E2E checkpoint' });
+  await item.getByRole('button', { name: 'Changes' }).click();
+  const changes = item.locator('.version-changes');
+  await expect(changes.locator('b')).toHaveText(/^Since this version: 1 channel/);
+  await expect(changes.locator('pre')).toContainText('− Channel "E2E Lead" (synth)');
+  // it follows the project: one more edit, one more line
+  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.dispatch([{ type: 'project/update', patch: { bpm: st.project.bpm + 7 } }]); });
+  await expect(changes.locator('pre')).toContainText(/Project: tempo \d+ → \d+ BPM/);
+
   await win.locator('.version-row', { hasText: 'E2E checkpoint' }).getByRole('button', { name: 'Restore' }).click();
   await page.locator('.modal .btn.primary').click();
   await expect(page.locator('.ch-name', { hasText: 'E2E Lead' })).toBeVisible();
+  await expect(changes.locator('b')).toHaveText('Nothing has changed since this version.');
+  await item.getByRole('button', { name: 'Changes' }).click();
+  await expect(changes).toHaveCount(0);
   await win.locator('.wbtn.close').click();
 });
 

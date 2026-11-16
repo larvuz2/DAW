@@ -1,5 +1,5 @@
 // Studio status, projects, versions and undo.
-import { TEMPLATES, SCALES, summarizeProject, normalizeKey } from '@greanteadawy/core';
+import { TEMPLATES, SCALES, summarizeProject, normalizeKey, diffProjects, didYouMean } from '@greanteadawy/core';
 import { z, ok, projectIdArg, annotations as A } from '../util.js';
 
 export function registerProjectTools({ tool, backend, load, resolveProjectId }) {
@@ -168,9 +168,42 @@ export function registerProjectTools({ tool, backend, load, resolveProjectId }) 
     return ok(list.length ? list.map((v) => `${v.name} [${v.id}] ${v.createdAt} — ${v.bpm} BPM, ${v.channels} channels, ${v.patterns} patterns`).join('\n') : 'No versions saved yet (use save_version).');
   });
 
+  /** A saved version by id or name (the newest when several share a name). */
+  async function findVersion(id, ref) {
+    const list = await backend.listVersions(id);
+    if (!list.length) throw new Error('No versions are saved for this project yet (save_version makes one).');
+    const wanted = String(ref).trim().toLowerCase();
+    const found = list.find((v) => v.id === ref) || list.find((v) => v.name.toLowerCase() === wanted);
+    if (!found) throw new Error(`Version "${ref}" not found.${didYouMean(ref, list.map((v) => v.name))} Versions, newest first: ${list.slice(0, 12).map((v) => `${v.name} [${v.id}]`).join(', ')}`);
+    return found;
+  }
+
+  tool('diff_versions', {
+    title: 'What changed between versions',
+    description: 'Say what changed between two states of the project, in words: tempo and key, channels and their sound (parameter old → new), patterns and notes (added / removed / changed, as compact note text), clips, markers, automation, mixer and effects. By default: from the most recent saved version to the project as it is now — "what have I changed since I saved". Give `from` and/or `to` (version ids or names) to compare other states, e.g. two versions, or to see what restore_version would bring back (from: that version). Read-only.',
+    inputSchema: {
+      projectId: projectIdArg,
+      from: z.string().optional().describe('Version id or name to start from (default: the most recent saved version)'),
+      to: z.string().optional().describe('Version id or name to end at (default: the project as it is now)'),
+      maxLines: z.number().int().min(5).max(400).optional().describe('How many lines of detail at most (default 80)')
+    },
+    annotations: A.readOnly
+  }, async ({ projectId, from, to, maxLines = 80 }) => {
+    const id = await resolveProjectId(projectId);
+    const now = await backend.getProject(id);
+    const a = from ? await findVersion(id, from) : (await backend.listVersions(id))[0];
+    if (!a) throw new Error('No versions are saved for this project yet, so there is nothing to compare with. save_version makes one — do it before a round of changes, then diff_versions shows what the round did.');
+    const b = to ? await findVersion(id, to) : null;
+    const before = (await backend.getVersion(id, a.id)).project;
+    const after = b ? (await backend.getVersion(id, b.id)).project : now;
+    const d = diffProjects(before, after, { maxLines });
+    const head = `From version "${a.name}" [${a.id}] (${a.createdAt}) to ${b ? `version "${b.name}" [${b.id}] (${b.createdAt})` : 'the project as it is now'}:`;
+    return ok(d.changed ? `${head}\n${d.summary}\n${d.lines.join('\n')}` : `${head}\nNo difference — the two are the same music and the same mix.`);
+  });
+
   tool('restore_version', {
     title: 'Restore version',
-    description: 'Replace the current project state with a saved version. Tip: save_version first if the current state might be wanted later.',
+    description: 'Replace the current project state with a saved version (diff_versions from: that version shows what would come back and what would be lost). Tip: save_version first if the current state might be wanted later.',
     inputSchema: { projectId: projectIdArg, versionId: z.string() },
     annotations: A.destructive
   }, async ({ projectId, versionId }) => {

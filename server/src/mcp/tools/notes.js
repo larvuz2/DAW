@@ -1,11 +1,15 @@
 // Patterns and notes: step sequencing, piano-roll notes, chords, basslines, melodies, rolls, editing.
 import {
-  STEP, ticksPerBar, uid, parseNote, noteName, findChannel, findPattern, patternLength, parseStepString, toTicks,
+  STEP, ticksPerBar, uid, parseNote, noteName, findChannel, findPattern, patternLength, parseStepString,
   chordProgressionNotes, bassFromChords, bassLineFromChords, VOICINGS, melodyFromString, melodyLength, quantizeNotes, humanizeNotes, legatoNotes, rollNotes,
-  toStepString, isStepLike, CHORD_TYPES, COLORS, maxPatternLength, MAX_PATTERN_BARS, stepsPerBeat, describeExpression, hasExpression
+  toStepString, isStepLike, CHORD_TYPES, COLORS, maxPatternLength, MAX_PATTERN_BARS, stepsPerBeat, describeExpression, hasExpression,
+  parseNoteText, formatNoteText
 } from '@greanteadawy/core';
 import { curveArg, withExpression } from './expression.js';
-import { z, ok, projectIdArg, unitArg, annotations as A, normVelocity, growPatternOp, assertFitsPattern, resolveChords, steps, barsOf, uniqueName, assertNameFree } from '../util.js';
+import {
+  z, ok, projectIdArg, unitArg, annotations as A, normVelocity, growPatternOp, assertFitsPattern, resolveChords, steps, barsOf, uniqueName, assertNameFree,
+  positionArg, durationArg, positionTicks, durationTicks, POSITION_WORDS, DURATION_WORDS
+} from '../util.js';
 
 const RATE_TICKS = { '1/8': 48, '1/12': 32, '1/16': 24, '1/24': 16, '1/32': 12, '1/48': 8, '1/64': 6 };
 const velocityArg = z.number().min(0).max(127).optional().describe('0..1 (1 = full), or MIDI 2..127');
@@ -109,10 +113,13 @@ export function registerNoteTools({ tool, backend, load }) {
 
   tool('get_pattern', {
     title: 'Get pattern',
-    description: 'Detailed view of one pattern: per channel a step grid (drums) and the full note list with note ids, names, start/length in steps and velocity, and a summary of each note\'s expression (pitch / pressure / slide curves) — use the ids with update_notes / delete_notes / set_note_expression.',
-    inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string().optional().describe('Only this channel') },
+    description: 'Detailed view of one pattern: per channel a step grid (drums) and the full note list with note ids, names, start/length in steps and velocity, and a summary of each note\'s expression (pitch / pressure / slide curves) — use the ids with update_notes / delete_notes / set_note_expression. format "text" prints the notes as compact note text instead (a chord per line: "2.3 D3+A3+F4 1/2 v0.7  # ids"): about a third of the size, and add_notes takes that same text back.',
+    inputSchema: {
+      projectId: projectIdArg, pattern: z.string(), channel: z.string().optional().describe('Only this channel'),
+      format: z.enum(['table', 'text']).optional().describe('table (default): one row per note, in steps · text: compact note text, in bars.beats')
+    },
     annotations: A.readOnly
-  }, async ({ projectId, pattern, channel }) => {
+  }, async ({ projectId, pattern, channel, format = 'table' }) => {
     const p = await load(projectId);
     const pt = findPattern(p, pattern);
     const len = patternLength(p, pt);
@@ -122,6 +129,11 @@ export function registerNoteTools({ tool, backend, load }) {
       const list = pt.notes[c.id] || [];
       lines.push(`\n${c.name} [${c.id}] — ${list.length} notes`);
       if (list.length && isStepLike(list)) lines.push(`  steps: ${toStepString(list, Math.round(len / STEP), { barSteps: Math.round(ticksPerBar(p) / STEP), group: stepsPerBeat(p) })}`);
+      if (format === 'text') {
+        // (release velocity and pan are on the line itself; curves are named — get_note_expression shows them)
+        if (list.length) lines.push(formatNoteText(list, p, { ids: true, tag: (n) => (n.expression && Object.keys(n.expression).length ? `expr: ${Object.keys(n.expression).join('+')}` : '') }));
+        continue;
+      }
       for (const n of list) lines.push(`  ${n.id}  ${noteName(n.key).padEnd(4)} start ${steps(n.start)}  len ${steps(n.length)}  vel ${Math.round(n.velocity * 100) / 100}${n.pan ? `  pan ${n.pan}` : ''}${hasExpression(n) ? `  expr: ${describeExpression(n)}` : ''}`);
     }
     return ok(lines.join('\n'));
@@ -166,8 +178,8 @@ export function registerNoteTools({ tool, backend, load }) {
 
   const noteSchema = z.object({
     note: z.union([z.string(), z.number()]).describe('Note name (C4, F#3) or MIDI number'),
-    start: z.number().min(0).describe('Start position (default unit: steps from pattern start)'),
-    length: z.number().positive().optional().describe('Length (default 1 step)'),
+    start: positionArg.describe(`Where it starts in the pattern: ${POSITION_WORDS}`),
+    length: durationArg.optional().describe(`How long (default 1 step): ${DURATION_WORDS}`),
     velocity: velocityArg,
     pan: z.number().min(-1).max(1).optional().describe('Per-note pan'),
     releaseVelocity: z.number().min(0).max(1).optional().describe('How the note is let go (0 slow … 1 snapped; see set_note_expression)'),
@@ -177,22 +189,31 @@ export function registerNoteTools({ tool, backend, load }) {
 
   tool('add_notes', {
     title: 'Add notes (piano roll)',
-    description: 'Write notes into a channel of a pattern (piano roll). Positions/lengths default to 16th-note steps. replace=true clears that channel in the pattern first. Notes past the pattern end extend the pattern. A note can carry its own expression (pitch / pressure / slide curves) and release velocity — or add them afterwards with set_note_expression.',
-    inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string(), notes: z.array(noteSchema).min(1).max(2000), unit: unitArg, replace: z.boolean().optional() },
+    description: 'Write notes into a channel of a pattern (piano roll). Give them as `text` — compact note text, the cheapest way: one note or chord per line (or separated by ";"), "<start> <pitch[+pitch…]> <duration> [v<velocity>] [r<release velocity>] [p<pan>]", e.g. "1.1 D3+A3+F4 1/2 v0.7; 1.3 A4 1/8t; > C5 1/8t" (start: bar.beat[.sixteenth] counted from 1, or "6s" = step 6, ">" = right after the line before, "=" = together with it; duration: 1/4, 1/8, 1/16, 1/8t triplet, 1/4d dotted, 2bar, 1.5b beats, 3s steps) — or as `notes`, a list of objects, when a note carries expression curves. replace=true clears that channel in the pattern first. Notes past the pattern end extend the pattern. Expression can also be added afterwards with set_note_expression.',
+    inputSchema: {
+      projectId: projectIdArg, pattern: z.string(), channel: z.string(),
+      text: z.string().min(1).max(60000).optional().describe('Compact note text (see above). Use this or `notes`.'),
+      notes: z.array(noteSchema).min(1).max(2000).optional().describe('Notes as objects. Use this or `text`.'),
+      unit: unitArg, replace: z.boolean().optional()
+    },
     annotations: A.edit
-  }, async ({ projectId, pattern, channel, notes, unit = 'steps', replace = false }) => {
+  }, async ({ projectId, pattern, channel, text, notes, unit = 'steps', replace = false }) => {
     const p = await load(projectId);
     const pt = findPattern(p, pattern);
     const ch = findChannel(p, channel);
+    if ((text === undefined) === (notes === undefined)) throw new Error('Give the notes either as `text` (compact note text, e.g. "1.1 C4+E4 1/4; 1.2 G4 1/8") or as `notes` (a list of objects) — one of the two.');
     const defLen = { steps: 1, beats: 0.25, bars: 1 / 16, ticks: STEP }[unit];
-    const list = notes.map((n) => withExpression({
-      id: uid('n'),
-      key: parseNote(n.note),
-      start: toTicks(n.start, unit, p),
-      length: Math.max(1, toTicks(n.length ?? defLen, unit, p)),
-      velocity: normVelocity(n.velocity),
-      ...(n.pan ? { pan: n.pan } : {})
-    }, n, p.bpm));
+    const list = text !== undefined
+      ? parseNoteText(text, p).map((n) => ({ id: uid('n'), ...n }))
+      : notes.map((n) => withExpression({
+        id: uid('n'),
+        key: parseNote(n.note),
+        start: positionTicks(n.start, unit, p),
+        length: durationTicks(n.length ?? defLen, unit, p),
+        velocity: normVelocity(n.velocity),
+        ...(n.pan ? { pan: n.pan } : {})
+      }, n, p.bpm));
+    if (list.length > 2000) throw new Error(`That is ${list.length} notes; one call takes at most 2000 — split it.`);
     const ops = [{ type: replace ? 'notes/set' : 'notes/add', patternId: pt.id, channelId: ch.id, notes: list }];
     const grow = growPatternOp(p, pt, Math.max(...list.map((n) => n.start + n.length)));
     if (grow) ops.unshift(grow);
@@ -202,7 +223,7 @@ export function registerNoteTools({ tool, backend, load }) {
 
   tool('write_melody', {
     title: 'Write melody',
-    description: 'Write a monophonic line from a compact string: "C5:2 D5:2 Eb5:4 -:2 G5:6" — each token is note:lengthInSteps ("-" rest; suffix "!" = accent, "~" = slide: the note runs into the next one, so mono instruments with glide (808, bass, sitar, bansuri, erhu, shakuhachi…) slide there, e.g. "C4:4~ Db4:2"). Notes are placed back-to-back from `start`.',
+    description: 'Write a monophonic line from a compact string: "C5:2 D5:2 Eb5:4 -:2 G5:6" — each token is note:length, the length in steps or as a note value ("C5:1/8", "D5:1/8t" triplet, "E5:1/4d" dotted; "-" rest; suffix "!" = accent, "~" = slide: the note runs into the next one, so mono instruments with glide (808, bass, sitar, bansuri, erhu, shakuhachi…) slide there, e.g. "C4:4~ Db4:2"). Notes are placed back-to-back from `start`.',
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
@@ -327,8 +348,8 @@ export function registerNoteTools({ tool, backend, load }) {
       projectId: projectIdArg,
       pattern: z.string(),
       channel: z.string(),
-      start: z.number().min(0).describe('Start step'),
-      length: z.number().positive().max(2048).describe('Length in steps'),
+      start: positionArg.describe(`Where the roll starts: ${POSITION_WORDS}`),
+      length: durationArg.describe(`How long it runs: ${DURATION_WORDS}`),
       rate: z.enum(Object.keys(RATE_TICKS)).optional().describe('Note spacing: 1/32 (default), 1/24 (triplet 16ths), 1/48, 1/64, 1/16, 1/12...'),
       note: z.union([z.string(), z.number()]).optional().describe('Default: the channel step note'),
       velocityFrom: z.number().min(0).max(1).optional().describe('Default 0.45'),
@@ -340,18 +361,20 @@ export function registerNoteTools({ tool, backend, load }) {
     const p = await load(a.projectId);
     const pt = findPattern(p, a.pattern);
     const ch = findChannel(p, a.channel);
-    const span = Math.round(a.length * STEP);
-    assertFitsPattern(p, pt, Math.round(a.start * STEP) + span);
+    const from = positionTicks(a.start, 'steps', p);
+    const span = durationTicks(a.length, 'steps', p);
+    if (span > 2048 * STEP) throw new Error(`A roll can be at most 2048 steps long (got ${steps(span)})`);
+    assertFitsPattern(p, pt, from + span);
     const dt = RATE_TICKS[a.rate || '1/32'];
     const count = Math.max(1, Math.round(span / dt));
     const key = a.note !== undefined ? parseNote(a.note) : ch.rootKey;
-    let notes = rollNotes({ start: Math.round(a.start * STEP), span, count, key, from: a.velocityFrom ?? 0.45, to: a.velocityTo ?? 0.9 });
+    let notes = rollNotes({ start: from, span, count, key, from: a.velocityFrom ?? 0.45, to: a.velocityTo ?? 0.9 });
     if (a.pitchRamp) notes = notes.map((n, i) => ({ ...n, key: Math.max(0, Math.min(127, key + Math.round((a.pitchRamp * i) / Math.max(1, count - 1)))) }));
     const ops = [{ type: 'notes/add', patternId: pt.id, channelId: ch.id, notes }];
-    const grow = growPatternOp(p, pt, Math.round(a.start * STEP) + span);
+    const grow = growPatternOp(p, pt, from + span);
     if (grow) ops.unshift(grow);
     await backend.applyOps(p.id, ops);
-    return ok(`Added a ${count}-hit ${a.rate || '1/32'} roll to "${ch.name}" at step ${a.start} in "${pt.name}".`);
+    return ok(`Added a ${count}-hit ${a.rate || '1/32'} roll to "${ch.name}" at step ${steps(from)} in "${pt.name}".`);
   });
 
   tool('copy_notes', {
@@ -398,8 +421,8 @@ export function registerNoteTools({ tool, backend, load }) {
       notes: z.array(z.object({
         id: z.string(),
         note: z.union([z.string(), z.number()]).optional(),
-        start: z.number().min(0).optional(),
-        length: z.number().positive().optional(),
+        start: positionArg.optional().describe(`New start: ${POSITION_WORDS}`),
+        length: durationArg.optional().describe(`New length: ${DURATION_WORDS}`),
         velocity: z.number().min(0).max(127).optional(),
         pan: z.number().min(-1).max(1).optional()
       })).min(1).max(2000),
@@ -416,8 +439,8 @@ export function registerNoteTools({ tool, backend, load }) {
     const upd = notes.map((n) => ({
       id: n.id,
       ...(n.note !== undefined && { key: parseNote(n.note) }),
-      ...(n.start !== undefined && { start: toTicks(n.start, unit, p) }),
-      ...(n.length !== undefined && { length: Math.max(1, toTicks(n.length, unit, p)) }),
+      ...(n.start !== undefined && { start: positionTicks(n.start, unit, p) }),
+      ...(n.length !== undefined && { length: durationTicks(n.length, unit, p) }),
       ...(n.velocity !== undefined && { velocity: normVelocity(n.velocity) }),
       ...(n.pan !== undefined && { pan: n.pan })
     }));

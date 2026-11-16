@@ -37,7 +37,7 @@ test('the server registers the expression and synth tools, and describes the syn
   for (const n of ['set_note_expression', 'get_note_expression', 'transform_note_expression', 'copy_note_expression', 'evaluate_composition',
     'describe_synth', 'create_synth_patch', 'get_synth_patch', 'update_synth_patch', 'set_synth_oscillator', 'set_synth_filter',
     'set_synth_envelope', 'set_synth_lfo', 'set_synth_chaos', 'set_synth_modulation', 'set_synth_effect', 'analyze_synth_patch']) assert.ok(names.includes(n), n);
-  assert.equal(names.length, 95);
+  assert.equal(names.length, 97);
   for (const t of tools) assert.ok(t.description, `${t.name} is described`);
   assert.match(await call('describe_synth'), /oscillators A, B, C/);
   assert.match(await call('describe_synth', { topic: 'wavetables' }), /glass\s+Spectral Glass \(12 frames\)/);
@@ -119,8 +119,8 @@ test('section tools edit one part of a patch; other instruments are refused with
   await call('set_synth_filter', { channel: 'Lead', filter: 2, on: false });
   assert.doesNotMatch(await call('set_synth_filter', { channel: 'Lead', filter: 2, on: false, routing: 'serial' }), /Measured response|self-oscillates/);
   await call('set_synth_filter', { channel: 'Lead', filter: 2, on: f2.f2On, routing: f2.filterRoute });
-  await fails(call('set_synth_filter', { channel: 'Lead', type: 'moog' }), /Invalid option/);
-  await fails(call('set_synth_filter', { channel: 'Lead', morph: 2 }), /expected number to be <=1 at morph/);
+  await fails(call('set_synth_filter', { channel: 'Lead', type: 'moog' }), /type is "moog": it must be one of "lp12"[^\n]*"ladder24"/);
+  await fails(call('set_synth_filter', { channel: 'Lead', morph: 2 }), /morph is 2: the maximum is 1 — nearest valid value: 1/);
   await call('set_synth_filter', { channel: 'Lead', type: f1.f1Type, cutoff: f1.f1Cutoff, resonance: f1.f1Res, drive: f1.f1Drive, keyTrack: f1.f1Key, morph: f1.f1Morph });
   // envelopes: delay and hold stages, a curve per stage; the old single curve still works and means the same shape
   assert.match(await call('set_synth_envelope', { channel: 'Lead', envelope: 1, delay: 0.05, hold: 0.1, attackCurve: 0.4, decayCurve: -0.8 }), /Amp envelope: delay 0\.05 A [\d.]+ H 0\.1 D/);
@@ -130,7 +130,7 @@ test('section tools edit one part of a patch; other instruments are refused with
   ins = chan(await project(), 'Lead').instrument.params;
   assert.deepEqual([ins.env3DCurve, ins.env3RCurve, Math.round(ins.env3ACurve * 1000) / 1000], [-1, 0, -0.495]);
   assert.equal(ins.env3Curve, undefined);
-  await fails(call('set_synth_envelope', { channel: 'Lead', envelope: 1, hold: 9 }), /expected number to be <=5 at hold/);
+  await fails(call('set_synth_envelope', { channel: 'Lead', envelope: 1, hold: 9 }), /hold is 9: the maximum is 5 — nearest valid value: 5/);
   await call('set_synth_envelope', { channel: 'Lead', envelope: 1, delay: 0, hold: 0, attackCurve: f1.env1ACurve, decayCurve: f1.env1DCurve });
   // chaos: configure a generator, see its path, be told to route it; then route it and the hint is gone
   const chaos = await call('set_synth_chaos', { channel: 'Lead', chaos: 2, type: 'turing', sync: '1/16', character: 0.1, steps: 8, path: 'same' });
@@ -142,8 +142,8 @@ test('section tools edit one part of a patch; other instruments are refused with
   const routed = await call('set_synth_chaos', { channel: 'Lead', chaos: 2, character: 0 });
   assert.doesNotMatch(routed, /Not routed yet/);
   assert.match(routed, /Chaos 2: turing, 1\/16, character 0, 8 steps, the same path for every note[\s\S]*Filter 1 cutoff [\d.]+ k?Hz ↔ [\d.]+ k?Hz as Chaos 2 swings −1 ↔ 1/);
-  await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 3, type: 'drift' }), /expected number to be <=2 at chaos/);
-  await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 1, type: 'henon' }), /Invalid option/);
+  await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 3, type: 'drift' }), /chaos is 3: the maximum is 2 — nearest valid value: 2/);
+  await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 1, type: 'henon' }), /type is "henon": it must be one of "lorenz", "rossler", "drift", "turing"/);
   await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 1 }), /Nothing to change/);
   await call('set_synth_modulation', { channel: 'Lead', remove: [{ source: 'chaos2', target: 'f1Cutoff' }] });
   assert.match(await call('describe_synth', { topic: 'modulation' }), /64 routes[\s\S]*macro8\s+macro 8[\s\S]*chaos1\s+chaos generator 1[\s\S]*CHAOS \(set_synth_chaos[\s\S]*drift\s+rate = how fast it wanders/);
@@ -165,13 +165,13 @@ test('section tools edit one part of a patch; other instruments are refused with
   assert.match(await call('set_synth_lfo', { channel: 'Lead', lfo: 4, steps: [1, -1, 0.5, 0, 0.25], smooth: 0.3, sync: '1bar' }), /Set LFO 4/);
   ins = chan(await project(), 'Lead').instrument.params;
   assert.deepEqual([ins.lfo4Shape, ins.lfo4Steps, ins.lfo4S2, ins.lfo4S5, ins.lfo4Smooth], ['steps', 5, -1, 0.25, 0.3]);
-  await fails(call('set_synth_lfo', { channel: 'Lead', lfo: 4, steps: [2, 0] }), /expected number to be <=1/);
+  await fails(call('set_synth_lfo', { channel: 'Lead', lfo: 4, steps: [2, 0] }), /steps\[0\] is 2: the maximum is 1/);
   await call('set_synth_lfo', { channel: 'Lead', lfo: 4, shape: 'sine', sync: 'off' });
   // a patch document written before the per-stage curves is still accepted
   await call('update_synth_patch', { channel: 'Lead', patch: { envelopes: [{ id: 4, decay: 0.2, curve: -1 }] } });
   assert.equal(chan(await project(), 'Lead').instrument.params.env4DCurve, -0.25);
   await fails(call('set_synth_oscillator', { channel: 'Lead', table: 'glass' }), /Say which oscillator/);
-  await fails(call('set_synth_filter', { channel: 'Lead', resonance: 1.5 }), /expected number to be <=1 at resonance/);
+  await fails(call('set_synth_filter', { channel: 'Lead', resonance: 1.5 }), /resonance is 1\.5: the maximum is 1 — nearest valid value: 1/);
   await call('add_channel', { name: 'Keys', instrument: 'fm' });
   await fails(call('set_synth_filter', { channel: 'Keys', cutoff: 800 }), /"Keys" is a FM Synth, not a GGS Synth. Create one with create_synth_patch/);
 });

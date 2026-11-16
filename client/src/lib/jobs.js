@@ -5,7 +5,7 @@
 //   export-stems    render every channel on its own and upload each as a WAV (MCP export_stems, File menu)
 //   spatial         binaural / 5.1 / 7.1 / 7.1.4 / object stems / ADM BWF renders of the 3D mix (lib/spatialExport.js)
 //   generator       run a generator plugin in the sandboxed iframe and return its notes (MCP run_generator)
-import { analyzeAudio, envelopeTimes, encodeWav, ticksPerBar, PPQ, STEP, songNotesInRange, songLength, INSTRUMENTS } from '@greanteadawy/core';
+import { analyzeAudio, envelopeTimes, encodeWav, ticksPerBar, PPQ, STEP, songNotesInRange, songLength, INSTRUMENTS, audioFingerprint, maskingReport, nullTest, toPcm16 } from '@greanteadawy/core';
 import { renderProject } from '../audio/render.js';
 import { preparePlugins } from '../audio/plugins.js';
 import { prepareGgs } from '../audio/ggs-synth/index.js';
@@ -65,6 +65,15 @@ export async function runJob(jobId, job, sync) {
   }
 }
 
+/**
+ * The last render of each thing rendered (as 16-bit), so the next render of the same thing can be subtracted from
+ * it: the null test. Two are kept (the song and a pattern, say), and nothing longer than six minutes — a render
+ * is 10 MB a minute this way.
+ */
+const remembered = new Map(); // key → { hash, sampleRate, pcm: [Int16Array, …] }
+const MAX_REMEMBERED = 2;
+const MAX_REMEMBERED_SECONDS = 360;
+
 /** Channels that actually produce notes in what is being rendered. */
 function activeChannels(project, mode, patternId) {
   const ids = new Set();
@@ -97,8 +106,19 @@ async function renderJob(jobId, job, sync) {
     if (mode === 'song' && project.playlist.clips.some((c) => c.kind === 'audio')) wanted.push({ name: 'Audio clips', audioClips: true });
   }
   const progress = (p) => sync.send({ type: 'job-progress', jobId, progress: Math.round(p * 100) / 100 });
-  const { buffer, stems: metered, limiter } = await renderProject(project, { ...opts, stems: wanted, onProgress: (p) => progress(p * 0.85) });
+  const { buffer, stems: metered, limiter } = await renderProject(project, { ...opts, stems: wanted, masking: !!job.masking, onProgress: (p) => progress(p * 0.85) });
   const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
+  // the same project renders the same samples: the fingerprint says whether an edit changed the audio at all
+  const hash = audioFingerprint(channels);
+  // which stems are strong in the same band at the same moment (needs the stems metered in this very pass)
+  const masking = job.masking && metered ? maskingReport(metered.map((s) => ({ name: s.name, frames: s.bandFrames }))) : null;
+  // what is left when the previous render of the same thing is subtracted: nothing but rounding = nothing changed
+  const key = `${project.id}|${mode}|${mode === 'pattern' ? `${job.patternId}|${opts.loops}` : ''}`;
+  const earlier = remembered.get(key);
+  const nulled = earlier && earlier.sampleRate === buffer.sampleRate ? { against: earlier.hash, ...nullTest(earlier.pcm, channels, buffer.sampleRate) } : null;
+  remembered.delete(key);
+  if (buffer.duration <= MAX_REMEMBERED_SECONDS) remembered.set(key, { hash, sampleRate: buffer.sampleRate, pcm: channels.map(toPcm16) });
+  while (remembered.size > MAX_REMEMBERED) remembered.delete(remembered.keys().next().value);
   const barSec = (ticksPerBar(project) / PPQ) * (60 / project.bpm);
   const segBars = job.segmentBars || 4;
   const mix = analyzeAudio({ channels, sampleRate: buffer.sampleRate }, { segmentSeconds: barSec * segBars, segmentLabel: `${segBars} bars` });
@@ -106,7 +126,7 @@ async function renderJob(jobId, job, sync) {
   const stems = metered || (wanted.length ? await soloStems(project, wanted, opts) : []);
 
   const fd = new FormData();
-  fd.append('result', JSON.stringify({ mix, stems: stems.map(stemSummary), limiter, renderedSeconds: buffer.duration, mode, bpm: project.bpm }));
+  fd.append('result', JSON.stringify({ mix, stems: stems.map(stemSummary), limiter, hash, masking, nullTest: nulled, renderedSeconds: buffer.duration, mode, bpm: project.bpm }));
   fd.append('name', project.name);
   if (job.save) fd.append('file', new Blob([encodeWav(channels, buffer.sampleRate, { bitDepth: job.bitDepth === 16 ? 16 : 24 })], { type: 'audio/wav' }), 'mix.wav');
   await api.jobResult(jobId, fd);

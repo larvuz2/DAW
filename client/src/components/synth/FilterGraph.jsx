@@ -74,13 +74,16 @@ export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, 
 
   const move = (e) => {
     const d = drag.current;
-    if (!d) return;
+    if (!d || e.pointerId !== d.pointer) return;
     const px = clamp((e.clientX - d.left) * d.zoom + d.dx, 0, width);
     const hz = F_MIN * Math.pow(F_MAX / F_MIN, px / width);
     onChange({ cutoff: Math.round(hz * 10) / 10, resonance: clamp(Math.round((d.res + ((d.y - e.clientY) * d.zoom) / (height * 0.9)) * 1000) / 1000, 0, 1) });
   };
   const down = (e) => {
+    // the left button (or a finger) only, and one pointer at a time
+    if (e.button !== 0 || drag.current) return;
     e.preventDefault();
+    e.currentTarget.focus();
     e.currentTarget.setPointerCapture(e.pointerId);
     const r = e.currentTarget.getBoundingClientRect();
     // (on a narrow screen the graph is drawn smaller than it is: `zoom` turns screen pixels into its own)
@@ -88,10 +91,13 @@ export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, 
     // grabbed near the handle: move it from where it is; anywhere else: the cutoff jumps to the pointer
     const hx = xOf(clamp(cutoff, F_MIN, F_MAX));
     const px = (e.clientX - r.left) * zoom;
-    drag.current = { y: e.clientY, res: resonance, dx: Math.abs(px - hx) < 14 ? hx - px : 0, left: r.left, zoom };
-    move(e);
+    // (14 px of the screen around the handle, however small the graph is drawn)
+    const near = Math.abs(px - hx) < 14 * zoom;
+    drag.current = { pointer: e.pointerId, y: e.clientY, res: resonance, dx: near ? hx - px : 0, left: r.left, zoom };
+    // a press on the handle that does not move changes nothing (and so adds no undo step, and rounds nothing)
+    if (!near) move(e);
   };
-  const up = () => { drag.current = null; };
+  const up = (e) => { if (drag.current && e.pointerId === drag.current.pointer) drag.current = null; };
   const key = (e) => {
     const step = e.shiftKey ? 0.25 : 1;
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') onChange({ cutoff: clamp(Math.round(cutoff * Math.pow(2, ((e.key === 'ArrowRight' ? 1 : -1) * step) / 12) * 10) / 10, F_MIN, F_MAX) });

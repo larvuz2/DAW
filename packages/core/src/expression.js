@@ -9,6 +9,7 @@
 // A dimension without a curve rests at 0. Before the first point a curve holds its first value, after the last
 // point its last value (which is also what a release tail hears).
 import { clamp } from './constants.js';
+import { didYouMean } from './suggest.js';
 
 export const EXPRESSION_DIMS = ['pitch', 'pressure', 'timbre'];
 export const EXPRESSION_RANGE = { pitch: [-48, 48], pressure: [0, 1], timbre: [0, 1] };
@@ -305,7 +306,7 @@ export function makeCurve(dim, shape, o = {}) {
       break;
     }
     default:
-      throw new Error(`Unknown curve shape "${shape}". Use ${CURVE_SHAPES.join(', ')}`);
+      throw new Error(`Unknown curve shape "${shape}".${didYouMean(shape, CURVE_SHAPES)} Use ${CURVE_SHAPES.join(', ')}`);
   }
   return sanitizeCurve(dim, pts);
 }

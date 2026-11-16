@@ -36,6 +36,33 @@ export function defaultFfmpeg() {
   return sharedFfmpeg;
 }
 
+const MAX_RENDERS = 12;
+const MAX_RENDER_LOGS = 200;
+
+/**
+ * The last renders of each project (their analyses, not their audio): what render_mix compares a new render with.
+ * Kept in memory — a render is a measurement of a moment, cheap to repeat, and not worth a file.
+ */
+export function createRenderLog() {
+  const logs = new Map(); // key → { next, list }
+  return {
+    recent: (key) => [...(logs.get(key)?.list || [])],
+    remember(key, record) {
+      const log = logs.get(key) || { next: 1, list: [] };
+      const saved = { ...record, id: `r${log.next++}`, at: Date.now() };
+      log.list.push(saved);
+      if (log.list.length > MAX_RENDERS) log.list.shift();
+      logs.delete(key); // (re-inserted: the map stays ordered by last use)
+      logs.set(key, log);
+      if (logs.size > MAX_RENDER_LOGS) logs.delete(logs.keys().next().value);
+      return saved;
+    },
+    forget: (key) => logs.delete(key)
+  };
+}
+/** One log for the server process: the HTTP MCP endpoint builds a new backend for every request. */
+const serverRenders = createRenderLog();
+
 /** The user's active project (falls back to their most recently edited project). */
 export async function activeProjectId(store, users, user) {
   const u = users.get(user.id) || user;
@@ -60,12 +87,14 @@ export function createLocalBackend({ store, samples, users, hub = null, user, pu
       await store.getOwned(id, uidOf);
       if ((await store.list(uidOf)).length <= 1) throw httpError(400, "Can't delete the user's only project — create another one first");
       await store.remove(id);
+      serverRenders.forget(`${uidOf}:${id}`);
     },
     duplicateProject: (id, name) => store.duplicate(id, uidOf, name),
     applyOps: (id, ops) => store.applyOps(id, ops, { source: 'mcp', userId: uidOf, undoable: true }),
     undo: async (id, { force = false } = {}) => store.undoLast(id, uidOf, { force }),
     saveVersion: (id, name) => store.saveVersion(id, uidOf, name, { source: 'mcp' }),
     listVersions: (id) => store.listVersions(id, uidOf),
+    getVersion: (id, versionId) => store.getVersion(id, uidOf, versionId),
     restoreVersion: (id, versionId) => store.restoreVersion(id, uidOf, versionId, { source: 'mcp', undoable: true }),
     getActiveId: () => activeProjectId(store, users, user),
     setActive: async (id) => {
@@ -91,6 +120,15 @@ export function createLocalBackend({ store, samples, users, hub = null, user, pu
       ...(hub ? hub.status(uidOf) : { browsers: 0 }),
       url: publicUrl
     }),
+    /** The project's last renders, oldest first: [{ id: 'r3', at, rev, mode, hash, mix, stems, limiter, … }]. */
+    recentRenders: async (id) => {
+      await store.getOwned(id, uidOf);
+      return serverRenders.recent(`${uidOf}:${id}`);
+    },
+    rememberRender: async (id, record) => {
+      await store.getOwned(id, uidOf);
+      return serverRenders.remember(`${uidOf}:${id}`, record);
+    },
     /** Run render/analysis in the user's browser (see Hub.requestJob). */
     requestJob: async (job, opts = {}) => {
       if (!hub) throw httpError(409, 'Rendering and analysis need the GreanTeaDawy web server running with the studio open in a browser.');
@@ -152,8 +190,12 @@ export function createRemoteBackend(baseUrl, { token = '' } = {}) {
     return data;
   }
   const e = encodeURIComponent;
+  // (this process is one MCP session: its renders are remembered here, not on the server)
+  const renders = createRenderLog();
   return {
     kind: 'remote',
+    recentRenders: async (id) => renders.recent(id),
+    rememberRender: async (id, record) => renders.remember(id, record),
     listProjects: () => call('GET', '/api/projects'),
     getProject: (id) => call('GET', `/api/projects/${e(id)}`),
     createProject: (opts) => call('POST', '/api/projects', opts),
@@ -163,6 +205,7 @@ export function createRemoteBackend(baseUrl, { token = '' } = {}) {
     undo: (id, opts = {}) => call('POST', `/api/projects/${e(id)}/undo`, opts),
     saveVersion: (id, name) => call('POST', `/api/projects/${e(id)}/versions`, { name, source: 'mcp' }),
     listVersions: (id) => call('GET', `/api/projects/${e(id)}/versions`),
+    getVersion: (id, versionId) => call('GET', `/api/projects/${e(id)}/versions/${e(versionId)}`),
     restoreVersion: (id, versionId) => call('POST', `/api/projects/${e(id)}/versions/${e(versionId)}/restore`, { source: 'mcp' }),
     getActiveId: async () => (await call('GET', '/api/active')).projectId,
     setActive: (id) => call('PUT', '/api/active', { projectId: id }),

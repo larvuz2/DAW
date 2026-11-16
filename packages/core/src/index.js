@@ -20,3 +20,6 @@ export * from './audioedit.js';
 export * from './autotune.js';
 export * from './evaluate.js';
 export * from './mpe.js';
+export * from './suggest.js';
+export * from './diff.js';
+export * from './renders.js';

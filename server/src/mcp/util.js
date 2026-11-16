@@ -1,11 +1,23 @@
 // Shared helpers for MCP tool modules.
 import { z } from 'zod';
-import { STEP, ticksPerBar, isRomanNumeral, romanToChord, maxPatternLength, MAX_PATTERN_BARS } from '@greanteadawy/core';
+import { STEP, ticksPerBar, isRomanNumeral, romanToChord, maxPatternLength, MAX_PATTERN_BARS, toTicks, parsePosition, parseDuration } from '@greanteadawy/core';
 
 export { z };
 
 export const projectIdArg = z.string().optional().describe('Project id. Defaults to the active project (the one open in the browser).');
-export const unitArg = z.enum(['steps', 'beats', 'bars', 'ticks']).optional().describe('Unit for start/length (default steps = 16th notes)');
+export const unitArg = z.enum(['steps', 'beats', 'bars', 'ticks']).optional().describe('Unit for start/length given as numbers (default steps = 16th notes)');
+
+/** Where: a number (steps unless `unit` says otherwise) or a musical position as text. */
+export const positionArg = z.union([z.number().min(0), z.string().min(1).max(24)]);
+/** How long: a number (steps unless `unit` says otherwise) or a duration as text. */
+export const durationArg = z.union([z.number().positive(), z.string().min(1).max(24)]);
+export const POSITION_WORDS = 'a number (steps from the start, 0-based) or text: "2" = bar 2, "2.3" = bar 2 beat 3, "2.3.2" = one sixteenth later, "6s" = 6 steps, "1.5b" = 1.5 beats';
+export const DURATION_WORDS = 'a number (steps) or text: "1/4", "1/8", "1/16", "1/8t" (triplet), "1/4d" (dotted), "2bar", "1.5b" (beats)';
+
+/** A position argument → ticks: text is a musical position, a number counts in `unit`. */
+export const positionTicks = (value, unit, p) => (typeof value === 'string' ? parsePosition(value, p) : toTicks(value, unit, p));
+/** A duration argument → ticks (at least 1). */
+export const durationTicks = (value, unit, p) => (typeof value === 'string' ? parseDuration(value, p) : Math.max(1, toTicks(value, unit, p)));
 
 export const annotations = {
   readOnly: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },

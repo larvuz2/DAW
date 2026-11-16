@@ -1,5 +1,5 @@
 // Mixer, effects and render_mix (mixdown + analysis in the user's browser).
-import { EFFECTS, EFFECT_TYPES, uid, findPattern, findChannel, ticksPerBar, songLength, sanitizeParams, sanitizePluginValues } from '@greanteadawy/core';
+import { EFFECTS, EFFECT_TYPES, uid, findPattern, findChannel, ticksPerBar, songLength, sanitizeParams, sanitizePluginValues, compareRenders, describeMasking, didYouMean } from '@greanteadawy/core';
 import { z, ok, projectIdArg, annotations as A, findEffect } from '../util.js';
 import { requirePlugin, pluginValues } from './plugins.js';
 
@@ -165,13 +165,14 @@ export function registerMixTools({ tool, backend, load }) {
 
   tool('render_mix', {
     title: 'Render & analyse the mix',
-    description: `Render the song (or a pattern) in the user's browser and analyse it like a mastering engineer's meters: integrated loudness (LUFS), loudness range, sample and true peak, crest factor, clipping, master limiter gain reduction, spectral balance (sub/low/low-mid/mid/high-mid/high), the strongest low frequency, stereo width and low-end mono-ness, loudness per 4-bar section and (stems=true) per-channel loudness/spectrum/low-end note. target compares against a delivery standard and tells you exactly how much to change the master limiter's input gain. save=true also stores the WAV (24-bit by default) in the user's exports. Targets: ${Object.keys(MIX_TARGETS).join(', ')}. Needs the studio open in a browser.`,
+    description: `Render the song (or a pattern) in the user's browser and analyse it like a mastering engineer's meters: integrated loudness (LUFS), loudness range, sample and true peak, crest factor, clipping, master limiter gain reduction, spectral balance (sub/low/low-mid/mid/high-mid/high), the strongest low frequency, stereo width and low-end mono-ness, loudness per 4-bar section and (stems=true) per-channel loudness/spectrum/low-end note plus MASKING: which stems are strong in the same band at the same moment, how often, and which should give way. Every render gets an id (r1, r2 …) and is COMPARED with the previous render of the same thing: the same audio or not (a null test: the earlier render is subtracted and what is left is measured), and what moved (LU, peaks, bands, width, each stem) — render, edit, render again, and the report says what the edit did. target compares against a delivery standard and tells you exactly how much to change the master limiter's input gain. save=true also stores the WAV (24-bit by default) in the user's exports. Targets: ${Object.keys(MIX_TARGETS).join(', ')}. Needs the studio open in a browser.`,
     inputSchema: {
       projectId: projectIdArg,
       mode: z.enum(['song', 'pattern']).optional().describe('Default: song if the playlist has clips, else pattern'),
       pattern: z.string().optional().describe('For mode=pattern (default: first pattern)'),
       loops: z.number().int().min(1).max(16).optional().describe('Pattern mode: how many loops to render (default 2)'),
-      stems: z.boolean().optional().describe('Also analyse each channel on its own (default true)'),
+      stems: z.boolean().optional().describe('Also analyse each channel on its own, and how they mask each other (default true)'),
+      compareTo: z.string().max(16).optional().describe('What to compare this render with: "previous" (default: the last render of the same song or pattern), a render id such as "r3", or "none"'),
       target: z.enum(Object.keys(MIX_TARGETS)).optional().describe('Delivery target to compare against (default streaming)'),
       targetLufs: z.number().min(-30).max(-4).optional().describe('Custom integrated loudness target (overrides target)'),
       save: z.boolean().optional().describe('Keep the rendered WAV in exports (default false)'),
@@ -179,16 +180,31 @@ export function registerMixTools({ tool, backend, load }) {
     },
     // not read-only: save=true writes a WAV into the user's exports
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async ({ projectId, mode, pattern, loops = 2, stems = true, save = false, target = 'streaming', targetLufs, bitDepth = 24 }, extra) => {
+  }, async ({ projectId, mode, pattern, loops = 2, stems = true, save = false, target = 'streaming', targetLufs, bitDepth = 24, compareTo = 'previous' }, extra) => {
     const p = await load(projectId);
     const m = mode || (p.playlist.clips.length ? 'song' : 'pattern');
     const patternId = pattern ? findPattern(p, pattern).id : p.patterns[0]?.id;
+    // (a render id that does not exist fails here, before the slow part)
+    const history = await backend.recentRenders(p.id);
+    let against = null;
+    if (compareTo !== 'previous' && compareTo !== 'none') {
+      against = history.find((r) => r.id === compareTo.trim().toLowerCase()) || null;
+      if (!against) throw new Error(`Render "${compareTo}" is not known.${didYouMean(compareTo, history.map((r) => r.id))} ${history.length ? `Renders of this project: ${history.map((r) => `${r.id} (${r.mode}, ${ago(r.at)})`).join(', ')}` : 'This project has no earlier render in this session'} — or use "previous" or "none".`);
+    }
     const result = await backend.requestJob(
-      { kind: 'render', projectId: p.id, mode: m, patternId, loops, stems, save, bitDepth, name: p.name, segmentBars: 4 },
+      { kind: 'render', projectId: p.id, mode: m, patternId, loops, stems, masking: stems, save, bitDepth, name: p.name, segmentBars: 4 },
       { projectId: p.id, timeoutMs: 240000, onProgress: progressNotifier(extra, 'Rendering in the browser') }
     );
     const goal = { ...MIX_TARGETS[target], ...(targetLufs !== undefined ? { lufs: targetLufs, label: `custom ${targetLufs} LUFS` } : {}) };
-    return ok(formatMixReport(result, p, m, goal), { mix: compactAnalysis(result.mix), stems: result.stems, limiter: result.limiter || null, export: result.export || null });
+    const rendered = result.mode || m;
+    const what = { mode: rendered, patternId: rendered === 'pattern' ? patternId : null, loops: rendered === 'pattern' ? loops : null };
+    if (compareTo === 'previous') against = [...history].reverse().find((r) => r.mode === what.mode && r.patternId === what.patternId && r.loops === what.loops) || null;
+    const render = await backend.rememberRender(p.id, { ...what, rev: p.rev ?? null, hash: result.hash || null, nullTest: result.nullTest || null, mix: compactAnalysis(result.mix), stems: result.stems || [], limiter: result.limiter || null });
+    const comparison = against ? { against: against.id, ...compareRenders(against, render) } : null;
+    return ok(formatMixReport(result, p, m, goal, { render, against, comparison, compareTo }), {
+      render: { id: render.id }, mix: render.mix, stems: result.stems, limiter: result.limiter || null,
+      masking: result.masking || null, comparison: comparison && { against: comparison.against, same: comparison.same, identical: comparison.identical, deltas: comparison.deltas, nullTest: comparison.nullTest }, export: result.export || null
+    });
   });
 
   tool('export_stems', {
@@ -218,6 +234,12 @@ export function registerMixTools({ tool, backend, load }) {
   });
 }
 
+/** "40 s ago", "4 min ago", "2 h ago". */
+function ago(at) {
+  const s = Math.max(0, Math.round((Date.now() - at) / 1000));
+  return s < 90 ? `${s} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+}
+
 /** MCP progress notifications (when the client asked for them) — keeps long renders from timing out. */
 export function progressNotifier(extra, message) {
   const token = extra?._meta?.progressToken;
@@ -233,13 +255,17 @@ function compactAnalysis(a) {
   return { ...rest, onsetsPerSecond: onsets?.perSecond };
 }
 
-/** Human-readable mix report with engineering hints. `goal` = { lufs, truePeak, label } (see MIX_TARGETS). */
-export function formatMixReport(r, p, mode, goal = MIX_TARGETS.streaming) {
+/**
+ * Human-readable mix report with engineering hints. `goal` = { lufs, truePeak, label } (see MIX_TARGETS).
+ * log: { render (this render's record), against (the record it is compared with), comparison (compareRenders), compareTo }.
+ */
+export function formatMixReport(r, p, mode, goal = MIX_TARGETS.streaming, log = {}) {
   const a = r.mix;
   if (!a) return 'The browser returned no analysis.';
   const lines = [];
   const bar = ticksPerBar(p);
-  lines.push(`MIX ANALYSIS — "${p.name}" (${mode}, ${a.duration}s${mode === 'song' ? `, ${Math.round(songLength(p) / bar)} bars` : ''})`);
+  const stamp = log.render ? ` · render ${log.render.id}` : '';
+  lines.push(`MIX ANALYSIS — "${p.name}" (${mode}, ${a.duration}s${mode === 'song' ? `, ${Math.round(songLength(p) / bar)} bars` : ''})${stamp}`);
   if (a.invalidSamples) {
     lines.push(`INVALID RENDER: ${a.invalidSamples} NaN/Infinity samples were produced (treated as silence), so the numbers below are unreliable. An instrument or effect setting is producing broken audio; check recent changes (extreme filter/feedback/drive values).`);
   }
@@ -292,6 +318,7 @@ export function formatMixReport(r, p, mode, goal = MIX_TARGETS.streaming) {
       lines.push(`  ${String(s.name).padEnd(14)} ${String(s.lufs).padStart(6)} LUFS  peak ${String(s.peakDb).padStart(6)} dBFS  centroid ${String(s.centroidHz).padStart(5)} Hz  mostly ${dom ? `${dom[0]} (${dom[1]}%)` : '–'}${low}${width}${shared}`);
     }
   }
+  lines.push(...describeMasking(r.masking));
   const hints = [];
   if (a.clipping.samples > 0 || a.peakDb > -0.1) hints.push('Peaks hit 0 dBFS: lower the master or add/raise a limiter ceiling below -0.3 dB.');
   else if (goal && tp > goal.truePeak) {
@@ -325,6 +352,12 @@ export function formatMixReport(r, p, mode, goal = MIX_TARGETS.streaming) {
   const seg = a.loudnessPerSegment?.lufs?.filter((v) => v > -60) || [];
   if (mode === 'song' && seg.length >= 3 && Math.max(...seg) - Math.min(...seg) < 3) hints.push('Little loudness contrast between sections: vary arrangement/energy (drops, breakdowns, fills).');
   if (hints.length) lines.push(`Hints:\n- ${hints.join('\n- ')}`);
+  if (log.comparison) {
+    const revs = log.against.rev !== null && log.render.rev !== null ? (log.against.rev === log.render.rev ? ', the same project revision' : `, project revision ${log.against.rev} → ${log.render.rev}`) : '';
+    lines.push(`Compared with render ${log.against.id} (${ago(log.against.at)}${revs}) — this render is:\n- ${log.comparison.lines.join('\n- ')}`);
+  } else if (log.render && log.compareTo !== 'none') {
+    lines.push(`No earlier render of this ${mode} to compare with: render again after a change and this report says what the change did (this one is ${log.render.id}).`);
+  }
   if (r.export?.url) lines.push(`Saved WAV: ${r.export.url}`);
   return lines.join('\n');
 }

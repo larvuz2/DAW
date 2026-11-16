@@ -56,6 +56,7 @@ export const api = {
   deleteProject: (id) => req('DELETE', `/api/projects/${e(id)}`),
   duplicateProject: (id, name) => req('POST', `/api/projects/${e(id)}/duplicate`, { name }),
   listVersions: (id) => req('GET', `/api/projects/${e(id)}/versions`),
+  getVersion: (id, vid) => req('GET', `/api/projects/${e(id)}/versions/${e(vid)}`),
   saveVersion: (id, name) => req('POST', `/api/projects/${e(id)}/versions`, { name }),
   restoreVersion: (id, vid) => req('POST', `/api/projects/${e(id)}/versions/${e(vid)}/restore`, {}),
   deleteVersion: (id, vid) => req('DELETE', `/api/projects/${e(id)}/versions/${e(vid)}`),

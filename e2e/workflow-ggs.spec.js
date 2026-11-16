@@ -429,7 +429,7 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   // wobble of the handle does not rewrite it, and the number next to the graph edits the same curve
   await dragNode('decayCurve', 0, 220);
   await expect.poll(() => param('env1DCurve')).toBe(-1);
-  await page.waitForTimeout(400); // (sooner, a second press without bending is the double press that resets)
+  // (straight after a bend: a press that bent the curve is not the first half of a double press)
   await dragNode('decayCurve', 3, 0);
   expect(await param('env1DCurve')).toBe(-1);
   const curveNumber = env.locator('.ggs-envedit-read .dragnum').nth(1);
@@ -673,6 +673,172 @@ test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for t
   await expect(rows).toHaveCount(2);
   await ggs.locator('.ggs-matrix-quick button', { hasText: 'Analog drift' }).click();
   await expect.poll(async () => (await find('chaos2', 'pitchFine'))?.amount).toBe(0.06);
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
+});
+
+test('the editor by hand: one route per Alt-drag, bends that reach every value, only the left button edits', async () => {
+  const { channels } = await ids();
+  const ggs = page.locator('.ggs');
+  const instrument = () => page.evaluate((cid) => window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
+  const param = async (key) => (await instrument()).params[key];
+  const set = (params) => page.evaluate(([cid, p]) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: p } } }]), [channels.Lead, params]);
+  const undo = () => page.evaluate(() => window.greanteadawy.store.getState().undo());
+  const tab = (name) => ggs.locator('.ggs-tabs button', { hasText: name }).click();
+  const routes = async () => {
+    const p = (await instrument()).params;
+    return Object.fromEntries([...Array(64)].map((_, i) => i + 1).filter((i) => p[`mod${i}Dst`] === 'f1Cutoff' && p[`mod${i}Amt`]).map((i) => [p[`mod${i}Src`], p[`mod${i}Amt`]]));
+  };
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Velvet Pad' } } }]), channels.Lead);
+
+  // ---- three routes on one knob: an Alt-drag moves the one it says, all the way, as one undo step
+  await tab('Filters');
+  const cutoff = ggs.locator('.ggs-filter').first().locator('.knob').first();
+  await expect(cutoff.locator('.knob-ring')).toHaveCount(3);
+  const before = await routes();
+  expect(Object.keys(before).sort()).toEqual(['env2', 'macro1', 'pressure']);
+  await expect(cutoff).toHaveAttribute('title', /Alt-drag: depth of Macro 1/);
+  const box = await cutoff.locator('svg').boundingBox();
+  const altDrag = async (dy, { steps = 12, shift = false } = {}) => {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.keyboard.down('Alt');
+    if (shift) await page.keyboard.down('Shift');
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + dy, { steps });
+    await page.mouse.up();
+    if (shift) await page.keyboard.up('Shift');
+    await page.keyboard.up('Alt');
+  };
+  // 48 px down = 0.3 of the knob's travel: macro 1 goes from 0.35 to 0.05 — past the depth of the two other routes,
+  // which used to take the drag over on the way (three routes changed, sixteen undo steps)
+  await altDrag(48);
+  await expect.poll(async () => (await routes()).macro1).toBeCloseTo(before.macro1 - 0.3, 3);
+  expect((await routes()).pressure).toBe(before.pressure);
+  expect((await routes()).env2).toBe(before.env2);
+  await undo();
+  await expect.poll(routes).toEqual(before);
+  // fine (Shift): 80 px in single pixels is 0.1, nothing lost to rounding on the way
+  await altDrag(-80, { steps: 80, shift: true });
+  await expect.poll(async () => (await routes()).macro1).toBeCloseTo(before.macro1 + 0.1, 3);
+  await undo();
+  await expect.poll(routes).toEqual(before);
+
+  // ---- the filter graph: only the left button edits, and a press that does not move changes nothing
+  await set({ f1Cutoff: 1234.5678, f1Res: 0.123456 });
+  const graph = ggs.locator('.ggs-filter').first().locator('canvas');
+  await graph.scrollIntoViewIfNeeded();
+  const g = await graph.boundingBox();
+  const xOf = (hz) => g.x + (Math.log(hz / 20) / Math.log(1000)) * g.width;
+  for (const button of ['right', 'middle']) {
+    await page.mouse.move(xOf(4000), g.y + 30);
+    await page.mouse.down({ button });
+    await page.mouse.move(xOf(6000), g.y + 20, { steps: 3 });
+    await page.mouse.up({ button });
+  }
+  await page.keyboard.press('Escape'); // (a context menu, if the right click opened one)
+  expect([await param('f1Cutoff'), await param('f1Res')]).toEqual([1234.5678, 0.123456]);
+  const steps = () => page.evaluate(() => window.greanteadawy.store.getState().past.length);
+  const undoable = await steps();
+  await page.mouse.move(xOf(1234.5678), g.y + g.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+  expect([await param('f1Cutoff'), await param('f1Res'), await steps()]).toEqual([1234.5678, 0.123456, undoable]);
+  await expect(graph).toBeFocused();
+
+  // ---- the envelope: bends
+  await tab('Modulators');
+  const env = ggs.locator('.ggs-env').first();
+  await env.scrollIntoViewIfNeeded();
+  const centre = async (node) => { const r = await env.locator(`[data-node="${node}"]`).boundingBox(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; };
+  await set({ env1S: 0, env1DCurve: 0, env1D: 2, env1R: 2, env1RCurve: -0.5 });
+  // every value on the way to the end can be reached by hand: pulled down a pixel at a time, the curve never jumps
+  // (it used to go from −0.72 to −1 in the last pixel)
+  let c = await centre('decayCurve');
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  const seen = [];
+  for (let dy = 1; dy <= 90; dy++) {
+    await page.mouse.move(c.x, c.y + dy);
+    await page.waitForTimeout(18);
+    seen.push(await param('env1DCurve'));
+  }
+  await page.mouse.up();
+  expect(seen.at(-1)).toBe(-1);
+  const jumps = seen.slice(1).map((v, i) => Math.abs(v - seen[i]));
+  expect(Math.max(...jumps)).toBeLessThan(0.09);
+  expect(seen.filter((v) => v < -0.75 && v > -0.98).length).toBeGreaterThan(5);
+  for (const v of seen) expect(Math.round(v * 1000) / 1000).toBe(v); // three decimals, as the keys and the number give
+  // the right button does not bend
+  await set({ env1DCurve: 0.3 });
+  c = await centre('decayCurve');
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(c.x, c.y + 15, { steps: 3 });
+  await page.mouse.up({ button: 'right' });
+  await page.keyboard.press('Escape');
+  expect(await param('env1DCurve')).toBe(0.3);
+  // a double press resets, even when the second press wobbles by a pixel
+  c = await centre('decayCurve');
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.mouse.down();
+  await page.mouse.move(c.x, c.y + 1);
+  await page.mouse.up();
+  await expect.poll(() => param('env1DCurve')).toBe(-0.5);
+  // the press focused the handle: up moves it up — on a falling slope that is "slower first", a larger number
+  await expect(env.locator('[data-node="decayCurve"]')).toBeFocused();
+  const y0 = (await centre('decayCurve')).y;
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(() => param('env1DCurve')).toBe(-0.45);
+  expect((await centre('decayCurve')).y).toBeLessThan(y0);
+  await set({ env1S: 0.6, env1ACurve: 0 });
+  await env.locator('[data-node="attackCurve"]').focus();
+  const ya = (await centre('attackCurve')).y;
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(() => param('env1ACurve')).toBe(-0.05);
+  expect((await centre('attackCurve')).y).toBeLessThan(ya);
+  // bends on two handles are two undo steps (the whole envelope used to be one)
+  const dragBend = async (node, dy) => { const at = await centre(node); await page.mouse.move(at.x, at.y); await page.mouse.down(); await page.mouse.move(at.x, at.y + dy, { steps: 4 }); await page.mouse.up(); };
+  await set({ env1DCurve: 0, env1RCurve: 0 });
+  await dragBend('decayCurve', 8);
+  const dBent = await param('env1DCurve');
+  await dragBend('releaseCurve', 8);
+  expect(dBent).toBeLessThan(-0.1);
+  expect(await param('env1RCurve')).toBeLessThan(-0.1);
+  await undo();
+  expect([await param('env1DCurve'), await param('env1RCurve')]).toEqual([dBent, 0]);
+  await undo();
+  expect(await param('env1DCurve')).toBe(0);
+  // the number next to the graph has a name of its own, and takes a decimal comma
+  const number = env.locator('.ggs-envedit-read .dragnum').nth(1);
+  await expect(number).toHaveAttribute('aria-label', 'Decay curve');
+  await number.dblclick();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type('0,5');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => param('env1DCurve')).toBe(0.5);
+
+  // ---- the parameter table: an arrow key is a small step, not the end of the range; the wheel scrolls
+  await set({ f1Res: 0.3 });
+  await tab('All parameters');
+  const table = ggs.locator('.ggs-ptable');
+  await table.locator('input[type=search]').fill('f1Res');
+  const cell = table.locator('tbody input[type=number]');
+  await expect(cell).toHaveCount(1);
+  await cell.focus();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Tab');
+  await expect.poll(() => param('f1Res')).toBeCloseTo(0.31, 6);
+  await cell.focus();
+  await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Tab');
+  await expect.poll(() => param('f1Res')).toBeCloseTo(0.21, 6);
+  await cell.focus();
+  await cell.hover();
+  await page.mouse.wheel(0, -120);
+  await expect(cell).not.toBeFocused();
+  expect(await param('f1Res')).toBeCloseTo(0.21, 6);
+  await table.locator('input[type=search]').fill('');
   await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
 });
 
