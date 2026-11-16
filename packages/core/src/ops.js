@@ -156,7 +156,8 @@ function patchChannel(d, c, patch) {
       c.instrument = makeInstrument(kind, ins.preset, { ...keep, ...(ins.params || {}) });
       if (kindChanged && !('rootKey' in patch)) c.rootKey = INSTRUMENTS[kind].defaultKey;
     } else if (ins.params) {
-      Object.assign(c.instrument.params, sanitizeParams(INSTRUMENTS[kind].params, ins.params));
+      const def = INSTRUMENTS[kind];
+      Object.assign(c.instrument.params, sanitizeParams(def.params, def.migrate ? def.migrate(ins.params) : ins.params));
     }
   }
 }

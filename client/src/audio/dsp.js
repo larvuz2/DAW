@@ -121,12 +121,14 @@ export const gainToDb = (g) => (g <= 0.00001 ? -Infinity : 20 * Math.log10(g));
 export function denormalize(v, def) {
   const { min, max, curve } = def;
   if (curve === 'log' && min > 0) return min * Math.pow(max / min, v);
+  if (curve === 'cube') return min + (max - min) * v * v * v;
   return min + (max - min) * v;
 }
 
 export function normalize(value, def) {
   const { min, max, curve } = def;
   if (curve === 'log' && min > 0) return Math.log(value / min) / Math.log(max / min);
+  if (curve === 'cube') return Math.cbrt((value - min) / (max - min));
   return (value - min) / (max - min);
 }
 

@@ -6,8 +6,9 @@
 // Rendering runs in control blocks of CTRL output samples: modulation is evaluated once per block and every audible
 // control (pitch, level, table position, cutoff, amp) is ramped across the block, so nothing steps ("zipper noise").
 import { getWavetable, tableLevel, levelFor, FRAME, STRIDE } from './wavetables.js';
-import { completeParams, syncBeats, needsOversampling, MOD_SOURCES, MOD_TARGETS, OSC_IDS, ENV_COUNT, LFO_COUNT, MOD_SLOTS, SOURCE_DESTS, WARP_MODES, FILTER_TYPES, LFO_SHAPES, SUB_WAVES } from './params.js';
-import { Rng, hash32, hashBipolar, softClip, Decimator2, clamp, TAU } from './util.js';
+import { completeParams, syncBeats, needsOversampling, envCurveK, MOD_SOURCES, MOD_TARGETS, OSC_IDS, ENV_COUNT, LFO_COUNT, MOD_SLOTS, SOURCE_DESTS, WARP_MODES, LFO_SHAPES, SUB_WAVES } from './params.js';
+import { VoiceFilter } from './filters.js';
+import { Rng, hash32, hashBipolar, Decimator2, clamp, TAU } from './util.js';
 
 export const CTRL = 16;
 const MAX_UNISON = 8;
@@ -16,7 +17,6 @@ const MAX_INNER = CTRL * 2; // internal samples per control block at 2× oversam
 const SRC = Object.fromEntries(MOD_SOURCES.map((s, i) => [s, i]));
 const DST = Object.fromEntries(MOD_TARGETS.map((s, i) => [s, i]));
 const WARP = Object.fromEntries(WARP_MODES.map((s, i) => [s, i]));
-const FTYPE = Object.fromEntries(FILTER_TYPES.map((s, i) => [s, i]));
 const LFO = Object.fromEntries(LFO_SHAPES.map((s, i) => [s, i]));
 
 // scratch buffers shared by every voice in a realm (voices render one after another, never interleaved)
@@ -25,51 +25,72 @@ const B1L = bus(), B1R = bus(), B2L = bus(), B2R = bus(), DL = bus(), DR = bus()
 
 const valueAt = (v, i) => (typeof v === 'number' ? v : v.length > 1 ? v[i] : v[0]);
 
-/**
- * Attack / decay shapes over x = 0..1: rise = (1 − e^{−kx}) / (1 − e^{−k}), fall = (e^{−kx} − e^{−k}) / (1 − e^{−k}).
- * k sets how exponential they are; e^{−k} is computed once per parameter change (see GgsVoice.configure).
- */
+// Changing what a voice is made of while it sounds — an oscillator switched on, another wavetable, a different filter
+// model — would click: a wave appears at full level, or a filter's memory suddenly means something else. Such
+// changes wait: the part they belong to fades out over FADE seconds, is swapped while silent, and fades back in.
+// Units 0–2 are the oscillators (each fades alone), unit 3 is everything on the buses (the whole voice dips).
+const FADE = 0.004;
+const BUS = 3;
+const SWAP_KEYS = [
+  ...OSC_IDS.map((x) => ['On', 'Table', 'Warp', 'FmFrom', 'Dest', 'Unison'].map((k) => `osc${x}${k}`)),
+  ['f1On', 'f1Type', 'f2On', 'f2Type', 'filterRoute', 'subWave', 'subDest', 'noiseType', 'noiseDest']
+];
 
+const IDLE = 0, DELAY = 1, ATTACK = 2, HOLD = 3, DECAY = 4, SUSTAIN = 5, RELEASE = 6, DONE = 7;
+
+/**
+ * Delay · attack · hold · decay · sustain · release, each moving stage with its own curve. A stage runs along
+ * rise(x) = (1 − e^{−kx}) / (1 − e^{−k}) for x = 0..1 (k from the stage's curve, see envCurveK; k = 0 is a straight
+ * line); 1 / (1 − e^{−k}) is computed once per parameter change (see GgsVoice.configure).
+ */
 class Envelope {
   constructor() {
-    this.stage = 0; // 0 idle · 1 attack · 2 decay · 3 sustain · 4 release · 5 done
+    this.stage = IDLE;
     this.t = 0;
     this.level = 0;
     this.from = 0;
   }
 
   /** legato: a note that continues the previous one starts in its sustain stage instead of attacking again. */
-  on(legato, sustain) {
+  on(legato, c) {
     this.t = 0;
     this.from = 0;
-    if (legato) { this.stage = 3; this.level = sustain; } else { this.stage = 1; this.level = 0; }
+    if (legato) { this.stage = SUSTAIN; this.level = c.s; } else { this.stage = c.dl > 0 ? DELAY : ATTACK; this.level = 0; }
   }
 
   off() {
-    if (this.stage === 5 || this.stage === 4) return;
+    if (this.stage === DONE || this.stage === RELEASE) return;
     this.from = this.level;
-    this.stage = 4;
+    this.stage = RELEASE;
     this.t = 0;
   }
 
-  /** c: the envelope's cached numbers { a, d, s, r, ka, eka, kd, ekd }; rel: release-time scale. */
+  /** c: the envelope's cached numbers (times, sustain, and per stage the exponent k and its normaliser n). */
   advance(dt, c, rel) {
     switch (this.stage) {
-      case 1:
+      case DELAY:
         this.t += dt;
-        if (this.t >= c.a) { this.level = 1; this.stage = 2; this.t = 0; } else this.level = this.from + (1 - this.from) * ((1 - Math.exp((-c.ka * this.t) / c.a)) / (1 - c.eka));
+        if (this.t >= c.dl) { this.stage = ATTACK; this.t = 0; }
         break;
-      case 2:
+      case ATTACK:
         this.t += dt;
-        if (this.t >= c.d) { this.level = c.s; this.stage = 3; } else this.level = c.s + (1 - c.s) * ((Math.exp((-c.kd * this.t) / c.d) - c.ekd) / (1 - c.ekd));
+        if (this.t >= c.a) { this.level = 1; this.stage = c.h > 0 ? HOLD : DECAY; this.t = 0; } else this.level = c.na ? (1 - Math.exp((-c.ka * this.t) / c.a)) * c.na : this.t / c.a;
         break;
-      case 3:
+      case HOLD:
+        this.t += dt;
+        if (this.t >= c.h) { this.stage = DECAY; this.t = 0; }
+        break;
+      case DECAY:
+        this.t += dt;
+        if (this.t >= c.d) { this.level = c.s; this.stage = SUSTAIN; } else this.level = c.s + (1 - c.s) * (1 - (c.nd ? (1 - Math.exp((-c.kd * this.t) / c.d)) * c.nd : this.t / c.d));
+        break;
+      case SUSTAIN:
         this.level = c.s;
         break;
-      case 4: {
+      case RELEASE: {
         this.t += dt;
         const r = c.r * rel;
-        if (this.t >= r) { this.level = 0; this.stage = 5; } else this.level = this.from * ((Math.exp((-c.kd * this.t) / r) - c.ekd) / (1 - c.ekd));
+        if (this.t >= r) { this.level = 0; this.stage = DONE; } else this.level = this.from * (1 - (c.nr ? (1 - Math.exp((-c.kr * this.t) / r)) * c.nr : this.t / r));
         break;
       }
       default:
@@ -77,6 +98,12 @@ class Envelope {
     }
     return this.level;
   }
+}
+
+/** Exponent and normaliser of a stage curve (normaliser 0 = straight line). */
+function stageCurve(curve) {
+  const k = envCurveK(curve);
+  return k < 1e-4 && k > -1e-4 ? [0, 0] : [k, 1 / (1 - Math.exp(-k))];
 }
 
 /** One oscillator's running state. */
@@ -105,12 +132,6 @@ class Osc {
     this.fm = 0;
     this.first = true;
   }
-}
-
-class Svf {
-  constructor() { this.s = new Float64Array(8); } // two stages × two channels × (ic1, ic2)
-
-  reset() { this.s.fill(0); }
 }
 
 export class GgsVoice {
@@ -142,8 +163,14 @@ export class GgsVoice {
     this.oscs = OSC_IDS.map((id) => new Osc(id));
     this.sub = { phase: 0, inc: 0, level: 0, mono: new Float32Array(MAX_INNER), first: true, need: 0, lvl: 0, data: null };
     this.noise = { level: 0, mono: new Float32Array(MAX_INNER), lp: 0, lpR: 0, pink: new Float64Array(6), brown: 0, brownR: 0, first: true };
-    this.filters = [new Svf(), new Svf()];
-    this.fstate = [{ g: 0, k: 1, drive: 0, first: true, comb: null, combPos: 0, combLp: [0, 0] }, { g: 0, k: 1, drive: 0, first: true, comb: null, combPos: 0, combLp: [0, 0] }];
+    this.vf = [new VoiceFilter(this.fsI), new VoiceFilter(this.fsI)];
+    this.fstate = [{ fc: 1000, lastOct: NaN, lastCutoff: NaN }, { fc: 1000, lastOct: NaN, lastCutoff: NaN }];
+    // fades around structural edits (see SWAP_KEYS): how open each unit is, where it is heading, what waits
+    this.gate = new Float64Array(4);
+    this.gateTo = new Float64Array(4);
+    this.open = new Float64Array(4);
+    this.swap = [false, false, false, false];
+    this.next = null;
     this.envs = Array.from({ length: ENV_COUNT }, () => new Envelope());
     this.lfoPhase = new Float64Array(LFO_COUNT);
     this.src = new Float64Array(MOD_SOURCES.length);
@@ -157,15 +184,63 @@ export class GgsVoice {
     this.glideSemis = opts.glideFrom > 0 && this.p.glide > 0 ? 12 * Math.log2(opts.glideFrom / target) : 0;
     this.configure();
     for (let i = 0; i < LFO_COUNT; i++) this.lfoPhase[i] = this.p[`lfo${i + 1}Phase`];
+    for (let u = 0; u < 4; u++) this.gate[u] = this.gateTo[u] = this.unitOpen(u);
     const legato = !!opts.legato && this.p.legato;
-    for (let i = 0; i < ENV_COUNT; i++) this.envs[i].on(legato, this.p[`env${i + 1}S`]);
+    for (let i = 0; i < ENV_COUNT; i++) this.envs[i].on(legato, this.envc[i]);
   }
 
-  /** Live edit while the note sounds (a knob turned in the editor). Oversampling is fixed for the note's life. */
+  /** How open a fade unit is when nothing is changing: an oscillator that is off stays closed. */
+  unitOpen(u) {
+    return u === BUS || this.p[`osc${OSC_IDS[u]}On`] ? 1 : 0;
+  }
+
+  /**
+   * Live edit while the note sounds (a knob turned in the editor). Oversampling is fixed for the note's life.
+   * Knob moves apply at once (and are ramped); structural changes wait for their unit to fade out — see SWAP_KEYS.
+   */
   setParams(delta) {
     const quality = this.p.quality;
-    this.p = completeParams({ ...this.p, ...delta, quality });
+    const next = completeParams({ ...(this.next || this.p), ...delta, quality });
+    const now = { ...next };
+    let waiting = false;
+    for (let u = 0; u < 4; u++) {
+      const keys = SWAP_KEYS[u];
+      let differs = false;
+      for (const k of keys) if (next[k] !== this.p[k]) { differs = true; break; }
+      if (differs) {
+        for (const k of keys) now[k] = this.p[k];
+        this.swap[u] = true;
+        this.gateTo[u] = 0;
+        waiting = true;
+      } else if (this.swap[u]) {
+        // the change was taken back before it happened: just open up again
+        this.swap[u] = false;
+        this.gateTo[u] = this.unitOpen(u);
+      }
+    }
+    this.next = waiting ? next : null;
+    this.p = now;
     this.configure();
+  }
+
+  /** Swap in the waiting structure of every unit that has finished fading out. */
+  applySwaps() {
+    let changed = false;
+    let waiting = false;
+    for (let u = 0; u < 4; u++) {
+      if (!this.swap[u]) continue;
+      if (this.gate[u] > 0) { waiting = true; continue; }
+      for (const k of SWAP_KEYS[u]) this.p[k] = this.next[k];
+      this.swap[u] = false;
+      changed = true;
+      // the voice is silent here: a filter that comes (back) on must not replay what it last heard
+      if (u === BUS) { this.vf[0].reset(); this.vf[1].reset(); }
+    }
+    if (changed) {
+      this.configure();
+      for (let u = 0; u < 4; u++) if (!this.swap[u]) this.gateTo[u] = this.unitOpen(u);
+    }
+    if (!waiting) this.next = null;
   }
 
   setTempo(bpm) {
@@ -235,17 +310,19 @@ export class GgsVoice {
     this.envUsed = [true, used.has(SRC.env2), used.has(SRC.env3), used.has(SRC.env4)];
     this.lfoUsed = [1, 2, 3, 4].map((i) => used.has(SRC[`lfo${i}`]));
     this.envc = [1, 2, 3, 4].map((i) => {
-      const curve = p[`env${i}Curve`];
-      const ka = 1.5 * Math.pow(3, curve);
-      const kd = 4.6 * Math.pow(4, curve);
-      return { a: p[`env${i}A`], d: p[`env${i}D`], s: p[`env${i}S`], r: p[`env${i}R`], ka, eka: Math.exp(-ka), kd, ekd: Math.exp(-kd) };
+      const [ka, na] = stageCurve(p[`env${i}ACurve`]);
+      const [kd, nd] = stageCurve(p[`env${i}DCurve`]);
+      const [kr, nr] = stageCurve(p[`env${i}RCurve`]);
+      return { dl: p[`env${i}Delay`], a: p[`env${i}A`], h: p[`env${i}Hold`], d: p[`env${i}D`], s: p[`env${i}S`], r: p[`env${i}R`], ka, na, kd, nd, kr, nr };
     });
     this.lfoc = [1, 2, 3, 4].map((i) => {
       const sync = p[`lfo${i}Sync`];
       const free = p[`lfo${i}Trig`] === 'free';
       return { shape: LFO[p[`lfo${i}Shape`]] || 0, rate: p[`lfo${i}Rate`], beats: sync === 'off' ? 0 : syncBeats(sync), free, fade: p[`lfo${i}Fade`], phase: p[`lfo${i}Phase`], seed: free ? 1000 + i : this.seed + i };
     });
-    this.fc = [1, 2].map((i) => ({ on: p[`f${i}On`], cutoff: p[`f${i}Cutoff`], res: p[`f${i}Res`], drive: p[`f${i}Drive`], key: p[`f${i}Key`] }));
+    this.fc = [1, 2].map((i) => ({ on: p[`f${i}On`], cutoff: p[`f${i}Cutoff`], res: p[`f${i}Res`], drive: p[`f${i}Drive`], key: p[`f${i}Key`], morph: p[`f${i}Morph`] }));
+    this.vf[0].setType(p.f1Type);
+    this.vf[1].setType(p.f2Type);
     this.macro = [p.macro1, p.macro2, p.macro3, p.macro4];
     this.glide = p.glide;
     this.level = p.level;
@@ -258,7 +335,6 @@ export class GgsVoice {
     this.noiseA = 1 - Math.exp((-TAU * Math.min(nfc, this.fsI * 0.45)) / this.fsI);
     this.serial = p.filterRoute === 'serial';
     this.lastVoicePan = NaN;
-    this.ftype = [FTYPE[p.f1Type] || 0, FTYPE[p.f2Type] || 0];
     this.subFrame = SUB_WAVES.indexOf(p.subWave);
     this.subMult = Math.pow(2, p.subOct);
     this.subDest = SOURCE_DESTS.indexOf(p.subDest);
@@ -297,7 +373,7 @@ export class GgsVoice {
       done += m;
       // over: the amp envelope has closed — or sits at a sustain of zero, where a pluck stays silent for good
       const amp = this.envs[0];
-      if (amp.stage === 5 || (amp.stage === 3 && this.p.env1S <= 0)) this.finished = true;
+      if (amp.stage === DONE || (amp.stage === SUSTAIN && this.p.env1S <= 0)) this.finished = true;
     }
   }
 
@@ -306,6 +382,15 @@ export class GgsVoice {
     const src = this.src;
     const dst = this.dst;
     this.age += dt;
+    if (this.next) this.applySwaps();
+    const gate = this.gate;
+    for (let u = 0; u < 4; u++) {
+      const to = this.gateTo[u];
+      if (gate[u] !== to) gate[u] = gate[u] < to ? Math.min(to, gate[u] + dt / FADE) : Math.max(to, gate[u] - dt / FADE);
+      // an S-shaped fade: no corner where it starts or ends
+      this.open[u] = gate[u] * gate[u] * (3 - 2 * gate[u]);
+    }
+    const open = this.open;
     const bend = valueAt(ctl.pitch ?? 0, index);
 
     for (let i = 0; i < ENV_COUNT; i++) {
@@ -376,7 +461,7 @@ export class GgsVoice {
       if (semis !== o.lastSemis) { o.lastSemis = semis; o.mult = Math.pow(2, semis / 12); }
       o.incTo = Math.min(0.45, (baseHz * o.mult) / this.fsI);
       o.posTo = clamp(o.pPos + dst[base + 1], 0, 1);
-      o.levelTo = clamp(o.pLevel + dst[base + 2], 0, 2);
+      o.levelTo = clamp(o.pLevel + dst[base + 2], 0, 2) * open[k];
       o.warpTo = clamp(o.pWarp + dst[base + 4], 0, 1);
       o.fmTo = clamp(o.pFm + dst[base + 5], 0, 1);
       const detune = clamp(o.pDetune + dst[base + 6] * 100, 0, 200);
@@ -405,7 +490,8 @@ export class GgsVoice {
           o.gr[u] = Math.sin(a) * o.gm[u] * Math.SQRT2;
         }
       }
-      if (o.first) { o.inc = o.incTo; o.pos = o.posTo; o.level = o.levelTo; o.warpAmt = o.warpTo; o.fm = o.fmTo; o.first = false; }
+      // (an oscillator switched on while the note sounds starts from silence and fades in)
+      if (o.first) { o.inc = o.incTo; o.pos = o.posTo; o.level = gate[k] < 1 ? 0 : o.levelTo; o.warpAmt = o.warpTo; o.fm = o.fmTo; o.first = false; }
     }
     const sub = this.sub;
     sub.levelTo = clamp(this.subLevel + dst[DST.subLevel], 0, 2);
@@ -426,23 +512,12 @@ export class GgsVoice {
         st.lastOct = oct;
         st.lastCutoff = c.cutoff;
         st.fc = clamp(c.cutoff * Math.pow(2, oct), 16, Math.min(21000, this.fsI * 0.45));
-        st.gTo = Math.tan((Math.PI * st.fc) / this.fsI);
       }
-      const res = clamp(c.res + dst[base + 1], 0, 1);
-      if (res !== st.res || this.ftype[f] !== st.lastType) {
-        st.res = res;
-        st.lastType = this.ftype[f];
-        // damping k = 1/Q. 12 dB types: Q 0.707 (flat) … 40. 24 dB types: this is the second stage of a
-        // Butterworth pair (Q 1.31 … 40); the first stage stays gentle (see filter())
-        const two = st.lastType === 1 || st.lastType === 3 || st.lastType === 5;
-        st.kTo = two ? 1 / (1.3066 * Math.pow(30, res)) : 1 / (0.7071 * Math.pow(56, res));
-      }
-      st.driveTo = clamp(c.drive + dst[base + 2], 0, 1);
-      if (st.first) { st.g = st.gTo; st.k = st.kTo; st.drive = st.driveTo; st.first = false; }
+      this.vf[f].set(st.fc, clamp(c.res + dst[base + 1], 0, 1), clamp(c.drive + dst[base + 2], 0, 1), clamp(c.morph + dst[DST.f1Morph + f], 0, 1));
     }
 
     // ---- amp and pan
-    this.ampTo = src[SRC.env1] * this.velGain * clamp(this.level + dst[DST.level], 0, 2);
+    this.ampTo = src[SRC.env1] * this.velGain * clamp(this.level + dst[DST.level], 0, 2) * open[BUS];
     const vpan = clamp(dst[DST.pan], -1, 1);
     if (vpan !== this.lastVoicePan) {
       this.lastVoicePan = vpan;
@@ -464,13 +539,13 @@ export class GgsVoice {
     OL.fill(0, 0, m); OR.fill(0, 0, m);
     const f1 = this.fc[0].on;
     const f2 = this.fc[1].on;
-    if (f1) this.filter(0, B1L, B1R, m);
+    if (f1) this.vf[0].process(B1L, B1R, m);
     if (this.serial && f2) {
       for (let i = 0; i < m; i++) { B2L[i] += B1L[i]; B2R[i] += B1R[i]; }
     } else {
       for (let i = 0; i < m; i++) { OL[i] += B1L[i]; OR[i] += B1R[i]; }
     }
-    if (f2) this.filter(1, B2L, B2R, m);
+    if (f2) this.vf[1].process(B2L, B2R, m);
     for (let i = 0; i < m; i++) { OL[i] += B2L[i] + DL[i]; OR[i] += B2R[i] + DR[i]; }
 
     let amp = this.amp;
@@ -695,110 +770,6 @@ export class GgsVoice {
     }
     nz.level = nz.levelTo;
     this.route(this.noiseDest, m);
-  }
-
-  /** Filter `f` in place on a stereo bus. Topology-preserving state-variable filter: stable at any cutoff sweep. */
-  filter(f, L, R, m) {
-    const st = this.fstate[f];
-    const type = this.ftype[f];
-    if (type === 8) { this.comb(f, L, R, m); return; }
-    const s = this.filters[f].s;
-    let g = st.g;
-    let k = st.k;
-    let drive = st.drive;
-    const dg = (st.gTo - g) / m;
-    const dk = (st.kTo - k) / m;
-    const dd = (st.driveTo - drive) / m;
-    const driven = drive > 0.001 || st.driveTo > 0.001;
-    const two = type === 1 || type === 3 || type === 5; // 24 dB types: two stages
-    // 24 dB: the first stage stays gentle (Q 0.54 … 0.8), the second carries the resonance — at zero resonance the
-    // pair is a 4-pole Butterworth
-    const k1 = 1.848 - 0.6 * st.res;
-    let a1L = s[0], a2L = s[1], a1R = s[2], a2R = s[3], b1L = s[4], b2L = s[5], b1R = s[6], b2R = s[7];
-    const mode = type >> 1; // 0 lp · 1 hp · 2 bp · 3 notch(6)/peak(7)
-    for (let i = 0; i < m; i++) {
-      g += dg; k += dk;
-      let xl = L[i];
-      let xr = R[i];
-      if (driven) {
-        drive += dd;
-        const pre = 1 + drive * 7;
-        const post = 1 / Math.sqrt(pre);
-        xl = softClip(xl * pre) * post;
-        xr = softClip(xr * pre) * post;
-      }
-      const kk = two ? k1 : k;
-      let c1 = 1 / (1 + g * (g + kk));
-      let c2 = g * c1;
-      let c3 = g * c2;
-      let v3 = xl - a2L;
-      let v1 = c1 * a1L + c2 * v3;
-      let v2 = a2L + c2 * a1L + c3 * v3;
-      a1L = 2 * v1 - a1L; a2L = 2 * v2 - a2L;
-      let yl = mode === 0 ? v2 : mode === 1 ? xl - kk * v1 - v2 : mode === 2 ? kk * v1 : type === 6 ? xl - kk * v1 : 2 * v2 - xl + kk * v1;
-      v3 = xr - a2R;
-      v1 = c1 * a1R + c2 * v3;
-      v2 = a2R + c2 * a1R + c3 * v3;
-      a1R = 2 * v1 - a1R; a2R = 2 * v2 - a2R;
-      let yr = mode === 0 ? v2 : mode === 1 ? xr - kk * v1 - v2 : mode === 2 ? kk * v1 : type === 6 ? xr - kk * v1 : 2 * v2 - xr + kk * v1;
-      if (two) {
-        c1 = 1 / (1 + g * (g + k));
-        c2 = g * c1;
-        c3 = g * c2;
-        v3 = yl - b2L;
-        v1 = c1 * b1L + c2 * v3;
-        v2 = b2L + c2 * b1L + c3 * v3;
-        b1L = 2 * v1 - b1L; b2L = 2 * v2 - b2L;
-        yl = mode === 0 ? v2 : mode === 1 ? yl - k * v1 - v2 : k * v1;
-        v3 = yr - b2R;
-        v1 = c1 * b1R + c2 * v3;
-        v2 = b2R + c2 * b1R + c3 * v3;
-        b1R = 2 * v1 - b1R; b2R = 2 * v2 - b2R;
-        yr = mode === 0 ? v2 : mode === 1 ? yr - k * v1 - v2 : k * v1;
-      }
-      L[i] = yl;
-      R[i] = yr;
-    }
-    s[0] = a1L; s[1] = a2L; s[2] = a1R; s[3] = a2R; s[4] = b1L; s[5] = b2L; s[6] = b1R; s[7] = b2R;
-    // a filter fed with silence decays into denormal numbers, which are many times slower to compute: stop there
-    for (let i = 0; i < 8; i++) if (s[i] < 1e-30 && s[i] > -1e-30) s[i] = 0;
-    st.g = st.gTo; st.k = st.kTo; st.drive = st.driveTo;
-  }
-
-  /** Feedback comb: cutoff is the pitch of the comb, resonance its feedback (metallic, flanged, plucked tones). */
-  comb(f, L, R, m) {
-    const st = this.fstate[f];
-    if (!st.comb) {
-      const size = 1 << Math.ceil(Math.log2(this.fsI / 16 + 4));
-      st.comb = [new Float32Array(size), new Float32Array(size)];
-    }
-    const size = st.comb[0].length;
-    const mask = size - 1;
-    const delay = clamp(this.fsI / st.fc, 2, size - 2);
-    const fb = st.res * 0.985;
-    const damp = 0.25 + 0.5 * (1 - st.res);
-    let pos = st.combPos;
-    for (let ch = 0; ch < 2; ch++) {
-      const buf = st.comb[ch];
-      const io = ch ? R : L;
-      let lp = st.combLp[ch];
-      let w = st.combPos;
-      for (let i = 0; i < m; i++) {
-        const rd = w - delay + size;
-        const ri = Math.floor(rd);
-        const fr = rd - ri;
-        const d = buf[ri & mask] + (buf[(ri + 1) & mask] - buf[ri & mask]) * fr;
-        lp += damp * (d - lp);
-        const y = io[i] + softClip(lp * fb);
-        buf[w & mask] = y;
-        io[i] = y * (1 - 0.45 * st.res);
-        w++;
-      }
-      st.combLp[ch] = lp < 1e-30 && lp > -1e-30 ? 0 : lp;
-      pos = w & mask;
-    }
-    st.combPos = pos;
-    st.g = st.gTo; st.k = st.kTo; st.drive = st.driveTo;
   }
 }
 

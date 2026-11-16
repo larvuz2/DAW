@@ -17,7 +17,12 @@ function mods(list) {
   return out;
 }
 
-const env = (i, a, d, s, r, curve) => ({ [`env${i}A`]: a, [`env${i}D`]: d, [`env${i}S`]: s, [`env${i}R`]: r, ...(curve !== undefined ? { [`env${i}Curve`]: curve } : {}) });
+/** Envelope i: attack, decay, sustain, release, then optional { delay, hold, ac, dc, rc } (the three stage curves). */
+const env = (i, a, d, s, r, o = {}) => ({
+  [`env${i}A`]: a, [`env${i}D`]: d, [`env${i}S`]: s, [`env${i}R`]: r,
+  ...(o.delay ? { [`env${i}Delay`]: o.delay } : {}), ...(o.hold ? { [`env${i}Hold`]: o.hold } : {}),
+  ...(o.ac !== undefined ? { [`env${i}ACurve`]: o.ac } : {}), ...(o.dc !== undefined ? { [`env${i}DCurve`]: o.dc } : {}), ...(o.rc !== undefined ? { [`env${i}RCurve`]: o.rc } : {})
+});
 const lfo = (i, shape, rate, o = {}) => ({
   [`lfo${i}Shape`]: shape,
   ...(typeof rate === 'string' ? { [`lfo${i}Sync`]: rate } : { [`lfo${i}Rate`]: rate }),
@@ -99,18 +104,20 @@ preset('Choir of Air', 'pad', 'Breathy synthetic choir with a slow, human vibrat
     chorusMix: 0.35, reverbMix: 0.45, reverbSize: 0.8, gain: 0.6
   }, { chord: true });
 
-preset('Solar Drift', 'pad', 'Bright pulse-width pad, wide and slowly breathing.',
+preset('Solar Drift', 'pad', 'Bright pulse-width pad, wide and slowly breathing, with a slow phaser inside every note.',
   ['PWM depth', 'Brightness', 'Sub', 'Width'],
   'Pressure brightens; slide narrows the pulse.', {
     ...osc('A', { Table: 'pwm', Pos: 0.25, Level: 0.7, Unison: 4, Detune: 18, Spread: 0.9 }),
     ...osc('B', { Table: 'pwm', Pos: 0.5, Level: 0.4, Oct: -1, Unison: 2, Detune: 10 }),
     f1Type: 'lp12', f1Cutoff: 3200, f1Res: 0.1, f1Key: 0.35,
+    f2On: true, f2Type: 'phaser', f2Cutoff: 900, f2Res: 0.3, f2Morph: 0.4, filterRoute: 'serial',
     ...env(1, 0.35, 1.5, 0.85, 1.4), ...lfo(1, 'triangle', 0.31, { free: true }), ...lfo(2, 'sine', 0.23, { free: true, phase: 0.5 }),
+    ...lfo(3, 'sine', 0.07, { free: true }),
     ...mods([
-      ['lfo1', 'oscAPos', 0.22], ['lfo2', 'oscBPos', 0.2], ['pressure', 'f1Cutoff', 0.22], ['timbre', 'oscAPos', 0.45],
+      ['lfo1', 'oscAPos', 0.22], ['lfo2', 'oscBPos', 0.2], ['pressure', 'f1Cutoff', 0.22], ['timbre', 'oscAPos', 0.45], ['lfo3', 'f2Cutoff', 0.16],
       ['macro1', 'oscAPos', 0.3, 'lfo1'], ['macro2', 'f1Cutoff', 0.35], ['macro3', 'subLevel', 0.6], ['velocity', 'f1Cutoff', 0.1], ['macro4', 'oscADetune', 0.3]
     ]),
-    chorusMix: 0.6, chorusRate: 0.5, chorusDepth: 0.6, reverbMix: 0.3, reverbSize: 0.65, gain: 0.45
+    chorusMix: 0.6, chorusRate: 0.5, chorusDepth: 0.6, reverbMix: 0.3, reverbSize: 0.65, gain: 0.69
   }, { chord: true });
 
 // ------------------------------------------------------------------------------------------------------ leads
@@ -146,20 +153,20 @@ preset('Crystal Lead', 'lead', 'Crystalline digital lead: bell-like FM over glas
     delayMix: 0.28, delaySync: '1/8d', delayFb: 0.42, reverbMix: 0.3, reverbSize: 0.7, gain: 0.57
   });
 
-preset('Mono Titan', 'lead', 'Cinematic mono lead: thick, driven, gliding between overlapping notes.',
+preset('Mono Titan', 'lead', 'Cinematic mono lead: thick, driven through a ladder filter, gliding between overlapping notes.',
   ['Filter', 'Drive', 'Vibrato', 'Sub'],
   'Pressure opens the filter; slide adds drive.', {
     ...osc('A', { Table: 'basic', Pos: 0.5, Level: 0.7, Unison: 3, Detune: 14, Spread: 0.6 }),
     ...osc('B', { Table: 'basic', Pos: 0.75, Level: 0.45, Oct: -1 }),
     subLevel: 0.35, subDest: 'f1',
-    f1Type: 'lp24', f1Cutoff: 800, f1Res: 0.3, f1Drive: 0.3, f1Key: 0.5,
+    f1Type: 'ladder24', f1Cutoff: 1100, f1Res: 0.4, f1Drive: 0.3, f1Key: 0.5,
     mono: true, legato: true, glide: 0.09,
     ...env(1, 0.006, 0.5, 0.85, 0.22), ...env(2, 0.004, 0.5, 0.3, 0.3), ...lfo(1, 'sine', 5.2, { fade: 0.45 }),
     ...mods([
       ['env2', 'f1Cutoff', 0.32], ['pressure', 'f1Cutoff', 0.28], ['timbre', 'f1Drive', 0.6], ['lfo1', 'pitchFine', 0.14], ['velocity', 'f1Cutoff', 0.12],
       ['macro1', 'f1Cutoff', 0.4], ['macro2', 'f1Drive', 0.6], ['lfo1', 'pitchFine', 0.3, 'macro3'], ['macro4', 'subLevel', 0.5]
     ]),
-    driveAmt: 0.22, driveType: 'tube', delayMix: 0.18, delaySync: '1/4', delayFb: 0.3, reverbMix: 0.22, reverbSize: 0.6, gain: 0.34
+    driveAmt: 0.22, driveType: 'tube', delayMix: 0.18, delaySync: '1/4', delayFb: 0.3, reverbMix: 0.22, reverbSize: 0.6, gain: 0.56
   });
 
 preset('Sync Razor', 'lead', 'Tearing hard-sync lead: the classic sweep, here on the slide dimension.',
@@ -211,29 +218,29 @@ preset('Deep Sub', 'bass', 'Clean, deep sub bass with just enough harmonics to b
     gain: 0.46
   }, { key: 36 });
 
-preset('Analog Bass', 'bass', 'Textured analog bass: saw and pulse into a driven low-pass with a snappy envelope.',
+preset('Analog Bass', 'bass', 'Textured analog bass: saw and pulse into a driven ladder filter with a snappy envelope.',
   ['Cutoff', 'Envelope', 'Resonance', 'Drive'],
   'Pressure opens the filter; slide adds resonance.', {
     ...osc('A', { Table: 'basic', Pos: 0.5, Level: 0.75, Rand: 0 }),
     ...osc('B', { Table: 'pwm', Pos: 0.3, Level: 0.5, Fine: 7, Rand: 0 }),
     subLevel: 0.3, subDest: 'direct',
-    f1Type: 'lp24', f1Cutoff: 210, f1Res: 0.32, f1Drive: 0.35, f1Key: 0.4,
+    f1Type: 'ladder24', f1Cutoff: 300, f1Res: 0.45, f1Drive: 0.35, f1Key: 0.4,
     mono: true, glide: 0.02,
     ...env(1, 0.003, 0.5, 0.75, 0.1), ...env(2, 0.001, 0.22, 0.12, 0.15),
     ...mods([
       ['env2', 'f1Cutoff', 0.4], ['velocity', 'f1Cutoff', 0.14], ['pressure', 'f1Cutoff', 0.25], ['timbre', 'f1Res', 0.4],
       ['macro1', 'f1Cutoff', 0.4], ['env2', 'f1Cutoff', 0.3, 'macro2'], ['macro3', 'f1Res', 0.5], ['macro4', 'f1Drive', 0.6]
     ]),
-    gain: 0.56
+    gain: 0.92
   }, { key: 36 });
 
-preset('Neuro Bass', 'bass', 'Aggressive FM bass that growls and talks in time with the song.',
+preset('Neuro Bass', 'bass', 'Aggressive FM bass that growls and talks in time with the song, snarling through an MS-20 style filter.',
   ['Growl', 'Wobble depth', 'Filter', 'Dirt'],
   'Pressure pushes the FM; slide scans the growl table.', {
     ...osc('A', { Table: 'fmgrowl', Pos: 0.3, Level: 0.8, FmFrom: 'B', Fm: 0.38, Rand: 0 }),
     ...osc('B', { Table: 'basic', Pos: 0, Level: 0, Rand: 0 }),
     subLevel: 0.4, subDest: 'direct',
-    f1Type: 'lp24', f1Cutoff: 1600, f1Res: 0.35, f1Drive: 0.5, f1Key: 0.3,
+    f1Type: 'ms20Lp', f1Cutoff: 1600, f1Res: 0.6, f1Drive: 0.5, f1Key: 0.3,
     f2On: true, f2Type: 'notch', f2Cutoff: 900, f2Res: 0.5,
     mono: true, legato: true, glide: 0.04,
     ...env(1, 0.003, 0.3, 0.9, 0.1), ...lfo(1, 'sine', '1/8', { free: true }), ...lfo(2, 'triangle', '1/4d', { free: true }),
@@ -241,7 +248,7 @@ preset('Neuro Bass', 'bass', 'Aggressive FM bass that growls and talks in time w
       ['lfo1', 'oscAPos', 0.35], ['lfo2', 'f2Cutoff', 0.22], ['lfo1', 'oscAFm', 0.25], ['pressure', 'oscAFm', 0.3], ['timbre', 'oscAPos', 0.5],
       ['macro1', 'oscAFm', 0.4], ['lfo1', 'f1Cutoff', 0.3, 'macro2'], ['macro3', 'f1Cutoff', 0.3], ['macro4', 'f1Drive', 0.5]
     ]),
-    driveAmt: 0.35, driveType: 'hard', gain: 0.37
+    driveAmt: 0.35, driveType: 'hard', gain: 0.42
   }, { key: 36 });
 
 preset('Reese Engine', 'bass', 'Detuned saws beating against each other: the rolling Reese.',
@@ -260,18 +267,18 @@ preset('Reese Engine', 'bass', 'Detuned saws beating against each other: the rol
     driveAmt: 0.18, driveType: 'tube', gain: 0.47
   }, { key: 36 });
 
-preset('Acid Line', 'bass', 'Squelchy resonant bass line: slides on overlapping notes, accents with velocity.',
+preset('Acid Line', 'bass', 'Squelchy diode-ladder bass line in the TB-303 tradition: slides on overlapping notes, accents with velocity.',
   ['Cutoff', 'Envelope', 'Resonance', 'Bite'],
   'Pressure opens the filter; slide raises the resonance.', {
     ...osc('A', { Table: 'basic', Pos: 0.5, Level: 0.8, Rand: 0 }),
-    f1Type: 'lp24', f1Cutoff: 280, f1Res: 0.8, f1Drive: 0.4, f1Key: 0.3,
+    f1Type: 'acid', f1Cutoff: 420, f1Res: 0.8, f1Drive: 0.4, f1Key: 0.3,
     mono: true, legato: true, glide: 0.07,
-    ...env(1, 0.002, 0.3, 0.7, 0.08), ...env(2, 0.001, 0.19, 0, 0.12, 0.3),
+    ...env(1, 0.002, 0.3, 0.7, 0.08), ...env(2, 0.001, 0.19, 0, 0.12, { ac: -0.34, dc: -0.62, rc: -0.62 }),
     ...mods([
-      ['env2', 'f1Cutoff', 0.32], ['env2', 'f1Cutoff', 0.22, 'velocity'], ['pressure', 'f1Cutoff', 0.25], ['timbre', 'f1Res', 0.2],
-      ['macro1', 'f1Cutoff', 0.4], ['env2', 'f1Cutoff', 0.3, 'macro2'], ['macro3', 'f1Res', 0.2], ['macro4', 'oscAPos', 0.25]
+      ['env2', 'f1Cutoff', 0.32], ['env2', 'f1Cutoff', 0.22, 'velocity'], ['pressure', 'f1Cutoff', 0.25], ['timbre', 'f1Res', 0.16],
+      ['macro1', 'f1Cutoff', 0.4], ['env2', 'f1Cutoff', 0.3, 'macro2'], ['macro3', 'f1Res', 0.16], ['macro4', 'oscAPos', 0.25]
     ]),
-    driveAmt: 0.28, delayMix: 0.14, delaySync: '1/8d', delayFb: 0.3, gain: 0.35
+    driveAmt: 0.28, delayMix: 0.14, delaySync: '1/8d', delayFb: 0.3, gain: 0.65
   }, { key: 36 });
 
 // ------------------------------------------------------------------------------------------------------- keys
@@ -309,14 +316,14 @@ preset('Pluck Garden', 'keys', 'Plucked string from a modelled resonator: a burs
   'Velocity is how hard the string is picked; pressure lets it ring longer; slide brightens the pick.', {
     ...osc('A', { Table: 'basic', Pos: 0.5, Level: 0, Rand: 0.6 }),
     noiseLevel: 0, noiseType: 'white', noiseColor: -0.25,
-    f1Type: 'comb', f1Cutoff: 261.63, f1Res: 0.9, f1Key: 1,
+    f1Type: 'comb', f1Cutoff: 261.63, f1Res: 0.86, f1Morph: 0.35, f1Key: 1,
     f2On: true, f2Type: 'lp12', f2Cutoff: 5200, f2Res: 0, f2Key: 0.4,
     ...env(1, 0.001, 3, 0, 0.5), ...env(2, 0.001, 0.045, 0, 0.04),
     ...mods([
-      ['env2', 'noiseLevel', 0.9], ['env2', 'oscALevel', 0.6], ['velocity', 'f2Cutoff', 0.16], ['pressure', 'f1Res', 0.08], ['timbre', 'f2Cutoff', 0.2],
+      ['env2', 'noiseLevel', 1], ['env2', 'noiseLevel', 0.9], ['env2', 'oscALevel', 1], ['velocity', 'f2Cutoff', 0.16], ['pressure', 'f1Res', 0.08], ['timbre', 'f2Cutoff', 0.2],
       ['macro1', 'oscAPos', 0.4], ['macro2', 'f1Res', 0.09], ['macro3', 'subLevel', 0.4, 'env1'], ['macro4', 'f2Cutoff', 0.25]
     ]),
-    delayMix: 0.15, delaySync: '1/8d', delayFb: 0.3, reverbMix: 0.25, reverbSize: 0.6, gain: 1.55
+    delayMix: 0.15, delaySync: '1/8d', delayFb: 0.3, reverbMix: 0.25, reverbSize: 0.6, gain: 2
   });
 
 preset('Dream EP', 'keys', 'Evolving harmonic keys: a soft tone whose overtones bloom after each note.',
@@ -339,7 +346,7 @@ preset('Hollow Mallet', 'keys', 'Wooden mallet: a hollow bar tone with a knock o
     ...osc('A', { Table: 'hollow', Pos: 0.15, Level: 0.8, Rand: 0 }),
     ...osc('B', { Table: 'metal', Pos: 0.2, Level: 0, Oct: 1, Rand: 0 }),
     f1Type: 'lp12', f1Cutoff: 2600, f1Res: 0.1, f1Key: 0.7,
-    ...env(1, 0.001, 1.1, 0, 0.5, 0.3), ...env(2, 0.001, 0.06, 0, 0.05), ...env(3, 0.001, 0.5, 0, 0.4),
+    ...env(1, 0.001, 1.1, 0, 0.5, { ac: -0.34, dc: -0.62, rc: -0.62 }), ...env(2, 0.001, 0.06, 0, 0.05), ...env(3, 0.001, 0.5, 0, 0.4),
     ...mods([
       ['env2', 'pitch', 0.08], ['env2', 'f1Cutoff', 0.25], ['velocity', 'f1Cutoff', 0.2], ['env3', 'oscBLevel', 0.25], ['pressure', 'oscBLevel', 0.4],
       ['timbre', 'f1Cutoff', 0.2], ['macro1', 'f1Cutoff', 0.3, 'env2'], ['macro2', 'oscBLevel', 0.5, 'env3'], ['macro3', 'oscAPos', 0.6], ['macro4', 'f1Res', 0.5]
@@ -374,7 +381,7 @@ preset('Pulse Runner', 'sequence', 'Tight pulse sequence sound with a filter tha
       ['env2', 'f1Cutoff', 0.32], ['lfo1', 'oscAPos', 0.25], ['velocity', 'f1Cutoff', 0.14], ['pressure', 'f1Cutoff', 0.22], ['timbre', 'oscAPos', 0.4],
       ['macro1', 'f1Cutoff', 0.3, 'env2'], ['macro2', 'oscAPos', 0.4], ['macro3', 'f1Res', 0.4], ['macro4', 'oscBLevel', -0.4]
     ]),
-    delayMix: 0.24, delaySync: '1/16d', delayFb: 0.4, reverbMix: 0.12, gain: 0.94
+    delayMix: 0.24, delaySync: '1/16d', delayFb: 0.4, reverbMix: 0.12, gain: 0.93
   });
 
 preset('Poly Rhythm', 'sequence', 'Hold a chord and it plays itself: three clocks (triplets, sixteenths, dotted) cross inside every note.',
@@ -446,13 +453,13 @@ preset('Metal Resonator', 'experimental', 'Struck metal ringing through a tuned 
     ...osc('A', { Table: 'metal', Pos: 0.25, Level: 0.6 }),
     noiseLevel: 0, noiseType: 'pink',
     f1Type: 'lp12', f1Cutoff: 5000, f1Key: 0.3,
-    f2On: true, f2Type: 'comb', f2Cutoff: 261.63, f2Res: 0.88, f2Key: 1, filterRoute: 'serial',
+    f2On: true, f2Type: 'comb', f2Cutoff: 261.63, f2Res: 0.88, f2Morph: 0.25, f2Key: 1, filterRoute: 'serial',
     ...env(1, 0.002, 4, 0, 2), ...env(2, 0.001, 0.08, 0, 0.08), ...lfo(1, 'sine', 0.4, { free: true }),
     ...mods([
       ['env2', 'noiseLevel', 0.7], ['pressure', 'noiseLevel', 0.25], ['pressure', 'level', 0.5], ['timbre', 'oscAPos', 0.6], ['lfo1', 'f2Cutoff', 0.004],
       ['macro1', 'f2Res', 0.1], ['macro2', 'noiseLevel', 0.5, 'env2'], ['macro3', 'oscAPos', 0.6], ['macro4', 'noiseLevel', 0.3]
     ]),
-    level: 0.7, reverbMix: 0.45, reverbSize: 0.85, gain: 0.63
+    level: 0.7, reverbMix: 0.45, reverbSize: 0.85, gain: 1
   });
 
 preset('Nova Stack', 'experimental', 'Three octaves of unison saws: the biggest sound in the box (and the heaviest on the CPU).',
@@ -472,20 +479,20 @@ preset('Nova Stack', 'experimental', 'Three octaves of unison saws: the biggest 
     chorusMix: 0.25, reverbMix: 0.3, reverbSize: 0.7, gain: 0.46
   }, { chord: true });
 
-preset('Vowel Morph', 'experimental', 'A synthetic voice that speaks with your slide: vowels under your fingers.',
+preset('Vowel Morph', 'experimental', 'A synthetic voice that speaks with your slide: a formant filter shapes vowels under your fingers.',
   ['Vowel', 'Formant drive', 'Vibrato', 'Breath'],
-  'Slide morphs A-E-I-O-U; pressure swells and adds vibrato.', {
-    ...osc('A', { Table: 'formant', Pos: 0, Level: 0.8, Unison: 2, Detune: 9, Spread: 0.6 }),
+  'Slide morphs A-E-I-O-U; pressure swells, sharpens the vowels and adds vibrato.', {
+    ...osc('A', { Table: 'basic', Pos: 0.5, Level: 0.8, Unison: 2, Detune: 9, Spread: 0.6 }),
     ...osc('B', { Table: 'reed', Pos: 0.3, Level: 0.25, Oct: -1 }),
     noiseLevel: 0.03, noiseType: 'pink', noiseDest: 'direct', noiseColor: 0.4,
-    f1Type: 'lp12', f1Cutoff: 4200, f1Res: 0.1, f1Key: 0.3,
+    f1Type: 'formant', f1Cutoff: 1000, f1Res: 0.3, f1Key: 0,
     level: 0.6, mono: true, legato: true, glide: 0.08,
     ...env(1, 0.05, 0.4, 0.9, 0.3), ...lfo(1, 'sine', 5.3, { fade: 0.4 }), ...lfo(2, 'sine', 0.2, { free: true }),
     ...mods([
-      ['timbre', 'oscAPos', 1], ['pressure', 'level', 0.45], ['lfo1', 'pitchFine', 0.3, 'pressure'], ['lfo2', 'oscAPos', 0.08], ['pressure', 'f1Cutoff', 0.15],
-      ['macro1', 'oscAPos', 1], ['macro2', 'f1Drive', 0.7], ['lfo1', 'pitchFine', 0.3, 'macro3'], ['macro4', 'noiseLevel', 0.3]
+      ['timbre', 'f1Morph', 1], ['pressure', 'level', 0.45], ['lfo1', 'pitchFine', 0.3, 'pressure'], ['lfo2', 'f1Morph', 0.06], ['pressure', 'f1Res', 0.25],
+      ['macro1', 'f1Morph', 1], ['macro2', 'f1Drive', 0.7], ['lfo1', 'pitchFine', 0.3, 'macro3'], ['macro4', 'noiseLevel', 0.3]
     ]),
-    reverbMix: 0.3, reverbSize: 0.65, delayMix: 0.12, gain: 0.73
+    reverbMix: 0.3, reverbSize: 0.65, delayMix: 0.12, gain: 1.31
   });
 
 preset('Fold Drone', 'experimental', 'Wavefolded drone a fifth apart, folding harder as you lean in: slow, heavy, alive.',

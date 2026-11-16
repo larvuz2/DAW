@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { sanitizeParams } from '@greanteadawy/core';
 import {
   GGS_PARAMS, GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, OSC_IDS, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO, MOD_TARGET_INFO,
-  ggsParamDef, ggsDefaults, wavetablePreview, wavetableSpectrum, describeWavetables, modulationRoutes, paramsToPatch, patchToParams, syncBeats
+  ggsParamDef, ggsDefaults, wavetablePreview, wavetableSpectrum, describeWavetables, modulationRoutes, paramsToPatch, patchToParams, paramsToSection, envelopeAt, syncBeats
 } from '@greanteadawy/synth-dsp';
 import { useStore } from '../state/store.js';
 import { Knob } from './ui/Knob.jsx';
@@ -109,23 +109,14 @@ function FilterView({ type, cutoff, res, on }) {
   );
 }
 
-function EnvView({ a, d, s, r, curve }) {
+function EnvView({ env }) {
   return (
-    <Scope width={150} height={48} deps={[a, d, s, r, curve]} title="Envelope shape (the sustain stage is shown as a fixed length)"
+    <Scope width={150} height={48} deps={Object.values(env)} title="Envelope shape (the sustain stage is shown as a fixed length)"
       draw={(g, w, h) => {
-        const hold = 0.4;
-        const total = a + d + hold + r;
-        const ka = 1.5 * Math.pow(3, curve);
-        const kd = 4.6 * Math.pow(4, curve);
-        const rise = (x) => (1 - Math.exp(-ka * x)) / (1 - Math.exp(-ka));
-        const fall = (x) => (Math.exp(-kd * x) - Math.exp(-kd)) / (1 - Math.exp(-kd));
+        const held = env.delay + env.attack + env.hold + env.decay + 0.4;
+        const total = held + env.release;
         const pts = [];
-        const y = (v) => h - 3 - v * (h - 6);
-        for (let i = 0; i <= w; i++) {
-          const t = (i / w) * total;
-          const v = t < a ? rise(t / a) : t < a + d ? s + (1 - s) * fall((t - a) / d) : t < a + d + hold ? s : s * fall((t - a - d - hold) / r);
-          pts.push([i, y(v)]);
-        }
+        for (let i = 0; i <= w; i++) pts.push([i, h - 3 - envelopeAt(env, (i / w) * total, held) * (h - 6)]);
         line(g, pts, '#9ad94f');
       }} />
   );
@@ -315,8 +306,8 @@ export function SynthEditor({ channel }) {
   const envPanel = (i) => (
     <fieldset key={i} className={`param-group ggs-env ${i === 1 || used(`env${i}`) ? '' : 'idle'}`} title={i > 1 && !used(`env${i}`) ? 'Not routed yet: add a route in the Matrix tab' : undefined}>
       <legend>{i === 1 ? 'Envelope 1 · amp' : `Envelope ${i}`}</legend>
-      <EnvView a={val(`env${i}A`)} d={val(`env${i}D`)} s={val(`env${i}S`)} r={val(`env${i}R`)} curve={val(`env${i}Curve`)} />
-      <div className="param-row">{C(`env${i}A`, { label: 'A' })}{C(`env${i}D`, { label: 'D' })}{C(`env${i}S`, { label: 'S' })}{C(`env${i}R`, { label: 'R' })}{C(`env${i}Curve`)}</div>
+      <EnvView env={paramsToSection({ ...DEFAULTS, ...p }, 'envelope', i)} />
+      <div className="param-row">{C(`env${i}Delay`)}{C(`env${i}A`, { label: 'A' })}{C(`env${i}Hold`)}{C(`env${i}D`, { label: 'D' })}{C(`env${i}S`, { label: 'S' })}{C(`env${i}R`, { label: 'R' })}</div>
     </fieldset>
   );
 

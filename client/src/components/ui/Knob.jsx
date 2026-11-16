@@ -1,11 +1,14 @@
 import { useRef, useCallback } from 'react';
 
+// 'log' needs min > 0; 'cube' is for ranges that start at zero (times): fine steps near the bottom, coarse at the top
 function toNorm(v, min, max, curve) {
   if (curve === 'log' && min > 0) return Math.log(v / min) / Math.log(max / min);
+  if (curve === 'cube') return Math.cbrt((v - min) / (max - min));
   return (v - min) / (max - min);
 }
 function fromNorm(n, min, max, curve) {
   if (curve === 'log' && min > 0) return min * Math.pow(max / min, n);
+  if (curve === 'cube') return min + (max - min) * n * n * n;
   return min + (max - min) * n;
 }
 

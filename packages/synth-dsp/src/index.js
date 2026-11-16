@@ -6,3 +6,4 @@ export * from './render.js';
 export * from './presets.js';
 export * from './patch.js';
 export { halfbandCoefs, Decimator2, Interpolator2, fft, hash32 } from './util.js';
+export * from './filters.js';

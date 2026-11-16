@@ -1,5 +1,5 @@
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
-import { GGS_PARAMS, GGS_PRESETS } from '@greanteadawy/synth-dsp';
+import { GGS_PARAMS, GGS_PRESETS, migrateParams as migrateGgsParams } from '@greanteadawy/synth-dsp';
 
 // Instrument catalog. Every channel in the Channel Rack has an instrument:
 //   { kind: 'kick' | 'synth' | ..., preset: 'Punchy', params: {...} }
@@ -274,7 +274,9 @@ export const INSTRUMENTS = {
     label: 'GGS Synth', category: 'synth', melodic: true, defaultKey: 60, color: '#46c79a', expressive: true,
     description: 'Wavetable / FM hybrid synthesizer: 3 wavetable oscillators (unison, warp, phase modulation) + sub + noise, 2 routable filters, 4 envelopes, 4 LFOs, 16-slot modulation matrix, 4 macros and built-in drive, chorus, delay and reverb. Every note has its own pitch, pressure and slide (timbre) curves — route them in the matrix. Its params live in packages/synth-dsp (the engine); use the synth tools (describe_synth, set_synth_*) rather than raw params.',
     params: GGS_PARAMS,
-    presets: GGS_PRESETS
+    presets: GGS_PRESETS,
+    // renames keys of patches saved by older versions (anything loaded or sent passes through here before validation)
+    migrate: migrateGgsParams
   },
   fm: {
     label: 'FM Synth', category: 'synth', melodic: true, defaultKey: 60, color: '#8f6cf0',
@@ -852,7 +854,7 @@ export function makeInstrument(kind, preset, overrides = {}, { strict = false, p
   const params = {
     ...instrumentDefaults(kind),
     ...def.presets[presetName],
-    ...sanitizeParams(def.params, overrides, { strict })
+    ...sanitizeParams(def.params, def.migrate ? def.migrate(overrides) : overrides, { strict })
   };
   return { kind, preset: presetName, params };
 }
