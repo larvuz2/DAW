@@ -60,11 +60,17 @@ Use the URL form `https://your-server/mcp?token=gtd_…`. Treat that URL like a 
 
 ## What Claude can do
 
-97 tools in eleven groups — see the full [MCP reference](MCP.md):
+102 tools in twelve groups — see the full [MCP reference](MCP.md):
 
 - **Working safely and cheaply** (see [below](#how-claude-works-dry-runs-batches-notes-as-text)): `batch` (several
   edits as one change: all or nothing, one undo), `dryRun` on every editing tool, `diff_versions` (what changed since
   a saved version, in words), notes written and read as compact text, and errors that say what to send instead.
+
+- **Harmony and tuning** ([guide](harmony-and-tuning.md)): **harmony** — what each chord is in the key (numeral,
+  function, origin, tension), what could come next and why, substitutes, negative harmony, ways to another key, and a
+  library of 82 progressions; `add_arpeggio` (ten modes), `add_drum_groove` (sixteen styles, with seeded variation and
+  fills), Euclidean rhythms in `write_drums`; `set_tuning` and `describe_tuning` (just intonation, Pythagorean,
+  meantone, well temperaments, your own table — exact ratios, cents, Hz, and how fast a chord beats in each).
 
 - **GGS Synth** ([guide](ggs-synth.md)): `describe_synth` (the reference), `create_synth_patch`, `get_synth_patch`,
   `update_synth_patch`, `set_synth_oscillator` / `_filter` / `_envelope` / `_lfo` / `_modulation` / `_effect`, and
@@ -78,9 +84,9 @@ Use the URL form `https://your-server/mcp?token=gtd_…`. Treat that URL like a 
   key, scale, swing, time signature, versions (save/list/restore), undo.
 - **Sounds**: list instruments & effects with every parameter, add/update/clone/move/remove channels (incl. groove:
   nudge and swing share), preview a sound, **analyze_sound** (pitch, low-end note, envelope of one note), music theory
-  (scales, diatonic chords spelled for the key, chord notes).
-- **Notes**: patterns, drum step strings, piano-roll notes, melodies from compact strings, chord progressions (symbols or
-  roman numerals, voice-led, block/rhythm/arp/broken styles, **voicings** close/open/drop2/drop3/spread/shell/rootless,
+  (57 scales and 65 chord types, diatonic chords spelled for the key, chord notes, naming the chord that notes make).
+- **Notes**: patterns, drum step strings, piano-roll notes, melodies from compact strings, chord progressions (symbols,
+  roman numerals or a library name; voice-led — with `voices` by a solver over the whole progression —, block/rhythm/arp/broken styles, **voicings** close/open/drop2/drop3/spread/shell/rootless,
   register), basslines from a rhythm or a **degree line with slides**, rolls, copy/transform (transpose, shift, quantize,
   humanize, legato, velocity, double, reverse, stretch, strum).
 - **Arrangement**: place patterns, arrange whole songs from sections (with **markers**), move/resize/remove clips, copy

@@ -61,6 +61,15 @@ GreanTeaDawy patterns are the building blocks and the playlist is the timeline.
   instrument and build again.
 - A real drummer plays a crash on section downbeats and a tom fill into them (`add_fill tom_run`).
 
+## Harmony between sections
+
+- `harmony action="analyze"` on each section's chords: a verse that sits low in tension and a pre-chorus that ends on
+  the dominant make the chorus land. If a section is flat, `action="suggest"` (pools `borrowed`, `chromatic`) or
+  `action="substitute"` on its last chord gives it somewhere to go.
+- A key change for the last chorus or the bridge: `harmony action="modulate" toKey=…` lists the chords that get
+  there (a pivot chord both keys share is the smoothest; the new key's V7 the most direct). Write them as the last
+  bar before the change, then `update_project key=…`.
+
 ## Checks
 
 - Every section start has a marker (`set_markers` to rename/add); `get_project` shows the playlist by track.

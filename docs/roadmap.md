@@ -96,12 +96,19 @@ written and read as compact text with musical positions and durations, `diff_ver
 Versions window, errors that say what to send instead, and renders that are compared with the one before (a null
 test) and checked for masking between stems. Details: [claude-mcp.md](claude-mcp.md).
 
-Still to come from that list: harmony and tuning; more effects and oscillator engines; wavetables from a harmonics
-list or a formula.
+## 0.12.0 — what was added
+
+The harmony-and-tuning batch: a Harmony window (chords that fit and what could follow, substitutes, a library of 82
+progressions, voice-led writing), 57 scales and 65 chord types, roman numerals with bass degrees and inversions, an
+arpeggiator, Euclidean rhythms and sixteen drum styles (all seeded), and the project's tuning — just intonation,
+Pythagorean, meantone, well temperaments, the harmonic series, other equal divisions or a table of your own, with
+exact ratios. Details: [harmony-and-tuning.md](harmony-and-tuning.md).
+
+Still to come from that list: more effects and oscillator engines; wavetables from a harmonics list or a formula; a
+tempo map with ramps. And from this batch: adaptive tuning (each chord pure around its own root) and tuning in MIDI
+exports.
 
 Next for the synth and expression:
-- **Chord explorer** in the piano roll (suggestions by key and function, voice-leading, drag chords in) with matching
-  MCP tools; optional just intonation.
 - **User preset library** (save a patch per account, list it next to the factory presets) — today a patch travels
   as a document (Export / Import, `get_synth_patch` → `create_synth_patch`).
 - **Wavetable import** (single-cycle files and tables sliced from audio) and a wavetable editor.

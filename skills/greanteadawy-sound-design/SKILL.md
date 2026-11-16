@@ -117,6 +117,15 @@ channel:"Pad", param:"macro1"}`.
 - `add_notes` takes `expression` inline; `copy_note_expression` moves a gesture to other notes;
   `transform_note_expression scale=0.5` tames an overdone one.
 
+## Tuning as a colour
+
+A pad or a drone in one key can be tuned pure: `set_tuning system="just"` (root = the song's key by default) makes the
+major chords on the root, its fourth and its fifth beatless; `"just7"` gives a dominant seventh the 4:5:6:7 of
+barbershop; `"harmonic"` fuses everything into one tone. `describe_tuning chord="I" compare=["just","meantone"]` says
+how fast the chord beats in each system before you choose. The root never moves, drums are not retuned, and chords
+far from the root pay for the purity — check them the same way. `a4` moves the reference pitch (432, 415) for any
+system.
+
 ## 6. Check, then listen
 
 `evaluate_composition` → fix every issue (chords on a mono patch, curves nothing hears, notes off the key).

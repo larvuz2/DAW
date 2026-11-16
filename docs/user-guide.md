@@ -104,7 +104,7 @@ cut each other off), step note (root key) and mixer routing. Drop a sample on th
 
 - Tools: **Draw** (click to add, drag to move, drag the right edge to resize), **Select** (box; Ctrl+drag also
   selects), **Erase** (or right-click), **Chord stamp** (choose major, minor, 7ths, 9ths… and click to place a chord).
-- Snap grid, quantize (Ctrl+Q), legato, humanize, octave up/down, scale highlighting (key + scale), ghost notes of other
+- Snap grid, quantize (Ctrl+Q), legato, humanize, octave up/down, scale highlighting (key + one of 57 scales, listed by family), ghost notes of other
   channels, zoom and key height.
 - Keys: Ctrl+A/C/V/D, Delete, ↑/↓ transpose (Shift = octave), ←/→ nudge.
 - **The lane at the bottom** edits, per note: *Velocity*, *Release vel.*, or the note's own **Pitch**, **Pressure**
@@ -112,6 +112,21 @@ cut each other off), step note (root key) and mixer routing. Drop a sample on th
   swell…); select a note to shape only that note. Pitch curves are also drawn over the notes. Copies of a note keep
   its performance. See [Per-note expression](expression-engine.md).
 - Click the keyboard on the left to audition notes.
+
+## Harmony (chords, progressions, tuning)
+
+The ♪ button in the toolbar (or **Chords** in the piano roll) opens the Harmony window — see
+[Harmony and tuning](harmony-and-tuning.md) for all of it.
+
+- **Chords**: pads with the chords that could come next, ranked and coloured by what they do (green = rest, blue =
+  departure, orange = tension). Click to hear one, **+** to add it to the progression at the top, which shows roman
+  numerals, a tension curve and — when it is a known one — its name. Click a chord of the progression for what could
+  stand in for it. **Read from pattern** names the chords a channel plays; **Write to …** puts the progression into
+  the selected pattern, voiced so that every voice moves as little as possible, held or arpeggiated.
+- **Library**: 82 progressions by genre and mood, in your key.
+- **Tuning**: the tuning every pitched instrument plays in — equal temperament, just intonation, Pythagorean,
+  meantone, well temperaments, the harmonic series — with its root, the A4 reference and a table of exact ratios,
+  cents and frequencies. Drums are not retuned.
 
 ## Playlist (F5) & song mode
 

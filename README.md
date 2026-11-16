@@ -4,7 +4,7 @@
 
 GreanTeaDawy is an open-source, self-hosted beat-making studio: channel rack and step sequencer, piano roll, playlist,
 mixer with effects, automation, sampler and audio clips, all running in the browser with a Node.js backend. Its
-built-in [MCP](https://modelcontextprotocol.io) server gives Claude 97 music-production tools, so you can say
+built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-production tools, so you can say
 *"make a dark trap beat at 145 BPM and mix it for streaming"* and watch every edit appear live in your studio.
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
@@ -53,6 +53,11 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 97 music-pro
   pentatonic and Indian thaat scales.
 - **Piano roll** — draw/select/erase tools, chord stamp, snap, quantize, legato, humanize, scale highlighting, ghost
   notes, velocity lane, copy/paste/duplicate, keyboard nudging.
+- **Harmony & tuning** — a Harmony window with the chords that fit the key and what could follow them (ranked,
+  coloured by function, each with its reason), the progression with its tension curve, substitutes for any chord,
+  a library of 82 progressions and voice-led writing into a pattern; 57 scales and 65 chord types; and the project's
+  **tuning**: just intonation, Pythagorean, meantone, well temperaments, the harmonic series, other equal divisions
+  or your own table, with exact ratios and any A4. See [Harmony and tuning](docs/harmony-and-tuning.md).
 - **Playlist** — pattern, audio and automation clips on up to 200 tracks; section markers; audio clip gain, fades and
   repitch-to-tempo; loop region; song/pattern mode.
 - **Mixer** — inserts with faders, pan, routing and sends; EQ with high/low-pass, filter, compressor (with parallel
@@ -88,9 +93,14 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 97 music-pro
 **Claude integration (MCP)**
 
 - **Streamable HTTP** (`/mcp`) and **stdio** (for Claude Desktop) transports.
-- 97 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
+- 102 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
   lines with 808 slides), melodies, rolls, transforms, arrangement with markers, automation, mixer and effects,
   samples, versions, undo, play/stop, MIDI and stem export.
+- **Harmony and tuning** — `harmony` reads chords in the key (numeral, function, tension), suggests what could come
+  next with reasons, finds substitutes and ways to another key, and searches a library of 82 progressions;
+  `add_chords` voice-leads a whole progression; `add_arpeggio`, `add_drum_groove` (16 styles) and Euclidean rhythms
+  are seeded; `set_tuning` puts the project in just intonation, Pythagorean, meantone, a well temperament or a table
+  of your own, and `describe_tuning` gives the exact ratios. See [Harmony and tuning](docs/harmony-and-tuning.md).
 - **Built for an agent** — `batch` makes several edits one change (all or nothing, one undo); `dryRun` on every
   editing tool shows what a call would change without changing it; notes are written and read as compact text
   (`1.1 D3+A3+F4 1/2 v0.7`); `diff_versions` says what changed since a saved version; a wrong call answers with the

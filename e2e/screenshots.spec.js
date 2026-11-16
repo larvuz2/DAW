@@ -373,3 +373,37 @@ test('Versions screenshot', async ({ browser, baseURL }) => {
   await claude.close();
   await page.close();
 });
+
+// The Harmony window: a progression being built, and the tuning table. Regenerate on its own:
+//   SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.js -g "Harmony"
+test('Harmony screenshots', async ({ browser, baseURL }) => {
+  fs.mkdirSync(OUT, { recursive: true });
+  const page = await browser.newPage();
+  await page.goto('/');
+  const status = await (await page.request.get('/api/auth/status')).json();
+  if (status.setupRequired) await page.request.post('/api/auth/setup', { data: ADMIN });
+  else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
+  await page.goto('/');
+  await expect(page.locator('.toolbar')).toBeVisible();
+  const claude = await connectMcp(baseURL);
+  await claude.call('create_project', { name: 'Seville at Night', template: 'empty', key: 'A', scale: 'minor', bpm: 96 });
+  await expect(page).toHaveTitle(/Seville at Night/);
+  await claude.call('add_channel', { name: 'Keys', instrument: 'piano' });
+  await claude.call('create_pattern', { name: 'Verse', bars: 4 });
+  await layout(page, { harmony: [10, 10, 700, 640] }, { browserOpen: false });
+  const win = page.locator('.window.harmony');
+  await expect(win).toBeVisible();
+  const add = (name) => win.locator('.harmony-pad', { has: page.locator('b', { hasText: new RegExp(`^${name}$`) }) }).first().locator('.harmony-pad-add').click();
+  for (const name of ['Am', 'G', 'F', 'E']) await add(name);
+  await win.locator('.harmony-chip-main').nth(3).click();
+  await expect(win.locator('.harmony-detail')).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/harmony.png`, clip: { x: 0, y: 0, width: 720, height: 660 } });
+  await win.locator('.ggs-tabs button', { hasText: 'Tuning' }).click();
+  await win.locator('.harmony-tuning select').first().selectOption('just');
+  await expect(win.locator('.harmony-about')).toContainText('Just intonation');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/harmony-tuning.png`, clip: { x: 0, y: 0, width: 720, height: 660 } });
+  await claude.close();
+  await page.close();
+});

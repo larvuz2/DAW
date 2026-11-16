@@ -6,7 +6,7 @@ description: Add or change a GreanTeaDawy MCP tool (the API Claude uses to make 
 # Add an MCP tool
 
 Tools live in `server/src/mcp/tools/<area>.js` (projects, sounds, notes, arrange, mix, samples, production — groove,
-fills and transitions that compose ordinary ops —, export (ffmpeg formats), spatial, plugins) and are registered by
+fills and transitions that compose ordinary ops —, export (ffmpeg formats), spatial, plugins, harmony — chords, arpeggios, grooves and tuning) and are registered by
 `createMcpServer` in `server/src/mcp/tools.js`. They run against a **backend** (`server/src/backend.js`): local
 (in-process, used by `/mcp`) or remote (the stdio bridge talking REST). Use only backend methods so both work.
 

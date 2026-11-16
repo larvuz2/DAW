@@ -19,7 +19,13 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
   src/expression.js   per-note curves (pitch / pressure / timbre in normalized note time): sanitize, evaluate, flatten,
                       simplify, transform, makeCurve shapes     src/mpe.js  MPE/MIDI controller decoder
   src/evaluate.js     evaluateComposition: a lint of the song as written (evaluate_composition)
-  src/music.js        notes, scales, chords, roman numerals
+  src/music.js        notes, scales, chords, roman numerals (data: scales.js, chords.js, progressions.js)
+  src/harmony.js      a chord in a key: keyContext, readChord, numeralFor (the inverse of romanToChord), functionOf,
+                      analyzeChord, chordTension, detectChords, detectKey, chordsFromNotes
+  src/chordflow.js    suggestNext, substitutions, neoRiemannian, negativeHarmony, modulationPaths, library search
+  src/voicelead.js    voiceLead (Viterbi over voicings)   src/patterns.js  arpeggiate, euclid, drumPattern (16 styles)
+  src/rng.js          createRng(seed): generators never use Math.random
+  src/tuning.js       tuning systems: normalizeTuning, tuningCents, tunedFrequency, tuningTable, chordPurity
   src/notation.js     step strings ("x---x---"), positions ("5.3.2"), durations ("1/8t"), compact note text
                       (parseNoteText / formatNoteText: "1.1 D3+A3+F4 1/2 v0.7") — one grammar for every tool
   src/diff.js         diffProjects: what changed between two project states, in words (diff_versions, dry runs,
@@ -50,8 +56,9 @@ server/src/
   mcp/                tools.js (server factory: every call goes through `call` — validation, dryRun, `batch`),
                       validate.js (tool input checked here, with errors that say the fix), session.js (a dry run
                       or a batch: the backend works on a copy and refuses anything but reads and ops),
-                      tools/*.js (97 tools; production.js = groove/fills/transitions, export.js, spatial.js,
-                      plugins.js, synth.js = GGS patches, expression.js = per-note curves + evaluate_composition),
+                      tools/*.js (102 tools; production.js = groove/fills/transitions, export.js, spatial.js,
+                      plugins.js, synth.js = GGS patches, expression.js = per-note curves + evaluate_composition,
+                      harmony.js = harmony / add_arpeggio / add_drum_groove / set_tuning / describe_tuning),
                       guide.js (what Claude reads: notation + mixing-by-numbers), prompts.js, http.js, stdio.js
 client/src/
   state/store.js      zustand store: auth, project (optimistic ops + undo/redo), UI windows/prefs
@@ -68,6 +75,7 @@ client/src/
                       audioEdit.js (decode at native rate, worker calls, WAV save/replace, the sample-edit job),
                       recorder.js (MicSession: getUserMedia → AudioWorklet capture, meter, monitor)
   components/         SampleLibrary.jsx (Samples tab: folders, search, select mode), WaveEditor.jsx + PitchView.jsx,
+                      Harmony.jsx (chords that fit, the progression strip, the library, the tuning table),
                       Recorder.jsx, SynthEditor.jsx (GGS Synth, inside Channel settings) + synth/ (EnvelopeEditor,
                       FilterGraph, PresetBrowser, WavetablePicker, ParamTable, SourceBar, StepEditor, modulation.js),
                       ExpressionLane.jsx (the piano roll's pitch / pressure / slide lane); ui/frames.js = the one
@@ -183,6 +191,19 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   input latency. Long DSP (pitch, stretch, PSOLA) never runs on the main thread — use `runAudioJob` / `editClip`.
 - **ffmpeg** is optional: everything must work (WAV) without it, and conversions only ever touch files the server
   wrote itself (`server/src/ffmpeg.js`: argument arrays, `-protocol_whitelist file`, forced `-f wav`, timeout).
+- **Harmony** (`core/harmony.js`, `chordflow.js`): numerals are the key's own degrees; an accidental moves a degree
+  unless the key already has that alteration (`bVII` in A minor = `VII`). `numeralFor` must stay the exact inverse of
+  `romanToChord` (a test round-trips every chord type × root × bass in twelve kinds of key): change one, change both.
+  The dictionaries are data files; add a spelling as an alias, never by special-casing a parser. Suggestion and
+  tension weights are judgements — say why in the result (`why`), and keep answers deterministic.
+- **Seeded generators**: anything that varies (arpeggio `random`, drum variation, fills) draws from `createRng(seed)`
+  — never `Math.random()` — so the same call gives the same notes.
+- **Tuning**: `project.tuning = { system, root, a4, … }` (`project/update { tuning }` is a patch; `null` = standard).
+  `engine.triggerNote` passes `tune = tuningCents(project.tuning, key)` to `playNote`: 0 in standard tuning (no node,
+  renders unchanged). GGS voices add it to their pitch in the worklet (`processorOptions.tune`); every other voice
+  gets one ConstantSource into the `detune` of its tonal sources (`tuneVoice`), on top of bends and scoops. A tuning
+  never moves its own root. `followsTuning(instrument)` decides who is retuned (not drums, not beatbox, not an
+  unpitched sampler): a new instrument category that is not a pitch must be added there.
 - Comments explain *why*; keep functions small; no new dependencies without a good reason (licence must be
   MIT-compatible — e.g. `audio-decode` was rejected for GPL decoders).
 

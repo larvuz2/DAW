@@ -36,9 +36,17 @@ user's open studio. This skill is the producer's workflow on top of the tools. T
    arrangement flexible.
 4. **Drums** — `write_drums` with step strings (x hit, X accent, o ghost, 1–9 velocity, - rest), one call for all
    drum channels of a pattern. Velocity carries the groove: accents on downbeats, off-beat hats ~0.6–0.7.
-   `add_roll` for trap hat/snare rolls.
-5. **Harmony** — `add_chords` with a voicing that fits the genre (drop2/rootless for neo-soul and lo-fi keys,
-   spread for cinematic pads, shell for sparse comping) and a `register` ("E4" keys, "C5" pads).
+   `add_roll` for trap hat/snare rolls. For a quick start in a genre, `add_drum_groove style=<boomBap | trap | house |
+   dnb | reggaeton | lofi …>` writes a whole groove onto the drum channels (missing ones are made); `variation` and
+   `fill` are seeded, so the same `seed` gives the same take. A track of `write_drums` can also be a Euclidean rhythm:
+   `"E(5,16)"` (5 hits spread over 16 steps), `"E(3,8,2)"` rotated.
+5. **Harmony** — not sure which chords? `harmony action="progressions"` searches 82 of them by genre and mood (tags
+   lo-fi, trap, cinematic, jazz, hopeful, dark…), `action="suggest"` ranks what could follow the chords you have, with
+   reasons, and `action="analyze"` says what a progression does (function and tension of each chord). Then
+   `add_chords` — `progression="<name>"` writes a library progression in the project key — with a voicing that fits the genre (drop2/rootless for neo-soul and lo-fi keys,
+   spread for cinematic pads, shell for sparse comping) and a `register` ("E4" keys, "C5" pads), or `voices=4` to have
+   the whole progression voice-led (every voice moves as little as it can). `add_arpeggio` turns the same chords
+   into a pattern (modes up, updown, converge, pinky, random…).
 6. **Bass** — `add_bassline` following the same chords: a `rhythm` for simple root parts or a degree `line`
    ("R:3 R:1 -:2 5:2 R:2~ 8:4 b7:2", "~" = slide). 808s around octave 1–2.
 7. **Topline** — `write_melody` (compact "C5:2 D5:2 Eb5:4" strings) in the scale; leave space (rests) and repeat

@@ -43,7 +43,12 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   its line: put no ";" in one.
 - Melody strings: "C5:2 D5:2 Eb5:4 -:2 G5:6" (note:length — steps, or a note value: "C5:1/8 D5:1/8t E5:1/4d" — "-" =
   rest, "!" suffix = accent, "~" suffix = slide into the next note on mono instruments with glide).
-- Chords: symbols (Am7, F, Cmaj9, G7sus4, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°). music_theory lists diatonic chords.
+- Chords: symbols (Am7, F, Cmaj9, G7sus4, G7b9, C6/9, C/E — 65 qualities, music_theory action "chord_types") or roman
+  numerals in the project key: a degree (upper case = major, lower = minor) and any quality (i, VI, bVII, V7, ii°,
+  V7#9, IVmaj7); V7/V applies a chord to another degree, IV/1 puts it over a bass degree, I64 / V65 invert it, N6 is
+  the Neapolitan. The degree is the key's own (VI in A minor = F); an accidental moves it unless the key already has
+  it (bVII in A minor = G). Scales: 57, by any name ("aeolian", "jazz minor", "phrygian dominant"; music_theory
+  action "scales").
 - Drum instruments play at their natural pitch at note C4 (60); other notes pitch them up/down.
 - 808, bass guitar and synths with mono=true glide (slide) when notes overlap (bass lines: the "~" suffix makes a slide).
 - Band instruments: piano, guitar, bass and pizzicato are physical models — a note rings out naturally until its end
@@ -217,6 +222,28 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   the downbeat + a dropout fill in the bar before.
 
 ## Harmony & bass
+- harmony is the tool to think with (it changes nothing): action "analyze" says what each chord is in the key — numeral,
+  function (tonic = rest, subdominant = departure, dominant = tension), where it comes from, tension 0–1 — and names a
+  known progression; give it a pattern to read the chords the notes play and check the key. "suggest" ranks what
+  could come next, with the reason, in three groups (in the key / borrowed from parallel modes / chromatic).
+  "substitute" offers stand-ins for one chord; "negative" mirrors a progression; "modulate" gives the chords to
+  another key; "progressions" searches a library of 82 by words and tags (lo-fi, cinematic, jazz, trap, hopeful…).
+  A shape that works: tension low at the start of a section, highest just before it ends, released on the next
+  downbeat.
+- add_chords progression="<library name>" writes one in the project key. voices=4 voice-leads the whole progression
+  (every voice moves as little as it can, parallel fifths and octaves avoided; bass="smooth" allows inversions).
+- add_arpeggio: modes up, down, updown, downup, converge, diverge, pinky, thumb, asplayed, random; rate "1/16",
+  octaves, gate (>1 = legato), swing, accentEvery or a velocities pattern. add_drum_groove: sixteen styles written onto
+  the drum channels there are (missing ones are made); variation and fill are seeded. write_drums takes Euclidean
+  rhythms: "E(5,16)", "E(3,8,2)" rotated, "E(3,8)x4" repeated. The same seed always gives the same part: change it
+  for another take, keep it to get the part you liked again.
+- Tuning: set_tuning puts every pitched instrument in just intonation (system "just": beatless major chords on the
+  root, its fourth and fifth — chords far from the root pay for it), "just7" (4:5:6:7 sevenths), "pythagorean",
+  "meantone", a well temperament ("werckmeister", "kirnberger", "vallotti", "young"), "harmonic", other equal
+  divisions or a custom table, with a root (default: the song's key) and a4. The root never moves. describe_tuning
+  shows the exact ratios, cents and Hz, and with chord=… how fast that chord beats there (compare=[…] for other
+  systems). Drums are not retuned. Use it for drones, pads and slow harmony in one key; leave fast modulating music
+  in equal temperament.
 - add_chords voicing: close, open, drop2 (neo-soul/jazz keys), drop3, spread (cinematic), shell (root-3-7, lo-fi
   comping), rootless (3-5-7-9 over a bassline). register keeps the chords around a pitch ("E4" keys, "C5" airy pads).
 - add_bassline line speaks degrees: "R:3 R:1 -:2 5:2 R:2~ 8:4 b7:2" (R root, 3/5/7 = the chord's own, 8 octave,

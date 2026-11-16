@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.12.0 — Harmony and tuning
+
+The fourth batch from GGS Composer: what the studio knows about chords, keys and tuning. 102 tools (was 97).
+Guide: [docs/harmony-and-tuning.md](docs/harmony-and-tuning.md).
+
+**Harmony window** (the ♪ button in the toolbar, or *Chords* in the piano roll)
+- Pads with the chords that could come next, ranked and coloured by what they do (tonic / subdominant / dominant):
+  the key's own, chords borrowed from parallel modes, and chromatic ones (secondary dominants, tritone substitute,
+  passing diminished, chromatic mediants). Click to hear a chord in place, + to add it; hover for the reason.
+- The progression as a strip with roman numerals and a tension curve; it is named when the library knows it. Click
+  a chord for what could stand in for it. Read the chords of a pattern, or write the progression into one — voiced
+  for 3–5 voices that move as little as they can, held or arpeggiated.
+- A library of 82 progressions, searched by words, tags and mood, shown in your key.
+- The project's tuning with its table (see below).
+
+**Tuning** — every pitched instrument follows it, in playback, renders and exports; drums are not retuned
+- Equal temperament (also 5–72 equal steps), just intonation (5- and 7-limit), Pythagorean, meantone (any share of
+  the comma), Werckmeister III, Kirnberger III, Vallotti, Young II, the harmonic series, and tables of your own in
+  cents or ratios — with a root and an A4 reference (380–500 Hz).
+- A tuning never moves its own root: it keeps its equal-tempered pitch and the other notes are placed against it.
+- Ratios are exact (fractions wherever the system is rational), with cents, distance from equal temperament and Hz
+  to three decimals — and the beat rate of a chord in each system, so the difference can be read as well as heard.
+- Standard tuning costs nothing and changes nothing: no note of an existing project is touched.
+
+**Dictionaries**
+- 57 scales (was 21) with descriptions, grouped by family in every picker; any name works ("aeolian", "jazz minor",
+  "phrygian dominant").
+- 65 chord types (was 37) and every common spelling: `CM7`, `CΔ`, `C-7`, `Cø`, `C7(b9)`, `C6/9`, `C7alt`…
+- Roman numerals take any quality (`V7#9`, `i(maj7)`), a bass degree (`IV/1`), inversions (`I64`, `V65`), the
+  Neapolitan (`N6`) and applied chords (`V7/V`, `vii°7/ii`).
+
+**New tools for Claude**
+- `harmony`: analyze (numeral, function, origin, tension; or the chords and key of a pattern), suggest, substitute,
+  negative (negative harmony), modulate (paths to another key), progressions (the library).
+- `add_arpeggio` (ten modes, seeded), `add_drum_groove` (sixteen styles onto the drum channels there are, with
+  seeded variation and fills), `set_tuning`, `describe_tuning`.
+- `add_chords` takes `progression` (a library name) and `voices` (the voice-leading solver); `write_drums` takes
+  Euclidean rhythms (`"E(5,16)"`); `music_theory` lists scales and chord types, names the chord notes make, and
+  writes Euclidean rhythms.
+
+**Changed**
+- An accidental on a roman numeral moves the key's own degree unless the key already has that alteration: `#vi` in a
+  minor key is now the raised sixth (F♯ minor in A minor; it was G minor). `vi°` in a minor key is built on the raised
+  sixth, like `vii°` on the raised seventh. Chords of harmonic and melodic minor are spelled by letter (`vii°7` in
+  D harmonic minor is C♯dim7, not D♭dim7).
+- `aug7` is written for what was also accepted as `+7`; `C4` and `C2` are still not chords.
+- A project file now carries `tuning`; older files load in standard tuning.
+
+**Not in this release**: adaptive tuning (each chord pure around its own root), tuning in MIDI exports, and the
+tempo map with ramps from the original list.
+
+Nothing here was tuned by ear: the tables are checked against published values and the engine against measured
+pitches, but whether the suggestions are *musical* is for ears to say.
+
 ## 0.11.1 — Review of the agent tools
 
 An independent review of 0.11.0 found no critical problem, one serious one and a handful of gaps. Fixed, each with a
