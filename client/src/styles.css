@@ -908,3 +908,71 @@ a.br-name:hover { text-decoration: underline; }
 .app.compact .we-name { display: inline; }
 .rec-take.failed .br-name { color: #ffd1a1; }
 @media (hover: none) { .br-add { width: 28px; height: 28px; } .rec-take .btn.tiny { min-height: 28px; } .rec-take { height: 34px; } }
+
+/* ---- Harmony: chords that fit, the progression being built, the library, the tuning ---- */
+.harmony-body { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.harmony-pane { flex: 1; min-height: 0; overflow: auto; padding: 10px; }
+.harmony-chords, .harmony-library, .harmony-tuning { display: flex; flex-direction: column; gap: 10px; }
+.harmony .muted { color: var(--muted); font-size: 11px; }
+.harmony .btn.on { border-color: var(--accent); color: var(--accent); }
+/* what a chord does in the key is its colour everywhere in this window */
+.harmony .fn-tonic { --fn: var(--accent-2); }
+.harmony .fn-subdominant { --fn: var(--accent-3); }
+.harmony .fn-dominant { --fn: var(--accent); }
+.harmony .fn-secondary-dominant { --fn: #e58fb6; }
+.harmony .fn-chromatic { --fn: #b79cf0; }
+.harmony-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; min-height: 54px; padding: 8px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--border); }
+.harmony-strip > .muted { align-self: center; }
+.harmony-chip { position: relative; display: flex; border-radius: 5px; background: var(--panel-3); border: 1px solid var(--line); border-bottom: 2px solid var(--fn); }
+.harmony-chip.sel { border-color: var(--accent); }
+.harmony-chip.playing { background: var(--panel-4); box-shadow: 0 0 0 1px var(--fn); }
+.harmony-chip-main { display: grid; grid-template-columns: auto 6px; column-gap: 6px; align-items: end; padding: 5px 4px 5px 9px; text-align: left; }
+.harmony-chip-main b { grid-column: 1; font-size: 13px; }
+.harmony-chip-main span { grid-column: 1; font: 10px var(--mono); color: var(--muted); }
+.harmony-chip-main i { grid-column: 2; grid-row: 1 / span 2; width: 4px; border-radius: 2px; background: var(--fn); opacity: 0.85; }
+.harmony-chip-x { padding: 0 5px; color: var(--faint); border-left: 1px solid var(--line); }
+.harmony-chip-x:hover { color: var(--danger); }
+.harmony-meta { display: flex; align-items: center; gap: 10px; }
+.harmony-tension { width: 120px; height: 28px; flex: none; color: var(--accent); background: var(--panel-2); border-radius: 4px; }
+.harmony-detail { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: var(--radius); background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border); font-size: 11.5px; }
+.harmony-subs { display: flex; flex-wrap: wrap; gap: 5px; }
+.harmony-sub { display: flex; flex-direction: column; align-items: flex-start; padding: 4px 8px; border-radius: 4px; background: var(--panel-3); border: 1px solid var(--line); }
+.harmony-sub:hover { background: var(--panel-4); }
+.harmony-sub span { font-size: 9.5px; color: var(--muted); }
+.harmony-pool h4 { margin: 0 0 5px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.harmony-pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.harmony-pad { display: flex; border-radius: 5px; background: var(--panel-3); border: 1px solid var(--line); border-left: 3px solid var(--fn); overflow: hidden; opacity: calc(0.55 + var(--fit, 1) * 0.45); }
+.harmony-pad:hover, .harmony-pad:focus-within { opacity: 1; background: var(--panel-4); }
+.harmony-pad-main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; padding: 5px 4px 7px 8px; }
+.harmony-pad-main span { font: 10px var(--mono); color: var(--muted); }
+.harmony-pad-main b { font-size: 13px; white-space: nowrap; }
+.harmony-pad-main i { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--fn); }
+.harmony-pad-add { width: 24px; flex: none; color: var(--muted); border-left: 1px solid var(--line); }
+.harmony-pad-add:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
+.harmony-write { padding-top: 8px; border-top: 1px solid var(--line); }
+.harmony-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.harmony-tag { padding: 2px 8px; border-radius: 10px; font-size: 10.5px; color: var(--muted); background: var(--panel-3); border: 1px solid var(--line); }
+.harmony-tag:hover { color: var(--text); }
+.harmony-tag.on { color: var(--accent); border-color: var(--accent); background: rgba(245, 159, 66, 0.12); }
+.harmony-list { display: flex; flex-direction: column; }
+.harmony-prog { display: flex; align-items: flex-start; gap: 6px; padding: 6px 2px; border-bottom: 1px solid var(--line); }
+.harmony-prog-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 2px 4px; border-radius: 4px; }
+.harmony-prog-main:hover { background: rgba(255, 255, 255, 0.05); }
+.harmony-prog-name i { font-style: normal; font-size: 10px; color: var(--faint); margin-left: 4px; }
+.harmony-prog-chords { font: 12px var(--mono); color: var(--accent); white-space: pre-wrap; }
+.harmony-about { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+.harmony-about b { color: var(--text); }
+.harmony-table { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.harmony-tr { display: grid; grid-template-columns: 52px minmax(70px, 1fr) 64px minmax(90px, 1.4fr) 84px; align-items: center; gap: 6px; padding: 3px 8px; font-size: 11.5px; }
+.harmony-tr:nth-child(even) { background: rgba(255, 255, 255, 0.025); }
+.harmony-tr.head { background: var(--panel-2); color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.harmony-tr .mono { font-family: var(--mono); font-size: 11px; }
+.harmony-tr > span:nth-child(3), .harmony-tr > span:nth-child(5) { text-align: right; }
+/* how far a note is from equal temperament: a mark on a line from −50 to +50 cents */
+.harmony-dev { position: relative; height: 16px; display: flex; align-items: center; justify-content: flex-end; background: linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat; }
+.harmony-dev::before { content: ''; position: absolute; left: 50%; top: 3px; bottom: 3px; width: 1px; background: var(--faint); opacity: 0.5; }
+.harmony-dev i { position: absolute; top: 3px; width: 3px; height: 10px; margin-left: -1px; border-radius: 1px; background: var(--accent); }
+.harmony-dev i.zero { background: var(--accent-2); }
+.harmony-dev em { position: relative; font-style: normal; font-size: 10px; color: var(--muted); background: var(--panel); padding: 0 3px; }
+.harmony .dragnum { min-width: 64px; padding: 4px 8px; text-align: center; font: 12px var(--mono); color: var(--text); background: var(--panel-3); border: 1px solid var(--line); border-radius: 4px; cursor: ns-resize; }
+.harmony .dragnum-input { width: 72px; }

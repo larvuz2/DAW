@@ -323,7 +323,9 @@ export function substitutions(chordIn, key, scale) {
     add(makeChord(chord.root + 1, '7'), 'approach', `the dominant a semitone above: play it just before ${chord.name} to slide down into it`);
   }
   // richer versions of the same chord
-  const richer = { '': ['maj7', '6', 'add9', 'sus2', 'sus4'], m: ['m7', 'm9', 'm6', 'madd9', 'm11'], 7: ['9', '13', '7b9', '7#9', '7sus4'], maj7: ['maj9', '6/9', 'maj7#11'], m7: ['m9', 'm11', 'm6'] }[chord.quality] || [];
+  // (the major chord on the fifth degree is the dominant: its seventh is the minor one)
+  const onFifth = mod12(chord.root - ctx.tonic) === 7;
+  const richer = { '': onFifth ? ['7', '9', 'sus4', '7sus4', 'add9'] : ['maj7', '6', 'add9', 'sus2', 'sus4'], m: ['m7', 'm9', 'm6', 'madd9', 'm11'], 7: ['9', '13', '7b9', '7#9', '7sus4'], maj7: ['maj9', '6/9', 'maj7#11'], m7: ['m9', 'm11', 'm6'] }[chord.quality] || [];
   for (const quality of richer) {
     const c = makeChord(chord.root, quality, null, chord.rootName);
     const outside = c.pcs.filter((p) => !ctx.pcs.has(p)).length;

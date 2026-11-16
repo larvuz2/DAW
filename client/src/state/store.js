@@ -49,7 +49,8 @@ export function defaultWindows(w = window.innerWidth, h = window.innerHeight) {
     spatial: { open: false, x: Math.max(10, W - 700), y: 50, w: Math.min(W - 20, 660), h: Math.min(H - 60, 470), z: 5, max: false },
     generate: { open: false, x: Math.max(10, W - 520), y: 80, w: Math.min(W - 20, 460), h: Math.min(H - 80, 420), z: 5, max: false },
     waveEditor: { open: false, x: 40, y: 40, w: Math.min(W - 60, 980), h: Math.min(H - 60, 540), z: 6, max: false },
-    recorder: { open: false, x: Math.max(10, W - 480), y: 60, w: Math.min(W - 20, 440), h: Math.min(H - 70, 470), z: 6, max: false }
+    recorder: { open: false, x: Math.max(10, W - 480), y: 60, w: Math.min(W - 20, 440), h: Math.min(H - 70, 470), z: 6, max: false },
+    harmony: { open: false, x: Math.max(10, W - 640), y: 36, w: Math.min(W - 20, 600), h: Math.min(H - 50, 560), z: 5, max: false }
   };
 }
 
@@ -99,6 +100,7 @@ export const useStore = create((set, get) => ({
   pluginErrors: {}, // plugin id → last error message (shown in Settings and channel settings)
   selectedObject: null, // mixer insert selected in the Spatial window
   sampleBuffersRev: 0, // bumped when the audio engine finishes decoding a sample (waveforms redraw)
+  harmonyLoad: null, // { projectId, chords }: a progression picked in the Harmony library, on its way to the Chords tab
   versionsRev: 0, // bumped when versions change on the server (Claude saved one, …)
   selectedAutomationId: null,
   pianoRollChannelId: null,

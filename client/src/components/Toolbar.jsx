@@ -219,6 +219,7 @@ export function Toolbar() {
         {winBtn('pianoRoll', 'piano', 'Piano roll', 'F7')}
         {winBtn('mixer', 'mixer', 'Mixer', 'F9')}
         {winBtn('channelSettings', 'sliders', 'Channel settings', 'F8')}
+        <button className={`tbtn win ${windows.harmony?.open ? 'active' : ''}`} title="Harmony: chords that fit, progressions, tuning" aria-label="Harmony" onClick={() => st.toggleWindow('harmony')}><Icon name="music" size={16} /></button>
         <button className={`tbtn win ${windows.spatial?.open ? 'active' : ''}`} title="Spatial mixer (3D / Atmos-style)" onClick={() => st.toggleWindow('spatial')}><Icon name="spatial" size={16} /></button>
         <button className={`tbtn win ${windows.settings?.open ? 'active' : ''}`} title="Settings" onClick={() => st.toggleWindow('settings')}><Icon name="gear" /></button>
       </div>

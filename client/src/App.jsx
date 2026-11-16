@@ -11,6 +11,7 @@ import { AutomationEditor } from './components/AutomationEditor.jsx';
 import { Help } from './components/Help.jsx';
 import { Settings } from './components/Settings.jsx';
 import { Versions } from './components/Versions.jsx';
+import { Harmony } from './components/Harmony.jsx';
 import { Spatial } from './components/Spatial.jsx';
 import { Generate } from './components/Generate.jsx';
 import { WaveEditor } from './components/WaveEditor.jsx';
@@ -29,7 +30,7 @@ const Panels = {
   Playlist: memo(Playlist), ChannelRack: memo(ChannelRack), PianoRoll: memo(PianoRoll), Mixer: memo(Mixer),
   ChannelSettings: memo(ChannelSettings), AutomationEditor: memo(AutomationEditor), Help: memo(Help),
   Settings: memo(Settings), Versions: memo(Versions), Browser: memo(Browser), Toolbar: memo(Toolbar), Spatial: memo(Spatial), Generate: memo(Generate),
-  WaveEditor: memo(WaveEditor), Recorder: memo(Recorder)
+  WaveEditor: memo(WaveEditor), Recorder: memo(Recorder), Harmony: memo(Harmony)
 };
 
 /** Open windows, topmost first, as a string so the selector only changes when the set or order changes. */
@@ -97,7 +98,7 @@ function Studio() {
 
   const openWins = openKey ? openKey.split(',') : [];
   const topWindow = openWins[0] || null;
-  const { Playlist: PlaylistP, ChannelRack: RackP, PianoRoll: PianoP, Mixer: MixerP, ChannelSettings: ChanP, AutomationEditor: AutoP, Help: HelpP, Settings: SettingsP, Versions: VersionsP, Browser: BrowserP, Toolbar: ToolbarP, Spatial: SpatialP, Generate: GenerateP, WaveEditor: WaveEditorP, Recorder: RecorderP } = Panels;
+  const { Playlist: PlaylistP, ChannelRack: RackP, PianoRoll: PianoP, Mixer: MixerP, ChannelSettings: ChanP, AutomationEditor: AutoP, Help: HelpP, Settings: SettingsP, Versions: VersionsP, Browser: BrowserP, Toolbar: ToolbarP, Spatial: SpatialP, Generate: GenerateP, WaveEditor: WaveEditorP, Recorder: RecorderP, Harmony: HarmonyP } = Panels;
 
   return (
     <div className={`app ${compact ? 'compact' : ''}`}>
@@ -120,6 +121,7 @@ function Studio() {
             <ErrorBoundary name="Generate"><GenerateP /></ErrorBoundary>
             <ErrorBoundary name="Wave editor"><WaveEditorP /></ErrorBoundary>
             <ErrorBoundary name="Recorder"><RecorderP /></ErrorBoundary>
+            <ErrorBoundary name="Harmony"><HarmonyP /></ErrorBoundary>
           </WorkspaceContext.Provider>
           {compact && browserOpen && <div className="browser-overlay"><BrowserP /></div>}
           {!openWins.length && !compact && (

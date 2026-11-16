@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
-  STEP, PPQ, ticksPerBar, patternLength, uid, noteName, chordNotes, STAMP_CHORDS, SCALES, scalePitchClasses,
+  STEP, PPQ, ticksPerBar, patternLength, uid, noteName, chordNotes, STAMP_CHORDS, scalePitchClasses,
   quantizeNotes, legatoNotes, humanizeNotes, INSTRUMENTS, expressionFields, hasExpression, flattenCurve, ticksToSeconds, EXPRESSION_LABELS
 } from '@greanteadawy/core';
 import { useStore } from '../state/store.js';
@@ -9,6 +9,7 @@ import { Icon } from './ui/Icon.jsx';
 import { Select } from './ui/Controls.jsx';
 import { usePlayheadLine, capturePointer } from '../lib/hooks.js';
 import { SNAP_OPTIONS, snapTicks, gesture } from '../lib/actions.js';
+import { scaleOptions } from '../lib/scales.js';
 import { getEngine } from '../audio/index.js';
 import { ExpressionLane, LANE_TOOLS, LANE_SHAPES, PITCH_RANGES, shapeCurve } from './ExpressionLane.jsx';
 
@@ -439,10 +440,11 @@ export function PianoRoll() {
       {scaleOn && (
         <>
           <Select value={project.key || 'C'} title="Key" onChange={(v) => st.dispatch([{ type: 'project/update', patch: { key: v } }])} options={PC_NAMES} />
-          <Select value={project.scale || 'minor'} title="Scale" onChange={(v) => st.dispatch([{ type: 'project/update', patch: { scale: v } }])} options={Object.keys(SCALES)} />
+          <Select value={project.scale || 'minor'} title="Scale" onChange={(v) => st.dispatch([{ type: 'project/update', patch: { scale: v } }])} options={scaleOptions()} />
         </>
       )}
       <button className={`tbtn small text ${ghosts ? 'active' : ''}`} title="Show other channels as ghost notes" onClick={() => setGhosts(!ghosts)}>Ghost</button>
+      <button className="tbtn small text" title="Harmony: chords that fit the key, progressions, tuning" onClick={() => st.openWindow('harmony')}>Chords</button>
       <button className="tbtn small text" title="Generate notes with a generator plugin" onClick={() => st.openWindow('generate')}>Gen</button>
       <span className="sep" />
       <button className="tbtn small" title="Zoom out" onClick={() => setPpt((z) => Math.max(0.25, z / 1.4))}><Icon name="zoomOut" size={14} /></button>
