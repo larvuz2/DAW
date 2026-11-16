@@ -976,3 +976,6 @@ a.br-name:hover { text-decoration: underline; }
 .harmony-dev em { position: relative; font-style: normal; font-size: 10px; color: var(--muted); background: var(--panel); padding: 0 3px; }
 .harmony .dragnum { min-width: 64px; padding: 4px 8px; text-align: center; font: 12px var(--mono); color: var(--text); background: var(--panel-3); border: 1px solid var(--line); border-radius: 4px; cursor: ns-resize; }
 .harmony .dragnum-input { width: 72px; }
+/* (a phone held upright: every column narrower, so the frequencies are not cut off) */
+.app.compact .harmony-tr { grid-template-columns: 40px minmax(62px, 1.3fr) 52px minmax(44px, 0.7fr) 70px; gap: 4px; padding: 3px 6px; }
+.app.compact .harmony-pane { padding: 8px; }

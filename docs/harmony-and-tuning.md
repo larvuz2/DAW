@@ -135,5 +135,7 @@ All of it is plain functions in `packages/core/src`, shared by the server and th
 
 - **Adaptive tuning** (each chord tuned pure around its own root, so that no chord pays for another's purity) is not
   implemented: a just tuning here is one fixed table built on one root.
+- Plugin instruments written as DSP code are not retuned (they are handed a key, not a frequency); plugin instruments
+  made of samples are.
 - MIDI exports do not carry the tuning (no MTS messages); audio exports do.
 - A tempo map with ramps — the last item of that part of the original list — is not in this release.

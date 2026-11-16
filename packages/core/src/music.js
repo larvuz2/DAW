@@ -138,7 +138,10 @@ export function chordType(quality) {
 export const STAMP_CHORDS = [
   ['Major', ''], ['Minor', 'm'], ['Dim', 'dim'], ['Aug', 'aug'], ['Sus2', 'sus2'], ['Sus4', 'sus4'],
   ['Power', '5'], ['Maj7', 'maj7'], ['Min7', 'm7'], ['Dom7', '7'], ['m7b5', 'm7b5'], ['Dim7', 'dim7'],
-  ['Add9', 'add9'], ['Maj9', 'maj9'], ['Min9', 'm9'], ['Dom9', '9'], ['Min11', 'm11'], ['6th', '6']
+  ['Add9', 'add9'], ['Maj9', 'maj9'], ['Min9', 'm9'], ['Dom9', '9'], ['Min11', 'm11'], ['6th', '6'],
+  // (from the larger dictionary: the colours people reach for next)
+  ['Min6', 'm6'], ['6/9', '6/9'], ['Min(maj7)', 'mMaj7'], ['7sus4', '7sus4'], ['Dom13', '13'], ['Dom7♭9', '7b9'], ['Dom7♯9', '7#9'],
+  ['Maj7♯11', 'maj7#11'], ['Aug7', 'aug7'], ['Quartal', 'quartal']
 ];
 
 /**

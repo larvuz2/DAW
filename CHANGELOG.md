@@ -48,8 +48,8 @@ Guide: [docs/harmony-and-tuning.md](docs/harmony-and-tuning.md).
 - `aug7` is written for what was also accepted as `+7`; `C4` and `C2` are still not chords.
 - A project file now carries `tuning`; older files load in standard tuning.
 
-**Not in this release**: adaptive tuning (each chord pure around its own root), tuning in MIDI exports, and the
-tempo map with ramps from the original list.
+**Not in this release**: adaptive tuning (each chord pure around its own root), tuning for plugin instruments written
+as DSP code and in MIDI exports, and the tempo map with ramps from the original list.
 
 Nothing here was tuned by ear: the tables are checked against published values and the engine against measured
 pitches, but whether the suggestions are *musical* is for ears to say.
