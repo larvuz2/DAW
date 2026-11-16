@@ -280,9 +280,9 @@ export function patchToParams(patch) {
 export function describeSynth() {
   const field = (key) => {
     const d = ggsParamDef(key);
-    if (d.type === 'number') return `${d.min}..${d.max}${d.unit ? ` ${d.unit}` : ''} (default ${d.default})`;
-    if (d.type === 'select') return `${d.options.join(' | ')} (default ${d.default})`;
-    return `true | false (default ${d.default})`;
+    // the wavetable and filter menus have their own topics: their options are not spelled out here
+    const range = d.type === 'number' ? `${d.min}..${d.max}${d.unit ? ` ${d.unit}` : ''}` : d.type === 'select' ? (d.options.length > 20 ? `one of ${d.options.length} ids` : d.options.join(' | ')) : 'true | false';
+    return `${range} (default ${d.default}) — ${d.desc}`;
   };
   const section = (name, id) => Object.fromEntries(Object.keys(PATCH_FIELDS[name]).map((f) => [f, field(sectionKey(name, id, f))]));
   return {

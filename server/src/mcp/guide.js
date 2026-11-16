@@ -57,11 +57,19 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   triplet shuffle = 64; 100 = 75%, dotted). House 15–25, afrobeats 30–40, boom bap 40–55, lo-fi 50–65.
 
 ## GGS Synth & per-note expression
-- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (24 tables; unison,
-  warp, FM between oscillators), sub + noise, 2 filters (serial/parallel; lp/hp/bp/notch/peak/comb, drive), 4 envelopes,
-  4 LFOs, 4 macros, a 16-route modulation matrix and built-in drive/chorus/delay/reverb. 30 presets in six families
-  (pads, leads, bass, keys, sequences, experimental), all levelled to about -18 LUFS per note.
-- describe_synth is the reference (topics: overview, parameters, wavetables, modulation, presets). create_synth_patch
+- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (46 tables; unison,
+  warp, FM between oscillators), sub + noise, 2 filters (serial/parallel; 21 models: clean lp/hp/bp/notch/peak/
+  all-pass/morph, analog-style ladder24/ladder12/ladderBp/ladderHp, acid (TB-303 diode ladder), ms20Lp/ms20Hp,
+  formant (vowels), phaser, comb/combNeg; drive, key tracking and a per-type "morph"), 4 envelopes (delay, attack,
+  hold, decay, sustain, release, each slope with its own curve), 4 LFOs, 4 macros, a 16-route modulation matrix and
+  built-in drive/chorus/delay/reverb. 30 presets in six families (pads, leads, bass, keys, sequences, experimental),
+  all levelled to about -18 LUFS per note.
+- Pick the filter for the job: lp24 = neutral and precise; ladder24 = warm, fat, sings (basses, leads; resonance
+  above 0.9 self-oscillates in tune); acid = squelch (resonance 0.75-0.95, a fast envelope on the cutoff, cutoff
+  300-600 Hz: it sounds darker than the number); ms20Lp = snarl that keeps its bass; formant = vowels (cutoff 1000,
+  keyTrack 0, move f1Morph); comb with keyTrack 1 and a noise burst = plucked string (resonance = ring time,
+  morph = damping). set_synth_filter replies with the measured response of what you set.
+- describe_synth is the reference (topics: overview, parameters, filters, wavetables, modulation, presets). create_synth_patch
   makes a channel from a preset or from scratch; set_synth_oscillator / set_synth_filter / set_synth_envelope /
   set_synth_lfo / set_synth_modulation / set_synth_effect edit one section each; get_synth_patch reads a patch back
   (format "document" = a portable patch); update_synth_patch applies a document.
@@ -69,7 +77,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   and envelope — optionally with pressure/slide/pitch curves and macro values. Design by ear-with-numbers: change,
   analyze, compare.
 - Modulation amounts are fractions of the target's range: f1Cutoff 0.3 = 3 octaves, oscAPos 0.5 = half the table,
-  pitch 0.5 = 12 semitones, pitchFine 0.3 = 0.3 semitones (vibrato). "via" multiplies a route by a second source
+  pitch 0.5 = 12 semitones, pitchFine 0.3 = 0.3 semitones (vibrato). Every reply that shows a patch spells each
+  route out in real units ("Filter 1 cutoff 850 Hz → 4.49 kHz as pressure goes 0 → 1"): read them to check a route
+  does what you meant. "via" multiplies a route by a second source
   (LFO → pitchFine via pressure = vibrato that grows as the note is pressed).
 - set_note_expression writes per-note curves as shapes (bend, scoop, fall, vibrato, swell, ramp, pulse) or points;
   get_note_expression reads them; transform_note_expression scales/inverts/smooths; copy_note_expression moves a

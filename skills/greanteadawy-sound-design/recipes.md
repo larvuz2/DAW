@@ -72,7 +72,57 @@ A comb filter tuned to the note (`keyTrack 1`, `cutoff 261.63` = C4) excited by 
 ```json
 { "oscillators": [{ "id": "A", "table": "basic", "position": 0.5, "level": 0 }],
   "noise": { "level": 0, "type": "white", "color": -0.25 },
-  "filters": [{ "id": 1, "type": "comb", "cutoff": 261.63, "resonance": 0.9, "keyTrack": 1 }, { "id": 2, "type": "lp12", "cutoff": 5200 }],
+  "filters": [{ "id": 1, "type": "comb", "cutoff": 261.63, "resonance": 0.86, "morph": 0.35, "keyTrack": 1 }, { "id": 2, "type": "lp12", "cutoff": 5200 }],
   "envelopes": [{ "id": 1, "attack": 0.001, "decay": 3, "sustain": 0, "release": 0.5 }, { "id": 2, "attack": 0.001, "decay": 0.045, "sustain": 0, "release": 0.04 }],
-  "modulation": [{ "source": "env2", "target": "noiseLevel", "amount": 0.9 }, { "source": "env2", "target": "oscALevel", "amount": 0.6 }, { "source": "pressure", "target": "f1Res", "amount": 0.08 }] }
+  "modulation": [{ "source": "env2", "target": "noiseLevel", "amount": 1 }, { "source": "env2", "target": "oscALevel", "amount": 1 }, { "source": "pressure", "target": "f1Res", "amount": 0.08 }],
+  "voice": { "gain": 1.6 } }
 ```
+
+Resonance is the ring time (0.86 ≈ a second at C4, 0.95 several seconds); `morph` damps the string (0 = bright steel,
+0.6 = nylon). `combNeg` instead of `comb` gives a hollow, clarinet-like tube an octave lower.
+
+## Acid line
+
+One saw into the diode ladder, a fast envelope on the cutoff, accents by velocity. Write overlapping notes for slides:
+
+```json
+{ "oscillators": [{ "id": "A", "table": "basic", "position": 0.5, "level": 0.8, "phaseRandom": 0 }],
+  "filters": [{ "id": 1, "type": "acid", "cutoff": 420, "resonance": 0.82, "drive": 0.4, "keyTrack": 0.3 }],
+  "envelopes": [{ "id": 1, "attack": 0.002, "decay": 0.3, "sustain": 0.7, "release": 0.08 }, { "id": 2, "attack": 0.001, "decay": 0.19, "sustain": 0, "release": 0.12, "decayCurve": -0.62 }],
+  "modulation": [{ "source": "env2", "target": "f1Cutoff", "amount": 0.32 }, { "source": "env2", "target": "f1Cutoff", "amount": 0.22, "via": "velocity" }, { "source": "timbre", "target": "f1Res", "amount": 0.15 }],
+  "voice": { "mono": true, "legato": true, "glide": 0.07, "gain": 0.65 },
+  "effects": { "drive": { "amount": 0.25 } } }
+```
+
+The acid filter sounds darker than its cutoff (its corner sits well below the resonance), so 300–600 Hz is the
+working range. Automate `macro` → `f1Cutoff` over the song for the classic slow opening.
+
+## Ladder bass
+
+```json
+{ "oscillators": [{ "id": "A", "table": "basic", "position": 0.5, "level": 0.75, "phaseRandom": 0 }, { "id": "B", "table": "pwm", "position": 0.3, "level": 0.5, "fine": 7, "phaseRandom": 0 }],
+  "sub": { "level": 0.3, "to": "direct" },
+  "filters": [{ "id": 1, "type": "ladder24", "cutoff": 300, "resonance": 0.45, "drive": 0.35, "keyTrack": 0.4 }],
+  "envelopes": [{ "id": 1, "attack": 0.003, "decay": 0.5, "sustain": 0.75, "release": 0.1 }, { "id": 2, "attack": 0.001, "decay": 0.22, "sustain": 0.12, "release": 0.15 }],
+  "modulation": [{ "source": "env2", "target": "f1Cutoff", "amount": 0.4 }, { "source": "velocity", "target": "f1Cutoff", "amount": 0.14 }, { "source": "pressure", "target": "f1Cutoff", "amount": 0.25 }],
+  "voice": { "mono": true, "glide": 0.02, "gain": 0.9 } }
+```
+
+Swap `ladder24` for `ms20Lp` (resonance 0.6) and the same patch snarls instead of singing.
+
+## Talking vowels
+
+A bright source through the formant filter; slide (or an LFO) walks A-E-I-O-U:
+
+```json
+{ "oscillators": [{ "id": "A", "table": "basic", "position": 0.5, "level": 0.8, "unison": 2, "detune": 9 }],
+  "filters": [{ "id": 1, "type": "formant", "cutoff": 1000, "resonance": 0.3, "keyTrack": 0, "morph": 0 }],
+  "envelopes": [{ "id": 1, "attack": 0.05, "decay": 0.4, "sustain": 0.9, "release": 0.3 }],
+  "lfos": [{ "id": 1, "shape": "sine", "rate": 5.3, "fade": 0.4 }],
+  "modulation": [{ "source": "timbre", "target": "f1Morph", "amount": 1 }, { "source": "pressure", "target": "f1Res", "amount": 0.25 }, { "source": "lfo1", "target": "pitchFine", "amount": 0.3, "via": "pressure" }],
+  "voice": { "mono": true, "legato": true, "glide": 0.08, "gain": 1.3 },
+  "effects": { "reverb": { "mix": 0.3, "size": 0.65 } } }
+```
+
+Then `set_note_expression` a slide ramp on each note (0 → 0.5 says "ah-ee", 0.75 → 1 "oh-oo"). Cutoff 700 makes the
+voice bigger and darker, 1400 smaller.

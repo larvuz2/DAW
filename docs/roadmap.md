@@ -75,6 +75,18 @@ MIDI files), sixteen MCP tools for both — including `analyze_synth_patch`, the
 server without a browser — and `evaluate_composition`. Details: [ggs-synth.md](ggs-synth.md),
 [expression-engine.md](expression-engine.md), [audio-benchmarks.md](audio-benchmarks.md).
 
+## 0.9.0 — what was added
+
+The first batch brought over from GGS Composer (the author's earlier Rust synth), translated into this engine and
+this interface: twelve filter models (ladder, acid, MS-20, formant, phaser, morph, all-pass, negative comb),
+22 wavetables, envelopes with delay, hold and a curve per slope, click-free structural edits, and a hands-on editor
+(draggable envelopes and filter response, preset and wavetable browsers, modulation routes in real units, a
+description on every parameter). Details: [ggs-synth.md](ggs-synth.md), [audio-benchmarks.md](audio-benchmarks.md).
+
+Still to come from that list: modulation rings on the knobs with live values, more routes and macros, chaos sources
+and drawable LFO shapes; agent tools (dry runs, batches, render comparison); harmony and tuning; more effects and
+oscillator engines; wavetables from a harmonics list or a formula.
+
 Next for the synth and expression:
 - **Chord explorer** in the piano roll (suggestions by key and function, voice-leading, drag chords in) with matching
   MCP tools; optional just intonation.

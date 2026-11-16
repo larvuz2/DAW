@@ -60,11 +60,19 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   triplet shuffle = 64; 100 = 75%, dotted). House 15–25, afrobeats 30–40, boom bap 40–55, lo-fi 50–65.
 
 ## GGS Synth & per-note expression
-- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (24 tables; unison,
-  warp, FM between oscillators), sub + noise, 2 filters (serial/parallel; lp/hp/bp/notch/peak/comb, drive), 4 envelopes,
-  4 LFOs, 4 macros, a 16-route modulation matrix and built-in drive/chorus/delay/reverb. 30 presets in six families
-  (pads, leads, bass, keys, sequences, experimental), all levelled to about -18 LUFS per note.
-- describe_synth is the reference (topics: overview, parameters, wavetables, modulation, presets). create_synth_patch
+- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (46 tables; unison,
+  warp, FM between oscillators), sub + noise, 2 filters (serial/parallel; 21 models: clean lp/hp/bp/notch/peak/
+  all-pass/morph, analog-style ladder24/ladder12/ladderBp/ladderHp, acid (TB-303 diode ladder), ms20Lp/ms20Hp,
+  formant (vowels), phaser, comb/combNeg; drive, key tracking and a per-type "morph"), 4 envelopes (delay, attack,
+  hold, decay, sustain, release, each slope with its own curve), 4 LFOs, 4 macros, a 16-route modulation matrix and
+  built-in drive/chorus/delay/reverb. 30 presets in six families (pads, leads, bass, keys, sequences, experimental),
+  all levelled to about -18 LUFS per note.
+- Pick the filter for the job: lp24 = neutral and precise; ladder24 = warm, fat, sings (basses, leads; resonance
+  above 0.9 self-oscillates in tune); acid = squelch (resonance 0.75-0.95, a fast envelope on the cutoff, cutoff
+  300-600 Hz: it sounds darker than the number); ms20Lp = snarl that keeps its bass; formant = vowels (cutoff 1000,
+  keyTrack 0, move f1Morph); comb with keyTrack 1 and a noise burst = plucked string (resonance = ring time,
+  morph = damping). set_synth_filter replies with the measured response of what you set.
+- describe_synth is the reference (topics: overview, parameters, filters, wavetables, modulation, presets). create_synth_patch
   makes a channel from a preset or from scratch; set_synth_oscillator / set_synth_filter / set_synth_envelope /
   set_synth_lfo / set_synth_modulation / set_synth_effect edit one section each; get_synth_patch reads a patch back
   (format "document" = a portable patch); update_synth_patch applies a document.
@@ -72,7 +80,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   and envelope — optionally with pressure/slide/pitch curves and macro values. Design by ear-with-numbers: change,
   analyze, compare.
 - Modulation amounts are fractions of the target's range: f1Cutoff 0.3 = 3 octaves, oscAPos 0.5 = half the table,
-  pitch 0.5 = 12 semitones, pitchFine 0.3 = 0.3 semitones (vibrato). "via" multiplies a route by a second source
+  pitch 0.5 = 12 semitones, pitchFine 0.3 = 0.3 semitones (vibrato). Every reply that shows a patch spells each
+  route out in real units ("Filter 1 cutoff 850 Hz → 4.49 kHz as pressure goes 0 → 1"): read them to check a route
+  does what you meant. "via" multiplies a route by a second source
   (LFO → pitchFine via pressure = vibrato that grows as the note is pressed).
 - set_note_expression writes per-note curves as shapes (bend, scoop, fall, vibrato, swell, ramp, pulse) or points;
   get_note_expression reads them; transform_note_expression scales/inverts/smooths; copy_note_expression moves a
@@ -1226,11 +1236,11 @@ Copy the performance (curves and release velocity) of one note onto other notes 
 
 ### `describe_synth`
 
-What the GGS Synth can do, for sound design: its sections and every field with range and default (topic "parameters"), the wavetables and what each sounds like ("wavetables"), modulation sources and targets and what an amount of 1 means ("modulation"), and the preset library with macro assignments ("presets"). Read "overview" first.
+What the GGS Synth can do, for sound design: its sections and every field with range, default and what it does (topic "parameters"), the 21 filter models and what each sounds like ("filters"), the wavetables ("wavetables"), modulation sources and targets and what an amount of 1 means ("modulation"), and the preset library with macro assignments ("presets"). Read "overview" first.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `topic` | `overview` \| `parameters` \| `wavetables` \| `modulation` \| `presets` |  | Default: overview |
+| `topic` | `overview` \| `parameters` \| `filters` \| `wavetables` \| `modulation` \| `presets` |  | Default: overview |
 
 ### `create_synth_patch`
 
@@ -1278,7 +1288,7 @@ Configure oscillator A, B or C of a GGS Synth: wavetable and position, level, pa
 | `channel` | string | yes | A GGS Synth channel (id or name) |
 | `oscillator` | `A` \| `B` \| `C` |  | Which oscillator the fields below belong to |
 | `on` | boolean |  |  |
-| `table` | `basic` \| `tilt` \| `pwm` \| `resonant` \| `formant` \| `glass` \| `fmbell` \| `fmgrowl` \| `drawbar` \| `sync` \| `fold` \| `metal` \| `airy` \| `ladder` \| `primes` \| `octaves` \| `comb` \| `staircase` \| `tine` \| `bowed` \| `reed` \| `dust` \| `hollow` \| `supersine` |  | Wavetable (describe_synth topic "wavetables" explains each) |
+| `table` | `basic` \| `tilt` \| `pwm` \| `resonant` \| `formant` \| `glass` \| `fmbell` \| `fmgrowl` \| `drawbar` \| `sync` \| `fold` \| `metal` \| `airy` \| `ladder` \| `primes` \| `octaves` \| `comb` \| `staircase` \| `tine` \| `bowed` \| `reed` \| `dust` \| `hollow` \| `supersine` \| `oddeven` \| `lofi` \| `phasedist` \| `cheby` \| `pluck` \| `sawstack` \| `hiss` \| `drift` \| `aurora` \| `brass` \| `reese` \| `acid` \| `overdrive` \| `vowelbass` \| `crystal` \| `bitlogic` \| `talkbox` \| `whisper` \| `ringmod` \| `trifold` \| `vosim` \| `darkmatter` |  | Wavetable (describe_synth topic "wavetables" explains each) |
 | `position` | number |  | Where in the table the oscillator reads, 0..1 (modulate it: target oscAPos/oscBPos/oscCPos) |
 | `level` | number |  |  |
 | `pan` | number |  |  |
@@ -1301,7 +1311,7 @@ Configure oscillator A, B or C of a GGS Synth: wavetable and position, level, pa
 
 ### `set_synth_filter`
 
-Configure filter 1 or 2 of a GGS Synth (type, cutoff in Hz, resonance, drive, key tracking) and how the two are connected. Types: lp12/lp24 low-pass, hp12/hp24 high-pass, bp12/bp24 band-pass, notch, peak, comb (cutoff = the comb's pitch: with keyTrack 1 and cutoff 261.63 it is tuned to the note — plucked and metallic sounds). Sweep a filter per note with set_synth_modulation (target f1Cutoff / f2Cutoff, 1 = 10 octaves).
+Configure filter 1 or 2 of a GGS Synth (type, cutoff in Hz, resonance, drive, key tracking, morph) and how the two are connected. Types — clean: lp12/lp24, hp12/hp24, bp12/bp24, notch, peak, allpass, morph (morph 0 low-pass → 0.5 band-pass → 1 high-pass); analog-style: ladder24/ladder12/ladderBp/ladderHp (warm, self-oscillates above resonance ~0.9), acid (TB-303 diode ladder), ms20Lp/ms20Hp (screaming, keeps its bass); special: formant (morph = vowel A-E-I-O-U, cutoff 1000 = natural), phaser (morph = stages), comb/combNeg (cutoff = the comb's pitch: with keyTrack 1 and cutoff 261.63 it is tuned to the note; resonance = ring time, morph = damping). describe_synth topic "filters" says what each sounds like. The reply includes the measured frequency response of the new setting. Sweep a filter per note with set_synth_modulation (targets f1Cutoff / f2Cutoff, 1 = 10 octaves; f1Morph / f2Morph).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -1309,27 +1319,33 @@ Configure filter 1 or 2 of a GGS Synth (type, cutoff in Hz, resonance, drive, ke
 | `channel` | string | yes | A GGS Synth channel (id or name) |
 | `filter` | number \| number |  | Which filter the fields below belong to (default 1) |
 | `on` | boolean |  |  |
-| `type` | `lp12` \| `lp24` \| `hp12` \| `hp24` \| `bp12` \| `bp24` \| `notch` \| `peak` \| `comb` |  |  |
+| `type` | `lp12` \| `lp24` \| `hp12` \| `hp24` \| `bp12` \| `bp24` \| `notch` \| `peak` \| `comb` \| `allpass` \| `morph` \| `ladder24` \| `ladder12` \| `ladderBp` \| `ladderHp` \| `acid` \| `ms20Lp` \| `ms20Hp` \| `formant` \| `phaser` \| `combNeg` |  |  |
 | `cutoff` | number |  | Hz |
 | `resonance` | number |  | 0 = none, 0.3 = a clear peak, 0.8+ = whistling |
 | `drive` | number |  | Saturation into the filter (adds harmonics and weight) |
 | `keyTrack` | number |  | 1 = the cutoff follows the note (and its pitch curve) |
+| `morph` | number |  | Second control of morph (shape), formant (vowel), phaser (stages) and the combs (damping); ignored by the other types |
 | `routing` | `serial` \| `parallel` |  | serial: filter 1 → filter 2; parallel: side by side |
 
 ### `set_synth_envelope`
 
-Shape one of the four envelopes of a GGS Synth: attack, decay, release in seconds, sustain 0..1, curve (-1 linear … 1 very exponential). Envelope 1 is the amp envelope (it ends the note); envelopes 2-4 do nothing until routed with set_synth_modulation (e.g. env2 → f1Cutoff).
+Shape one of the four envelopes of a GGS Synth: delay, attack, hold, decay, release in seconds, sustain 0..1, and a curve per moving stage (-1..1: 0 = straight line, negative = fastest at the start — a punchy attack, a natural plucky decay —, positive = slow start that rushes at the end). Defaults: attackCurve -0.3, decayCurve and releaseCurve -0.5. Envelope 1 is the amp envelope (it ends the note); envelopes 2-4 do nothing until routed with set_synth_modulation (e.g. env2 → f1Cutoff).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `channel` | string | yes | A GGS Synth channel (id or name) |
 | `envelope` | integer | yes | 1 = amp envelope |
+| `delay` | number |  | Seconds at zero before the attack starts |
 | `attack` | number |  |  |
+| `hold` | number |  | Seconds at full level before the decay (the body of a pluck or kick) |
 | `decay` | number |  |  |
 | `sustain` | number |  |  |
 | `release` | number |  |  |
-| `curve` | number |  |  |
+| `attackCurve` | number |  | 0 straight · negative fast first (punchy) · positive slow first (swell) |
+| `decayCurve` | number |  | 0 straight · negative drops fast then settles (pluck; -1 very sharp) · positive holds on, then falls |
+| `releaseCurve` | number |  | Like decayCurve, for the tail after the key is let go |
+| `curve` | number |  | Older shorthand for all three curves at once (-1 gentle … 1 very sharp); the per-stage curves win when both are given |
 
 ### `set_synth_lfo`
 
@@ -1349,7 +1365,7 @@ Configure one of the four LFOs of a GGS Synth: shape (sine, triangle, saw, ramp,
 
 ### `set_synth_modulation`
 
-Connect modulation sources to targets in a GGS Synth's matrix (16 routes): envelopes, LFOs, velocity, the note's pressure / timbre (slide) / bend curves, key, random, release velocity and the 4 macros → pitch, oscillator position/level/pan/warp/FM/detune, filter cutoff/resonance/drive, level, pan, LFO rates. mode "add" (default) adds routes, updating an existing route with the same source, target and via; "replace" replaces the whole matrix. remove deletes routes by source+target. macros sets the four macro values. This is how per-note expression becomes sound: e.g. pressure → f1Cutoff 0.3, timbre → oscAPos 0.5.
+Connect modulation sources to targets in a GGS Synth's matrix (16 routes): envelopes, LFOs, velocity, the note's pressure / timbre (slide) / bend curves, key, random, release velocity and the 4 macros → pitch, oscillator position/level/pan/warp/FM/detune, filter cutoff/resonance/drive/morph, level, pan, LFO rates. The reply says what every route does in the units of its target (e.g. "Filter 1 cutoff 850 Hz → 4.49 kHz as pressure goes 0 → 1"). mode "add" (default) adds routes, updating an existing route with the same source, target and via; "replace" replaces the whole matrix. remove deletes routes by source+target. macros sets the four macro values. This is how per-note expression becomes sound: e.g. pressure → f1Cutoff 0.3, timbre → oscAPos 0.5.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

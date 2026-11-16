@@ -18,7 +18,8 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
 | Headless renderer (tests, server) | `packages/synth-dsp/src/render.js` |
 | Worklet processors `ggs-voice`, `ggs-fx` | `client/src/audio/ggs-synth/worklet.js` |
 | Main-thread glue: module loading, `GgsChannel`, `ggsVoice` | `client/src/audio/ggs-synth/index.js` |
-| Editor | `client/src/components/SynthEditor.jsx` |
+| Filter models, `filterResponse` (measured curve) | `packages/synth-dsp/src/filters.js` |
+| Editor | `client/src/components/SynthEditor.jsx` + `components/synth/` (EnvelopeEditor, FilterGraph, PresetBrowser, WavetablePicker, ParamTable) |
 | Expression model / op | `packages/core/src/expression.js`, `ops.js` (`notes/expression`) |
 | Expression lane | `client/src/components/ExpressionLane.jsx`, `PianoRoll.jsx` |
 | MPE decoder / MIDI files | `packages/core/src/mpe.js`, `midi.js` |
@@ -38,6 +39,18 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
 - **Denormals**: any state that decays toward zero on silence must be flushed (`< 1e-30 → 0`) once per block.
 - New harmonics after the oscillator (a new warp, a nonlinear filter) alias: add the case to `needsOversampling`
   and to the mip-level widening in `renderOsc`, and to the oversampling test.
+- **Filters**: a model is an entry in `FILTER_INFO` (label, family, what Morph does, `nonlinear`, description), a
+  case in `VoiceFilter.set` (targets, control rate) and a block method (per-sample ramp, both channels). APPEND new
+  types — the first nine are the original clean ones and patches store ids. Add the model to `test/filters.test.js`
+  (response, abuse, silence). Never divide by a ramped quantity that can reach zero (drive curvature: guard it).
+- **Structural params** (what a voice is made of: on/off, table, warp mode, unison, filter type, routing) are listed
+  in `SWAP_KEYS` in `voice.js`; `setParams` holds them back until their unit has faded out. A new param that would
+  click when changed under a held note belongs there, and in `test/envelope.test.js`.
+- **Every param has a `desc`** (tooltip, All parameters tab, `describe_synth`). A new mod target also needs a case in
+  `modTargetSpec` (patch.js) so `describeRoute` can say what a route does in real units.
+- **Renaming or replacing a param**: stored projects and patch files still carry the old key. Map it in
+  `migrateParams` (params.js) — it runs in `completeParams`, in core's `makeInstrument` and on the op path — and add
+  a test that the old value means the same sound.
 - **Params**: adding a param = one line in `params.js` (+ a control in `SynthEditor.jsx`, a field in `PATCH_FIELDS`,
   a zod field in the matching `set_synth_*` tool). Changing a default changes existing patches: note it in the
   changelog and re-level presets.
@@ -51,7 +64,7 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
 ## Checks
 
 ```bash
-npm test -w packages/synth-dsp        # signal quality (aliasing, tuning, zipper, independence, presets)
+npm test -w packages/synth-dsp        # signal quality (aliasing, tuning, zipper, independence, filters, envelopes, presets)
 npm run bench:synth                   # CPU per voice; compare with docs/audio-benchmarks.md
 node packages/synth-dsp/scripts/level-presets.mjs   # loudness of every preset
 npm test -w server                    # MCP tools (server/test/ggs.test.js)

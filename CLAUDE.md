@@ -28,8 +28,9 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
   src/autotune.js     YIN pitch tracking, vibrato-proof note segmentation, correction curve, TD-PSOLA, WSOLA, pitch shift
   src/midi.js wav.js (multichannel/extensible + extra chunks) summary.js timeline.js constants.js
 packages/synth-dsp/  @greanteadawy/synth-dsp — the GGS Synth engine: plain JS, NO dependencies, no Node/DOM APIs (it runs in
-                      an AudioWorklet and in Node). params.js (flat schema), voice.js, fx.js, wavetables.js, presets.js,
-                      patch.js (documents), render.js (headless); scripts/bench.mjs, scripts/level-presets.mjs
+                      an AudioWorklet and in Node). params.js (flat schema, a description per param, migrateParams),
+                      voice.js, filters.js (21 models + filterResponse), fx.js, wavetables.js (46 tables), presets.js,
+                      patch.js (documents, describeRoute), render.js (headless); scripts/bench.mjs, level-presets.mjs
 server/src/
   index.js            createServer(): express app, security headers, auth, /api, /mcp, static client, WebSocket hub
   auth/               users.js (scrypt, API tokens gtd_…), sessions.js (cookie gtd_session), http.js, routes.js
@@ -59,8 +60,9 @@ client/src/
                       audioEdit.js (decode at native rate, worker calls, WAV save/replace, the sample-edit job),
                       recorder.js (MicSession: getUserMedia → AudioWorklet capture, meter, monitor)
   components/         SampleLibrary.jsx (Samples tab: folders, search, select mode), WaveEditor.jsx + PitchView.jsx,
-                      Recorder.jsx, SynthEditor.jsx (GGS Synth, inside Channel settings), ExpressionLane.jsx (the
-                      piano roll's pitch / pressure / slide lane)
+                      Recorder.jsx, SynthEditor.jsx (GGS Synth, inside Channel settings) + synth/ (EnvelopeEditor,
+                      FilterGraph, PresetBrowser, WavetablePicker, ParamTable), ExpressionLane.jsx (the piano roll's
+                      pitch / pressure / slide lane)
                       … one file per window (Playlist, ChannelRack, PianoRoll, Mixer, …) + ui/ primitives
 client/public/        recorder-worklet.js (served as /recorder-worklet.js: CSP script-src 'self' allows addModule)
 e2e/                  Playwright specs (real browser + MCP client acting as Claude)
@@ -135,7 +137,10 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
 - **Notes carry a performance**: optional `expression` ({ pitch, pressure, timbre } curves in normalized note time)
   and `releaseVelocity`. Edit them with the `notes/expression` op (patches one curve, keeps the others). Any code
   that creates notes from notes (copy, duplicate, paste, import) must carry `expressionFields(n)` and `pan`.
-- **GGS Synth** (`ggs`): its ~210 flat params live in `packages/synth-dsp/src/params.js` (the catalog imports them).
+- **GGS Synth** (`ggs`): its ~230 flat params live in `packages/synth-dsp/src/params.js` (the catalog imports them);
+  each has a `desc`. A renamed param is mapped in `migrateParams` (the catalog's `migrate` hook runs it on load and on
+  ops). Structural changes on a sounding voice fade (`SWAP_KEYS` in `voice.js`) — never swap a table or a filter
+  model under a held note without it.
   One AudioWorklet processor per note; the patch travels in `processorOptions`, and gate / kill / pitch / pressure /
   timbre / macros are AudioParams — never make note timing depend on port messages (offline renders must repeat).
   No allocation or string-keyed lookups in the render path; no `Math.random()` in the engine (seeded per note).

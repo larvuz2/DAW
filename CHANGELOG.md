@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.9.0 — GGS Synth: analog-style filters, hands-on editor
+
+The first batch of ideas brought over from GGS Composer (the author's earlier Rust synth), translated into this
+engine — plain JavaScript in `packages/synth-dsp` — and into this interface.
+
+**Filters: 9 → 21 models** (`packages/synth-dsp/src/filters.js`)
+- **Ladder** (transistor, Moog style) as 24 dB and 12 dB low-pass, band-pass and high-pass; **Acid** (TB-303 diode
+  ladder); **MS-20** low- and high-pass (Sallen-Key with the resonance clipped in the loop); **Formant** (five vowel
+  resonances, A-E-I-O-U); **Phaser** (2–12 stages, per note); **Morph** (low-pass → band-pass → high-pass);
+  **All-pass**; **Comb −** (inverted feedback: hollow, odd harmonics).
+- The delay-free loops are solved per sample, so the ladder **self-oscillates within 0.1 cent of the cutoff** at any
+  pitch and sample rate. These models saturate, so quality "auto" renders them at 2×.
+- A new **Morph** control per filter (vowel, stages, damping or shape — it is named after what it does for the model)
+  and two new modulation targets, `f1Morph` / `f2Morph`.
+- The **comb** is now the tuned, damped model: its fundamental stays in tune for any damping (within 1.5 cents),
+  resonance maps to ring time (up to several seconds) and Morph damps it. *Patches that used the comb ring longer and
+  brighter than in 0.8.0* — lower the resonance (0.9 → about 0.6) and raise Morph (about 0.35) for the old character.
+  The eight other original filter types are unchanged.
+
+**Wavetables: 24 → 46** — odd/even, lo-fi, phase distortion, Chebyshev, plucked string, saw stack, pitched hiss,
+ensemble drift, aurora, brass, reese, acid, overdrive, vowel bass, crystal, bit logic, formant sweep, whisper,
+ring mod, triangle folder, VOSIM, dark matter. The original 24 are untouched.
+
+**Envelopes** gain a **delay** and a **hold** stage and **a curve for each slope** (attack, decay, release: 0 is a
+straight line, negative is fast first, positive is slow first). Projects and patch files from 0.8.0, whose envelopes
+had one "Curve", are converted to the three curves that draw exactly the same shape. (The default attack curve is
+−0.3, a hair sharper than before.)
+
+**No clicks when a patch is edited under a held note**: switching an oscillator on or off, changing its wavetable,
+warp mode or unison count, changing a filter's model or the routing now fades that part of the voice (4 ms) instead
+of stepping. Measured at the edit: from 0.05–0.15 of full scale down to under 0.002.
+
+**The synth editor**
+- **Envelope editor**: drag the nodes (delay, attack, hold, decay + sustain, release); round handles bend each slope.
+- **Filter curve**: the measured response of the real filter model, with a handle — left/right is the cutoff, up/down
+  the resonance.
+- **Preset browser**: categories, search across names, descriptions, macro names and tags derived from each patch;
+  ↑ ↓ load as they move.
+- **Wavetable picker**: a searchable grid of all 46 tables, drawn.
+- **Matrix in words**: every route says what it does in the units of its target — "Filter 1 cutoff 850 Hz → 4.49 kHz
+  as pressure goes 0 → 1".
+- **All parameters**: every parameter with its value, range and description in one searchable table, with a
+  *Changed* filter. Every control has a tooltip from the same descriptions. A drag on a graph is one undo step.
+
+**Presets** — *Acid Line* now runs through the acid filter, *Analog Bass* and *Mono Titan* through the ladder, *Neuro
+Bass* through the MS-20, *Vowel Morph* through the formant filter, *Solar Drift* has a phaser in every note, and the
+two comb presets use the new comb. All 30 are re-levelled; the others measure the same as before (±0.1 dB).
+
+**Claude (MCP)**
+- `set_synth_filter`: the 12 new types and `morph`; the reply includes the **measured response** of the setting.
+- `set_synth_envelope`: `delay`, `hold`, `attackCurve`, `decayCurve`, `releaseCurve` (the old `curve` still works).
+- `describe_synth`: a new topic "filters"; "parameters" now says what every field does.
+- Every patch summary lists the modulation routes in real units. The guide and the sound-design skill know which
+  filter is for what (recipes: acid line, ladder bass, talking vowels).
+
+**Under the hood** — `filterResponse()` (measured magnitude response of any setting), `envelopeAt()` (the envelope as
+a formula: the editor draws with it, the tests hold the engine to it), `describeRoute()`, `migrateParams()` and a
+`migrate` hook on instrument definitions. 71 new engine tests (filters, envelopes, wavetables).
+
+Not in this release, still on the list: drawable LFO shapes, wavetables from a harmonics list or a formula, modulation
+rings on the knobs.
+
 ## 0.8.0 — GGS Synth, per-note expression, MPE
 
 **GGS Synth** — a new instrument (Browser → Synths), built from scratch in `packages/synth-dsp`

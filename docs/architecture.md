@@ -23,8 +23,9 @@
   op system (`applyOps`, `prepareOps`, `describeOps`), instrument/effect catalogs, music theory, notation parsers,
   generators (chords, basslines, melodies, rolls), templates, MIDI import/export, WAV codec, audio analysis and
   human-readable project summaries for Claude.
-- **`packages/synth-dsp`** — the GGS Synth engine in plain JavaScript with no dependencies: voice, effects, band-limited
-  wavetables, parameter schema, presets, patch documents and a headless renderer. The browser runs it in an
+- **`packages/synth-dsp`** — the GGS Synth engine in plain JavaScript with no dependencies: voice, filter models,
+  effects, band-limited wavetables, parameter schema (with a description of every param), presets, patch documents
+  and a headless renderer. The browser runs it in an
   AudioWorklet; the server runs it in a worker thread (`analyze_synth_patch`). Core imports its schema and presets.
 - **`server`** — Express app, WebSocket hub, stores, auth, REST API and the MCP server.
 - **`client`** — React UI, zustand store, WebSocket sync and the Web Audio engine.

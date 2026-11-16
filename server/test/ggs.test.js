@@ -43,7 +43,17 @@ test('the server registers the expression and synth tools, and describes the syn
   assert.match(await call('describe_synth', { topic: 'wavetables' }), /glass\s+Spectral Glass \(12 frames\)/);
   assert.match(await call('describe_synth', { topic: 'modulation' }), /pressure\s+the note's pressure curve[\s\S]*f1Cutoff\s+filter 1 cutoff, 1 = \+10 octaves/);
   assert.match(await call('describe_synth', { topic: 'presets' }), /## Pads[\s\S]*Velvet Pad[\s\S]*macros: Brightness/);
-  assert.match(await call('describe_synth', { topic: 'parameters' }), /"cutoff": "20\.\.20000 Hz \(default 20000\)"/);
+  // every field comes with what it does; the long menus point to their own topics
+  const reference = await call('describe_synth', { topic: 'parameters' });
+  assert.match(reference, /"cutoff": "20\.\.20000 Hz \(default 20000\) — The frequency the filter works at/);
+  assert.match(reference, /"attackCurve": "-1\.\.1 \(default -0\.3\) — Shape of the attack/);
+  assert.match(reference, /"hold": "0\.\.5 s \(default 0\) — Time the envelope stays at full/);
+  assert.match(reference, /"type": "one of 21 ids \(default lp24\)/);
+  const filters = await call('describe_synth', { topic: 'filters' });
+  assert.match(filters, /acid\s+Acid \(diode ladder\): TB-303 style/);
+  assert.match(filters, /formant\s+Formant \(vowel\) \[morph = vowel\]/);
+  assert.equal(filters.split('\n').filter((l) => /^ {2}\w+\s/.test(l)).length, 21);
+  assert.match(await call('describe_synth', { topic: 'wavetables' }), /Wavetables \(46\)[\s\S]*vosim\s+VOSIM/);
   // list_instruments stays readable (the synth has 200+ params)
   const listed = await call('list_instruments', { kind: 'ggs' });
   assert.match(listed, /describe_synth/);
@@ -90,6 +100,31 @@ test('section tools edit one part of a patch; other instruments are refused with
   assert.match(await call('set_synth_effect', { channel: 'Lead', delay: { mix: 0.2, sync: '1/8d', feedback: 0.3 }, reverb: { mix: 0.25, size: 0.6 }, gain: 0.7 }), /delay 0\.2 \(1\/8d\), reverb 0\.25 size 0\.6; gain 0\.7/);
   ins = chan(await project(), 'Lead').instrument.params;
   assert.deepEqual([ins.f2On, ins.f2Type, ins.filterRoute, ins.env2D, ins.lfo1Rate, ins.delaySync, ins.gain], [true, 'hp12', 'parallel', 0.3, 5.5, '1/8d', 0.7]);
+  // the analog-style and special filters, with their second control; the reply measures what the setting does
+  const f1 = chan(await project(), 'Lead').instrument.params;
+  const acid = await call('set_synth_filter', { channel: 'Lead', type: 'acid', cutoff: 500, resonance: 0.85, drive: 0.3 });
+  assert.match(acid, /F1 acid 500 Hz res 0\.85 drive 0\.3/);
+  const measured = /Measured response of filter 1 \(acid\): 50 Hz (-?[\d.]+) dB · 100 Hz (-?[\d.]+) dB · 200 Hz (-?[\d.]+) dB · 500 Hz \+?(-?[\d.]+) dB · 1k Hz (-?[\d.]+) dB · 2k Hz (-?[\d.]+) dB/.exec(acid);
+  assert.ok(measured, acid);
+  assert.ok(Number(measured[4]) > Number(measured[3]) + 6 && Number(measured[4]) > Number(measured[6]) + 20, 'the resonance peak sits on the cutoff');
+  assert.match(await call('set_synth_filter', { channel: 'Lead', type: 'formant', cutoff: 1000, resonance: 0.4, morph: 0.5, keyTrack: 0 }), /F1 formant 1000 Hz res 0\.4 drive 0\.3 vowel 0\.5/);
+  assert.equal(chan(await project(), 'Lead').instrument.params.f1Morph, 0.5);
+  await fails(call('set_synth_filter', { channel: 'Lead', type: 'moog' }), /Invalid option/);
+  await fails(call('set_synth_filter', { channel: 'Lead', morph: 2 }), /expected number to be <=1 at morph/);
+  await call('set_synth_filter', { channel: 'Lead', type: f1.f1Type, cutoff: f1.f1Cutoff, resonance: f1.f1Res, drive: f1.f1Drive, keyTrack: f1.f1Key, morph: f1.f1Morph });
+  // envelopes: delay and hold stages, a curve per stage; the old single curve still works and means the same shape
+  assert.match(await call('set_synth_envelope', { channel: 'Lead', envelope: 1, delay: 0.05, hold: 0.1, attackCurve: 0.4, decayCurve: -0.8 }), /Amp envelope: delay 0\.05 A [\d.]+ H 0\.1 D/);
+  ins = chan(await project(), 'Lead').instrument.params;
+  assert.deepEqual([ins.env1Delay, ins.env1Hold, ins.env1ACurve, ins.env1DCurve, ins.env1RCurve], [0.05, 0.1, 0.4, -0.8, -0.5]);
+  await call('set_synth_envelope', { channel: 'Lead', envelope: 3, curve: 1, releaseCurve: 0 });
+  ins = chan(await project(), 'Lead').instrument.params;
+  assert.deepEqual([ins.env3DCurve, ins.env3RCurve, Math.round(ins.env3ACurve * 1000) / 1000], [-1, 0, -0.495]);
+  assert.equal(ins.env3Curve, undefined);
+  await fails(call('set_synth_envelope', { channel: 'Lead', envelope: 1, hold: 9 }), /expected number to be <=5 at hold/);
+  await call('set_synth_envelope', { channel: 'Lead', envelope: 1, delay: 0, hold: 0, attackCurve: f1.env1ACurve, decayCurve: f1.env1DCurve });
+  // a patch document written before the per-stage curves is still accepted
+  await call('update_synth_patch', { channel: 'Lead', patch: { envelopes: [{ id: 4, decay: 0.2, curve: -1 }] } });
+  assert.equal(chan(await project(), 'Lead').instrument.params.env4DCurve, -0.25);
   await fails(call('set_synth_oscillator', { channel: 'Lead', table: 'glass' }), /Say which oscillator/);
   await fails(call('set_synth_filter', { channel: 'Lead', resonance: 1.5 }), /expected number to be <=1 at resonance/);
   await call('add_channel', { name: 'Keys', instrument: 'fm' });

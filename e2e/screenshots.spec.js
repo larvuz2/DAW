@@ -274,13 +274,34 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   });
   expect(lead).toBeTruthy();
 
-  // the synth editor (oscillators) next to the modulation matrix of the same patch
-  await layout(page, { channelSettings: [10, 10, 860, 870] });
+  // the synth editor: oscillators, then the hands-on tabs of the same window (filters, envelopes, matrix)
+  await layout(page, { channelSettings: [10, 10, 1060, 870] });
   await expect(page.locator('.ggs-osc canvas').first()).toBeVisible();
   await page.screenshot({ path: `${OUT}/ggs-synth.png` });
-  await page.locator('.ggs-tabs button', { hasText: 'Matrix' }).click();
+  const tab = async (name) => { await page.locator('.ggs-tabs button', { hasText: name }).click(); await page.waitForTimeout(250); };
+  const clip = { x: 10, y: 50, width: 1060, height: 830 };
+  // a second filter of another family, so the picture shows what the curves are
+  await page.evaluate((id) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id, patch: { instrument: { params: { f1Type: 'ladder24', f1Res: 0.55, f2On: true, f2Type: 'formant', f2Cutoff: 1000, f2Res: 0.4, f2Morph: 0.25 } } } }]), lead);
+  await tab('Filters');
+  await page.screenshot({ path: `${OUT}/ggs-filters.png`, clip });
+  await tab('Envelopes');
+  await page.screenshot({ path: `${OUT}/ggs-envelopes.png`, clip });
+  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await tab('Matrix');
+  await page.screenshot({ path: `${OUT}/ggs-matrix.png`, clip });
+  // the preset browser and the wavetable grid
+  await tab('Oscillators');
+  await page.locator('.ggs-presets-name').click();
+  await page.locator('.ggs-browser input[type=search]').fill('bass');
   await page.waitForTimeout(200);
-  await page.screenshot({ path: `${OUT}/ggs-matrix.png`, clip: { x: 10, y: 50, width: 860, height: 830 } });
+  await page.screenshot({ path: `${OUT}/ggs-presets.png`, clip: { x: 10, y: 50, width: 1060, height: 560 } });
+  await page.locator('.ggs-browser input[type=search]').press('Escape');
+  await page.locator('.ggs-osc').first().locator('.ggs-wt-name').click();
+  await expect(page.locator('.ggs-wt-grid button')).toHaveCount(46);
+  await page.waitForTimeout(900);
+  await page.locator('.ggs-wt-panel').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${OUT}/ggs-wavetables.png`, clip });
+  await page.keyboard.press('Escape');
 
   // the piano roll: pitch curves over the notes, the pitch lane underneath
   await layout(page, { pianoRoll: [10, 10, 1580, 600] });

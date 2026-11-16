@@ -11,10 +11,10 @@ server (pitch, LUFS, spectrum, envelope) with no browser needed. Work in a loop:
 
 ## 1. Know the instrument
 
-`describe_synth` (overview), then the topic you need: `wavetables`, `modulation`, `parameters`, `presets`.
+`describe_synth` (overview), then the topic you need: `filters`, `wavetables`, `modulation`, `parameters`, `presets`.
 
-Signal path per note: oscillators A/B/C (wavetable + unison + warp + FM) + sub + noise → filter 1 / filter 2 → amp
-(envelope 1). Per channel: drive → chorus → delay → reverb → gain. Movement: 4 envelopes, 4 LFOs, 4 macros,
+Signal path per note: oscillators A/B/C (46 wavetables + unison + warp + FM) + sub + noise → filter 1 / filter 2
+(21 models) → amp (envelope 1). Per channel: drive → chorus → delay → reverb → gain. Movement: 4 envelopes, 4 LFOs, 4 macros,
 16 modulation routes. Amounts are fractions of the target's range: `f1Cutoff 0.3` = 3 octaves, `oscAPos 0.5` = half
 the table, `pitch 0.5` = 12 semitones, `pitchFine 0.3` = 0.3 semitones.
 
@@ -29,10 +29,26 @@ One section per call, only the fields that change:
 | Goal | Call |
 |------|------|
 | Timbre | `set_synth_oscillator oscillator="A" table=… position=… unison=… detune=…` |
-| Tone / sweep | `set_synth_filter filter=1 type="lp24" cutoff=… resonance=…` |
-| Shape in time | `set_synth_envelope envelope=1 attack=… decay=… sustain=… release=…` |
+| Tone / sweep | `set_synth_filter filter=1 type="lp24" cutoff=… resonance=…` (the reply shows the measured response) |
+| Shape in time | `set_synth_envelope envelope=1 attack=… decay=… sustain=… release=…` (+ `delay`, `hold`, `attackCurve`, `decayCurve`, `releaseCurve`) |
 | Motion | `set_synth_lfo lfo=1 …` + `set_synth_modulation routes=[{source:"lfo1", target:"oscAPos", amount:0.2}]` |
 | Space | `set_synth_effect chorus={mix} delay={mix, sync} reverb={mix, size}` |
+
+Choosing a filter — the model is half the sound:
+
+| You want | Filter |
+|----------|--------|
+| Neutral, precise, modern | `lp24` / `lp12` (clean) |
+| Warm, fat, singing — classic analog bass and lead | `ladder24` (brighter: `ladder12`); resonance > 0.9 self-oscillates in tune |
+| Acid squelch | `acid`, resonance 0.75–0.95, cutoff 300–600 Hz (it sounds darker than the number), a fast envelope on `f1Cutoff` |
+| Snarl and scream that keeps its bass | `ms20Lp` (resonance 0.5–0.8, drive to taste) |
+| Vowels, talking, choirs | `formant`, cutoff 1000, `keyTrack 0`; move `f1Morph` (0 A · 0.25 E · 0.5 I · 0.75 O · 1 U) |
+| Swirl inside each note | `phaser` after a low-pass, a slow LFO on its cutoff; `morph` = stages |
+| Plucked string, metal, pipes | `comb` with `keyTrack 1`, cutoff 261.63, a noise burst in; resonance = ring time, `morph` = damping (`combNeg` = hollow) |
+| A shape that moves | `morph` (low-pass → band-pass → high-pass on `f1Morph`) |
+
+Envelope curves: negative = fast first (a natural decay; `decayCurve -0.8` is a sharp pluck), 0 = straight, positive
+= slow first (`attackCurve 0.5` is a swell that arrives late). `hold` keeps a pluck's body before it falls.
 
 Rules that save a patch:
 - Envelopes 2–4 and LFOs do **nothing** until routed in the matrix.

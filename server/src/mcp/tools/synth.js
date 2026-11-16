@@ -8,7 +8,7 @@ import {
   GGS_PARAMS, GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, OSC_IDS, WARP_MODES, FM_SOURCES, SOURCE_DESTS, FILTER_TYPES, FILTER_ROUTES,
   SUB_WAVES, NOISE_TYPES, LFO_SHAPES, LFO_SYNC, LFO_TRIGGERS, DRIVE_TYPES, DELAY_SYNC, QUALITIES, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO,
   MOD_TARGET_INFO, MOD_SLOTS, WAVETABLE_IDS, describeWavetables, describeSynth, paramsToPatch, patchToParams, sectionToParams, modulationRoutes,
-  routesToParams, checkRoute, summarizePatch, ggsDefaults, releaseTail
+  routesToParams, checkRoute, summarizePatch, ggsDefaults, releaseTail, FILTER_INFO, filterResponse, migrateParams
 } from '@greanteadawy/synth-dsp';
 import { z, ok, projectIdArg, annotations as A, uniqueName, normVelocity } from '../util.js';
 import { curveArg, buildExpression } from './expression.js';
@@ -60,11 +60,20 @@ export function registerSynthTools({ tool, backend, load }) {
 
   tool('describe_synth', {
     title: 'GGS Synth reference',
-    description: 'What the GGS Synth can do, for sound design: its sections and every field with range and default (topic "parameters"), the wavetables and what each sounds like ("wavetables"), modulation sources and targets and what an amount of 1 means ("modulation"), and the preset library with macro assignments ("presets"). Read "overview" first.',
-    inputSchema: { topic: z.enum(['overview', 'parameters', 'wavetables', 'modulation', 'presets']).optional().describe('Default: overview') },
+    description: 'What the GGS Synth can do, for sound design: its sections and every field with range, default and what it does (topic "parameters"), the 21 filter models and what each sounds like ("filters"), the wavetables ("wavetables"), modulation sources and targets and what an amount of 1 means ("modulation"), and the preset library with macro assignments ("presets"). Read "overview" first.',
+    inputSchema: { topic: z.enum(['overview', 'parameters', 'filters', 'wavetables', 'modulation', 'presets']).optional().describe('Default: overview') },
     annotations: A.readOnly
   }, async ({ topic = 'overview' }) => {
     if (topic === 'parameters') return ok('GGS Synth fields by section (as used by the set_synth_* tools and patch documents):', describeSynth());
+    if (topic === 'filters') {
+      return ok([
+        `Filter models (${FILTER_TYPES.length}) for set_synth_filter "type". cutoff is in Hz, resonance / drive / morph 0..1; "morph" only does something where noted.`,
+        'Analog-style models (ladder, acid, ms20) and the combs saturate, so quality "auto" renders them at 2× the sample rate.',
+        ...FILTER_TYPES.map((id) => `  ${id.padEnd(9)} ${FILTER_INFO[id].label}${FILTER_INFO[id].morph ? ` [morph = ${FILTER_INFO[id].morph.toLowerCase()}]` : ''}: ${FILTER_INFO[id].desc}`),
+        '',
+        'set_synth_filter replies with the measured response of the setting, so you can see what a cutoff/resonance really does.'
+      ].join('\n'));
+    }
     if (topic === 'wavetables') return ok(`Wavetables (${WAVETABLE_IDS.length}) — "position" scans a table from its first frame (0) to its last (1):\n${describeWavetables().map((t) => `  ${t.id.padEnd(10)} ${t.name} (${t.frames} frames): ${t.description}`).join('\n')}`);
     if (topic === 'modulation') {
       return ok([
@@ -82,17 +91,19 @@ export function registerSynthTools({ tool, backend, load }) {
     return ok([
       'GGS SYNTH — a wavetable / FM hybrid synthesizer (instrument kind "ggs"). Signal path per note:',
       '  oscillators A, B, C (wavetable, unison, warp, FM from another source) + sub + noise',
-      '  → filter 1 / filter 2 (serial or parallel; lp/hp/bp 12 or 24 dB, notch, peak, comb; drive, key tracking)',
+      `  → filter 1 / filter 2 (serial or parallel; ${FILTER_TYPES.length} models: clean lp/hp/bp 12 or 24 dB, notch, peak, all-pass, morph · analog-style ladder, acid, MS-20 · formant, phaser, combs; drive, key tracking, morph — topic "filters")`,
       '  → amp (envelope 1 × velocity) → channel effects: drive → chorus → delay → reverb → gain',
-      `Movement: 4 envelopes, 4 LFOs (Hz or tempo-synced; per note or free-running), 4 macros and a ${MOD_SLOTS}-route modulation matrix.`,
+      `Movement: 4 envelopes (delay, attack, hold, decay, sustain, release, with a curve per stage), 4 LFOs (Hz or tempo-synced; per note or free-running), 4 macros and a ${MOD_SLOTS}-route modulation matrix.`,
       'Every note has its own pitch curve, pressure and slide (timbre): route pressure/timbre in the matrix to make them audible (set_note_expression writes the curves).',
       '',
       'Workflow: create_synth_patch (preset or blank) → set_synth_oscillator / set_synth_filter / set_synth_envelope / set_synth_lfo / set_synth_modulation / set_synth_effect → analyze_synth_patch (renders a note or chord here and measures pitch, loudness, spectrum, envelope) → adjust. get_synth_patch reads a patch back; update_synth_patch applies a whole patch document.',
-      'Topics: "parameters" (every field and range), "wavetables", "modulation" (sources, targets, amounts), "presets".',
+      'Topics: "parameters" (every field, its range and what it does), "filters", "wavetables", "modulation" (sources, targets, amounts), "presets".',
       '',
       'Sound-design starting points:',
       '  pad: 2 oscillators, unison 3-5, detune 10-25 ct, lp24 800-2000 Hz, envelope 1 attack 0.4-1.5 s release 1.5-4 s, slow free LFO → oscillator position, chorus + reverb',
-      '  bass: phaseRandom 0, sub level 0.3-0.6 to "direct", lp24 200-800 Hz with envelope 2 → f1Cutoff 0.3-0.45, mono + glide 0.03-0.08 s',
+      '  bass: phaseRandom 0, sub level 0.3-0.6 to "direct", lp24 or ladder24 200-800 Hz with envelope 2 → f1Cutoff 0.3-0.45, mono + glide 0.03-0.08 s',
+      '  acid line: one saw, filter "acid" cutoff 300-600 Hz resonance 0.75-0.95 drive 0.3-0.5, envelope 2 (decay 0.15-0.3 s, decayCurve -0.6) → f1Cutoff 0.3 (more via velocity for accents), mono + legato + glide 0.06 s',
+      '  vowels / talking: a saw or pulse into filter "formant" (cutoff 1000, keyTrack 0), timbre or an LFO → f1Morph',
       '  pluck/keys: envelope 1 sustain 0 decay 0.3-3 s, envelope 2 (short) → oscillator position or f1Cutoff, velocity → f1Cutoff 0.15',
       '  lead: mono or poly, pressure → f1Cutoff 0.3, LFO → pitchFine 0.3 via pressure (vibrato you play), timbre → oscAPos',
       '  FM bell: oscillator B (sine: table basic position 0, level 0) as fmFrom of A, fm 0.2-0.4, envelope 2 → oscAFm'
@@ -185,7 +196,7 @@ export function registerSynthTools({ tool, backend, load }) {
 
   tool('set_synth_filter', {
     title: 'Set a synth filter',
-    description: 'Configure filter 1 or 2 of a GGS Synth (type, cutoff in Hz, resonance, drive, key tracking) and how the two are connected. Types: lp12/lp24 low-pass, hp12/hp24 high-pass, bp12/bp24 band-pass, notch, peak, comb (cutoff = the comb\'s pitch: with keyTrack 1 and cutoff 261.63 it is tuned to the note — plucked and metallic sounds). Sweep a filter per note with set_synth_modulation (target f1Cutoff / f2Cutoff, 1 = 10 octaves).',
+    description: 'Configure filter 1 or 2 of a GGS Synth (type, cutoff in Hz, resonance, drive, key tracking, morph) and how the two are connected. Types — clean: lp12/lp24, hp12/hp24, bp12/bp24, notch, peak, allpass, morph (morph 0 low-pass → 0.5 band-pass → 1 high-pass); analog-style: ladder24/ladder12/ladderBp/ladderHp (warm, self-oscillates above resonance ~0.9), acid (TB-303 diode ladder), ms20Lp/ms20Hp (screaming, keeps its bass); special: formant (morph = vowel A-E-I-O-U, cutoff 1000 = natural), phaser (morph = stages), comb/combNeg (cutoff = the comb\'s pitch: with keyTrack 1 and cutoff 261.63 it is tuned to the note; resonance = ring time, morph = damping). describe_synth topic "filters" says what each sounds like. The reply includes the measured frequency response of the new setting. Sweep a filter per note with set_synth_modulation (targets f1Cutoff / f2Cutoff, 1 = 10 octaves; f1Morph / f2Morph).',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
       filter: z.union([z.literal(1), z.literal(2)]).optional().describe('Which filter the fields below belong to (default 1)'),
@@ -195,6 +206,7 @@ export function registerSynthTools({ tool, backend, load }) {
       resonance: unit.optional().describe('0 = none, 0.3 = a clear peak, 0.8+ = whistling'),
       drive: unit.optional().describe('Saturation into the filter (adds harmonics and weight)'),
       keyTrack: unit.optional().describe('1 = the cutoff follows the note (and its pitch curve)'),
+      morph: unit.optional().describe('Second control of morph (shape), formant (vowel), phaser (stages) and the combs (damping); ignored by the other types'),
       routing: z.enum(FILTER_ROUTES).optional().describe('serial: filter 1 → filter 2; parallel: side by side')
     },
     annotations: A.edit
@@ -203,26 +215,39 @@ export function registerSynthTools({ tool, backend, load }) {
     const ch = ggsChannel(p, channel);
     const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
     if (given.on === undefined && Object.keys(given).length && !ch.instrument.params[`f${filter}On`]) given.on = true;
-    return applyParams(p, ch, { ...sectionToParams('filter', filter, given), ...(routing ? { filterRoute: routing } : {}) }, `Set filter ${filter}`);
+    const reply = await applyParams(p, ch, { ...sectionToParams('filter', filter, given), ...(routing ? { filterRoute: routing } : {}) }, `Set filter ${filter}`);
+    // what the setting does, measured on the filter itself (small signal, at its base cutoff: no modulation, no key tracking)
+    const now = { ...ch.instrument.params, ...sectionToParams('filter', filter, given) };
+    const freqs = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const db = filterResponse({ type: now[`f${filter}Type`], cutoff: now[`f${filter}Cutoff`], resonance: now[`f${filter}Res`], drive: now[`f${filter}Drive`], morph: now[`f${filter}Morph`] }, freqs);
+    reply.content[0].text += `\nMeasured response of filter ${filter} (${now[`f${filter}Type`]}): ${freqs.map((f, i) => `${f >= 1000 ? `${f / 1000}k` : f} Hz ${db[i] > 0 ? '+' : ''}${Math.max(-99, Math.round(db[i] * 10) / 10)} dB`).join(' · ')}`;
+    return reply;
   });
 
   tool('set_synth_envelope', {
     title: 'Set a synth envelope',
-    description: 'Shape one of the four envelopes of a GGS Synth: attack, decay, release in seconds, sustain 0..1, curve (-1 linear … 1 very exponential). Envelope 1 is the amp envelope (it ends the note); envelopes 2-4 do nothing until routed with set_synth_modulation (e.g. env2 → f1Cutoff).',
+    description: 'Shape one of the four envelopes of a GGS Synth: delay, attack, hold, decay, release in seconds, sustain 0..1, and a curve per moving stage (-1..1: 0 = straight line, negative = fastest at the start — a punchy attack, a natural plucky decay —, positive = slow start that rushes at the end). Defaults: attackCurve -0.3, decayCurve and releaseCurve -0.5. Envelope 1 is the amp envelope (it ends the note); envelopes 2-4 do nothing until routed with set_synth_modulation (e.g. env2 → f1Cutoff).',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
       envelope: z.number().int().min(1).max(4).describe('1 = amp envelope'),
+      delay: z.number().min(0).max(5).optional().describe('Seconds at zero before the attack starts'),
       attack: z.number().min(0.001).max(10).optional(),
+      hold: z.number().min(0).max(5).optional().describe('Seconds at full level before the decay (the body of a pluck or kick)'),
       decay: z.number().min(0.005).max(10).optional(),
       sustain: unit.optional(),
       release: z.number().min(0.005).max(15).optional(),
-      curve: z.number().min(-1).max(1).optional()
+      attackCurve: z.number().min(-1).max(1).optional().describe('0 straight · negative fast first (punchy) · positive slow first (swell)'),
+      decayCurve: z.number().min(-1).max(1).optional().describe('0 straight · negative drops fast then settles (pluck; -1 very sharp) · positive holds on, then falls'),
+      releaseCurve: z.number().min(-1).max(1).optional().describe('Like decayCurve, for the tail after the key is let go'),
+      curve: z.number().min(-1).max(1).optional().describe('Older shorthand for all three curves at once (-1 gentle … 1 very sharp); the per-stage curves win when both are given')
     },
     annotations: A.edit
-  }, async ({ projectId, channel, envelope, ...fields }) => {
+  }, async ({ projectId, channel, envelope, curve, ...fields }) => {
     const p = await load(projectId);
     const ch = ggsChannel(p, channel);
-    return applyParams(p, ch, sectionToParams('envelope', envelope, fields), `Set envelope ${envelope}`);
+    const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+    const params = { ...(curve !== undefined ? migrateParams({ [`env${envelope}Curve`]: curve }) : {}), ...sectionToParams('envelope', envelope, given) };
+    return applyParams(p, ch, params, `Set envelope ${envelope}`);
   });
 
   tool('set_synth_lfo', {
@@ -254,7 +279,7 @@ export function registerSynthTools({ tool, backend, load }) {
 
   tool('set_synth_modulation', {
     title: 'Set synth modulation routes',
-    description: 'Connect modulation sources to targets in a GGS Synth\'s matrix (16 routes): envelopes, LFOs, velocity, the note\'s pressure / timbre (slide) / bend curves, key, random, release velocity and the 4 macros → pitch, oscillator position/level/pan/warp/FM/detune, filter cutoff/resonance/drive, level, pan, LFO rates. mode "add" (default) adds routes, updating an existing route with the same source, target and via; "replace" replaces the whole matrix. remove deletes routes by source+target. macros sets the four macro values. This is how per-note expression becomes sound: e.g. pressure → f1Cutoff 0.3, timbre → oscAPos 0.5.',
+    description: 'Connect modulation sources to targets in a GGS Synth\'s matrix (16 routes): envelopes, LFOs, velocity, the note\'s pressure / timbre (slide) / bend curves, key, random, release velocity and the 4 macros → pitch, oscillator position/level/pan/warp/FM/detune, filter cutoff/resonance/drive/morph, level, pan, LFO rates. The reply says what every route does in the units of its target (e.g. "Filter 1 cutoff 850 Hz → 4.49 kHz as pressure goes 0 → 1"). mode "add" (default) adds routes, updating an existing route with the same source, target and via; "replace" replaces the whole matrix. remove deletes routes by source+target. macros sets the four macro values. This is how per-note expression becomes sound: e.g. pressure → f1Cutoff 0.3, timbre → oscAPos 0.5.',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
       routes: z.array(routeSchema).max(MOD_SLOTS).optional(),

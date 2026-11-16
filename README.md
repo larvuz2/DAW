@@ -30,10 +30,12 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 94 music-pro
   choke groups, per-channel groove (nudge in ms, swing share), mini piano-roll previews for melodic channels.
 - **Expressive velocity** — a hardware-style squared curve, and softer notes are darker (drums, filters, FM, sampler,
   piano/guitar/bass tone).
-- **GGS Synth** — an original wavetable / FM hybrid synthesizer: 3 wavetable oscillators (24 band-limited tables,
-  unison, warp, FM), sub + noise, 2 routable filters, 4 envelopes, 4 LFOs, 4 macros, a 16-route modulation matrix
-  and built-in drive / chorus / delay / reverb, with an editor that shows waveforms, spectra, filter responses and
-  envelope shapes. 30 presets levelled by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
+- **GGS Synth** — an original wavetable / FM hybrid synthesizer: 3 wavetable oscillators (46 band-limited tables,
+  unison, warp, FM), sub + noise, 2 routable filters with 21 models (clean, ladder, acid, MS-20, formant, phaser,
+  combs), 4 envelopes with delay, hold and a curve per slope, 4 LFOs, 4 macros, a 16-route modulation matrix and
+  built-in drive / chorus / delay / reverb. Its editor is hands-on: drag the nodes of an envelope, the handle on a
+  filter's measured response; browse presets and wavetables by search and sight; read every modulation route in
+  real units. 30 presets levelled by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
 - **Per-note expression (MPE-style)** — every note has its own pitch, pressure and slide curve and a release
   velocity: draw them in the piano roll's expression lane, play them in from an MPE controller (or any keyboard),
   have Claude write them. Bend one note of a chord; pitch curves work on every instrument.
