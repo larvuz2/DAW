@@ -6,9 +6,10 @@
 // Rendering runs in control blocks of CTRL output samples: modulation is evaluated once per block and every audible
 // control (pitch, level, table position, cutoff, amp) is ramped across the block, so nothing steps ("zipper noise").
 import { getWavetable, tableLevel, levelFor, FRAME, STRIDE } from './wavetables.js';
-import { completeParams, syncBeats, needsOversampling, envCurveK, MOD_SOURCES, MOD_TARGETS, OSC_IDS, ENV_COUNT, LFO_COUNT, MOD_SLOTS, SOURCE_DESTS, WARP_MODES, LFO_SHAPES, SUB_WAVES } from './params.js';
-import { VoiceFilter } from './filters.js';
-import { Rng, hash32, hashBipolar, Decimator2, clamp, TAU } from './util.js';
+import { GGS_PARAMS, completeParams, syncBeats, needsOversampling, envCurveK, MOD_SOURCES, MOD_TARGETS, OSC_IDS, ENV_COUNT, LFO_COUNT, MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, MOD_SLOTS, SOURCE_DESTS, WARP_MODES, LFO_SHAPES, SUB_WAVES } from './params.js';
+import { VoiceFilter, NC, NS } from './filters.js';
+import { Chaos } from './chaos.js';
+import { Rng, hash32, hashBipolar, Decimator2, DEFAULT_HALFBAND, Arena, clamp, TAU } from './util.js';
 
 export const CTRL = 16;
 const MAX_UNISON = 8;
@@ -18,6 +19,23 @@ const SRC = Object.fromEntries(MOD_SOURCES.map((s, i) => [s, i]));
 const DST = Object.fromEntries(MOD_TARGETS.map((s, i) => [s, i]));
 const WARP = Object.fromEntries(WARP_MODES.map((s, i) => [s, i]));
 const LFO = Object.fromEntries(LFO_SHAPES.map((s, i) => [s, i]));
+// the keys of the matrix slots, built once (64 slots × 4 template strings per note would add up)
+// Param keys by group and field, built once — K.oscA.Pos === 'oscAPos' — so that starting a note builds no strings.
+function keysOf(prefix) {
+  const out = {};
+  for (const d of GGS_PARAMS) if (d.key.startsWith(prefix)) out[d.key.slice(prefix.length)] = d.key;
+  return out;
+}
+const OSC_K = Object.fromEntries(OSC_IDS.map((x) => [x, keysOf(`osc${x}`)]));
+const OSC_BASE = Object.fromEntries(OSC_IDS.map((x) => [x, DST[`osc${x}Pitch`]])); // first of an oscillator's seven targets
+const ENV_K = [null, ...[1, 2, 3, 4].map((i) => keysOf(`env${i}`))];
+const LFO_K = [null, ...[1, 2, 3, 4].map((i) => keysOf(`lfo${i}`))];
+const F_K = [null, keysOf('f1'), keysOf('f2')];
+const CHAOS_K = [null, ...Array.from({ length: CHAOS_COUNT }, (_, i) => keysOf(`chaos${i + 1}`))];
+// everything a voice keeps in typed arrays over 64 bytes comes out of one block (see Arena)
+const VOICE_BYTES = 8 * (5 * (MAX_INNER / 2) + MOD_SOURCES.length + MOD_TARGETS.length + 2 * (3 * NC + NS) + 4 * DEFAULT_HALFBAND.length);
+const MACRO_KEYS = Array.from({ length: MACRO_COUNT }, (_, i) => `macro${i + 1}`);
+const SLOT_KEYS = Array.from({ length: MOD_SLOTS }, (_, i) => [`mod${i + 1}Src`, `mod${i + 1}Dst`, `mod${i + 1}Amt`, `mod${i + 1}Via`]);
 
 // scratch buffers shared by every voice in a realm (voices render one after another, never interleaved)
 const bus = () => new Float32Array(MAX_INNER);
@@ -108,7 +126,7 @@ function stageCurve(curve) {
 
 /** One oscillator's running state. */
 class Osc {
-  constructor(id) {
+  constructor(id, mem) {
     this.id = id;
     this.phase = new Float64Array(MAX_UNISON);
     this.ratio = new Float64Array(MAX_UNISON).fill(1);
@@ -117,7 +135,7 @@ class Osc {
     this.gm = new Float64Array(MAX_UNISON);
     this.fbA = new Float64Array(MAX_UNISON);
     this.fbB = new Float64Array(MAX_UNISON);
-    this.mono = new Float32Array(MAX_INNER);
+    this.mono = mem.f32(MAX_INNER);
     this.on = false;
     this.table = null;
     this.unison = 0;
@@ -160,10 +178,11 @@ export class GgsVoice {
     this.finished = false;
     this.first = true;
 
-    this.oscs = OSC_IDS.map((id) => new Osc(id));
-    this.sub = { phase: 0, inc: 0, level: 0, mono: new Float32Array(MAX_INNER), first: true, need: 0, lvl: 0, data: null };
-    this.noise = { level: 0, mono: new Float32Array(MAX_INNER), lp: 0, lpR: 0, pink: new Float64Array(6), brown: 0, brownR: 0, first: true };
-    this.vf = [new VoiceFilter(this.fsI), new VoiceFilter(this.fsI)];
+    const mem = new Arena(VOICE_BYTES);
+    this.oscs = OSC_IDS.map((id) => new Osc(id, mem));
+    this.sub = { phase: 0, inc: 0, level: 0, mono: mem.f32(MAX_INNER), first: true, need: 0, lvl: 0, data: null };
+    this.noise = { level: 0, mono: mem.f32(MAX_INNER), lp: 0, lpR: 0, pink: new Float64Array(6), brown: 0, brownR: 0, first: true };
+    this.vf = [new VoiceFilter(this.fsI, mem), new VoiceFilter(this.fsI, mem)];
     this.fstate = [{ fc: 1000, lastOct: NaN, lastCutoff: NaN }, { fc: 1000, lastOct: NaN, lastCutoff: NaN }];
     // fades around structural edits (see SWAP_KEYS): how open each unit is, where it is heading, what waits
     this.gate = new Float64Array(4);
@@ -173,17 +192,20 @@ export class GgsVoice {
     this.next = null;
     this.envs = Array.from({ length: ENV_COUNT }, () => new Envelope());
     this.lfoPhase = new Float64Array(LFO_COUNT);
-    this.src = new Float64Array(MOD_SOURCES.length);
-    this.dst = new Float64Array(MOD_TARGETS.length);
+    this.macro = new Float64Array(MACRO_COUNT);
+    this.chaos = [null, null];
+    this.chaosc = Array.from({ length: CHAOS_COUNT }, () => ({ used: false, type: 0, rate: 1, beats: 0, char: 0.5, steps: 16, same: false }));
+    this.src = mem.f64(MOD_SOURCES.length);
+    this.dst = mem.f64(MOD_TARGETS.length);
     this.amp = 0;
     this.panL = Math.SQRT1_2;
     this.panR = Math.SQRT1_2;
-    this.dec = this.os === 2 ? new Decimator2() : null;
+    this.dec = this.os === 2 ? new Decimator2(DEFAULT_HALFBAND, mem) : null;
 
     const target = 440 * Math.pow(2, (this.key - 69) / 12);
     this.glideSemis = opts.glideFrom > 0 && this.p.glide > 0 ? 12 * Math.log2(opts.glideFrom / target) : 0;
     this.configure();
-    for (let i = 0; i < LFO_COUNT; i++) this.lfoPhase[i] = this.p[`lfo${i + 1}Phase`];
+    for (let i = 0; i < LFO_COUNT; i++) this.lfoPhase[i] = this.p[LFO_K[i + 1].Phase];
     for (let u = 0; u < 4; u++) this.gate[u] = this.gateTo[u] = this.unitOpen(u);
     const legato = !!opts.legato && this.p.legato;
     for (let i = 0; i < ENV_COUNT; i++) this.envs[i].on(legato, this.envc[i]);
@@ -191,7 +213,7 @@ export class GgsVoice {
 
   /** How open a fade unit is when nothing is changing: an oscillator that is off stays closed. */
   unitOpen(u) {
-    return u === BUS || this.p[`osc${OSC_IDS[u]}On`] ? 1 : 0;
+    return u === BUS || this.p[OSC_K[OSC_IDS[u]].On] ? 1 : 0;
   }
 
   /**
@@ -252,34 +274,35 @@ export class GgsVoice {
     const p = this.p;
     for (const o of this.oscs) {
       const x = o.id;
-      o.on = p[`osc${x}On`];
+      const k = OSC_K[x];
+      o.on = p[k.On];
       if (!o.on) continue;
-      const tableId = p[`osc${x}Table`];
+      const tableId = p[k.Table];
       if (!o.table || o.table.id !== tableId) o.table = getWavetable(tableId);
-      const unison = Math.round(p[`osc${x}Unison`]);
+      const unison = Math.round(p[k.Unison]);
       if (unison !== o.unison) {
         // new unison voices start at their own phase so a stack never begins as one loud, phasey spike
-        for (let u = o.unison; u < unison; u++) o.phase[u] = (p[`osc${x}Phase`] + p[`osc${x}Rand`] * this.rng.unit()) % 1;
+        for (let u = o.unison; u < unison; u++) o.phase[u] = (p[k.Phase] + p[k.Rand] * this.rng.unit()) % 1;
         o.unison = unison;
         o.detune = -1;
         o.lastPan = NaN;
       }
       // numbers the control loop reads every block (string-keyed lookups are far too slow for that)
-      o.semis = p[`osc${x}Oct`] * 12 + p[`osc${x}Semi`] + p[`osc${x}Fine`] / 100;
-      o.pPos = p[`osc${x}Pos`];
-      o.pLevel = p[`osc${x}Level`];
-      o.pPan = p[`osc${x}Pan`];
-      o.pWarp = p[`osc${x}WarpAmt`];
-      o.pFm = p[`osc${x}Fm`];
-      o.pDetune = p[`osc${x}Detune`];
-      if (p[`osc${x}Blend`] !== o.blend || p[`osc${x}Spread`] !== o.spread) o.lastPan = NaN;
-      o.blend = p[`osc${x}Blend`];
-      o.spread = p[`osc${x}Spread`];
-      o.base = DST[`osc${x}Pitch`];
+      o.semis = p[k.Oct] * 12 + p[k.Semi] + p[k.Fine] / 100;
+      o.pPos = p[k.Pos];
+      o.pLevel = p[k.Level];
+      o.pPan = p[k.Pan];
+      o.pWarp = p[k.WarpAmt];
+      o.pFm = p[k.Fm];
+      o.pDetune = p[k.Detune];
+      if (p[k.Blend] !== o.blend || p[k.Spread] !== o.spread) o.lastPan = NaN;
+      o.blend = p[k.Blend];
+      o.spread = p[k.Spread];
+      o.base = OSC_BASE[x];
       o.need = 0;
-      o.warp = WARP[p[`osc${x}Warp`]] || 0;
-      o.dest = SOURCE_DESTS.indexOf(p[`osc${x}Dest`]);
-      const from = p[`osc${x}FmFrom`];
+      o.warp = WARP[p[k.Warp]] || 0;
+      o.dest = SOURCE_DESTS.indexOf(p[k.Dest]);
+      const from = p[k.FmFrom];
       o.fmSelf = from === x;
       o.fmFrom = from === 'off' || o.fmSelf ? null : from;
     }
@@ -296,34 +319,51 @@ export class GgsVoice {
 
     this.slots = [];
     const used = new Set();
-    for (let i = 1; i <= MOD_SLOTS; i++) {
-      const s = SRC[p[`mod${i}Src`]] || 0;
-      const d = DST[p[`mod${i}Dst`]] || 0;
-      const amt = p[`mod${i}Amt`];
-      if (!s || !d || !amt) continue;
-      const via = SRC[p[`mod${i}Via`]] || 0;
+    for (let i = 0; i < MOD_SLOTS; i++) {
+      const keys = SLOT_KEYS[i];
+      const s = SRC[p[keys[0]]] || 0;
+      if (!s) continue;
+      const d = DST[p[keys[1]]] || 0;
+      const amt = p[keys[2]];
+      if (!d || !amt) continue;
+      const via = SRC[p[keys[3]]] || 0;
       this.slots.push(s, d, amt, via);
       used.add(s);
       if (via) used.add(via);
     }
     this.slotCount = this.slots.length / 4;
     this.envUsed = [true, used.has(SRC.env2), used.has(SRC.env3), used.has(SRC.env4)];
-    this.lfoUsed = [1, 2, 3, 4].map((i) => used.has(SRC[`lfo${i}`]));
+    this.lfoUsed = [1, 2, 3, 4].map((i) => used.has(SRC.lfo1 + i - 1));
+    // chaos sources cost nothing until they are routed; a generator is made the first time one is
+    for (let i = 0; i < CHAOS_COUNT; i++) {
+      const n = i + 1;
+      const sync = p[CHAOS_K[n].Sync];
+      const same = p[CHAOS_K[n].Path] === 'same';
+      const c = this.chaosc[i];
+      c.used = used.has(SRC.chaos1 + i);
+      c.type = Math.max(0, CHAOS_TYPES.indexOf(p[CHAOS_K[n].Type]));
+      c.rate = p[CHAOS_K[n].Rate];
+      c.beats = sync === 'off' ? 0 : syncBeats(sync);
+      c.char = p[CHAOS_K[n].Char];
+      c.steps = p[CHAOS_K[n].Steps];
+      if (c.used && (!this.chaos[i] || c.same !== same)) this.chaos[i] = new Chaos(same ? 0xc4a05 + i : hash32(this.seed ^ Math.imul(i + 1, 0x632be5ab)));
+      c.same = same;
+    }
     this.envc = [1, 2, 3, 4].map((i) => {
-      const [ka, na] = stageCurve(p[`env${i}ACurve`]);
-      const [kd, nd] = stageCurve(p[`env${i}DCurve`]);
-      const [kr, nr] = stageCurve(p[`env${i}RCurve`]);
-      return { dl: p[`env${i}Delay`], a: p[`env${i}A`], h: p[`env${i}Hold`], d: p[`env${i}D`], s: p[`env${i}S`], r: p[`env${i}R`], ka, na, kd, nd, kr, nr };
+      const [ka, na] = stageCurve(p[ENV_K[i].ACurve]);
+      const [kd, nd] = stageCurve(p[ENV_K[i].DCurve]);
+      const [kr, nr] = stageCurve(p[ENV_K[i].RCurve]);
+      return { dl: p[ENV_K[i].Delay], a: p[ENV_K[i].A], h: p[ENV_K[i].Hold], d: p[ENV_K[i].D], s: p[ENV_K[i].S], r: p[ENV_K[i].R], ka, na, kd, nd, kr, nr };
     });
     this.lfoc = [1, 2, 3, 4].map((i) => {
-      const sync = p[`lfo${i}Sync`];
-      const free = p[`lfo${i}Trig`] === 'free';
-      return { shape: LFO[p[`lfo${i}Shape`]] || 0, rate: p[`lfo${i}Rate`], beats: sync === 'off' ? 0 : syncBeats(sync), free, fade: p[`lfo${i}Fade`], phase: p[`lfo${i}Phase`], seed: free ? 1000 + i : this.seed + i };
+      const sync = p[LFO_K[i].Sync];
+      const free = p[LFO_K[i].Trig] === 'free';
+      return { shape: LFO[p[LFO_K[i].Shape]] || 0, rate: p[LFO_K[i].Rate], beats: sync === 'off' ? 0 : syncBeats(sync), free, fade: p[LFO_K[i].Fade], phase: p[LFO_K[i].Phase], seed: free ? 1000 + i : this.seed + i };
     });
-    this.fc = [1, 2].map((i) => ({ on: p[`f${i}On`], cutoff: p[`f${i}Cutoff`], res: p[`f${i}Res`], drive: p[`f${i}Drive`], key: p[`f${i}Key`], morph: p[`f${i}Morph`] }));
+    this.fc = [1, 2].map((i) => ({ on: p[F_K[i].On], cutoff: p[F_K[i].Cutoff], res: p[F_K[i].Res], drive: p[F_K[i].Drive], key: p[F_K[i].Key], morph: p[F_K[i].Morph] }));
     this.vf[0].setType(p.f1Type);
     this.vf[1].setType(p.f2Type);
-    this.macro = [p.macro1, p.macro2, p.macro3, p.macro4];
+    for (let i = 0; i < MACRO_COUNT; i++) this.macro[i] = p[MACRO_KEYS[i]];
     this.glide = p.glide;
     this.level = p.level;
     this.subLevel = p.subLevel;
@@ -355,8 +395,9 @@ export class GgsVoice {
 
   /**
    * Render `count` frames, ADDING them to outL/outR from index `start`.
-   * ctl: { pitch, pressure, timbre, macros[4], time } — pitch (semitones), pressure and timbre (0..1) are numbers or
-   * per-frame arrays indexed like the output; macros are 0..1; time is the absolute time (s) of frame `start`.
+   * ctl: { pitch, pressure, timbre, macros[8], time } — pitch (semitones), pressure and timbre (0..1) are numbers or
+   * per-frame arrays indexed like the output; macros are 0..1 (missing ones take the patch's own values); time is
+   * the absolute time (s) of frame `start`.
    */
   process(outL, outR, start, count, ctl) {
     if (this.finished) return;
@@ -404,7 +445,12 @@ export class GgsVoice {
     src[SRC.random] = this.random;
     src[SRC.releaseVel] = this.released ? this.releaseVel : 0;
     const macros = ctl.macros;
-    for (let i = 0; i < 4; i++) src[SRC.macro1 + i] = clamp(macros ? macros[i] : this.macro[i], 0, 1);
+    const given = macros ? macros.length : 0;
+    for (let i = 0; i < MACRO_COUNT; i++) src[SRC.macro1 + i] = clamp(i < given ? macros[i] : this.macro[i], 0, 1);
+    for (let i = 0; i < CHAOS_COUNT; i++) {
+      const c = this.chaosc[i];
+      if (c.used) src[SRC.chaos1 + i] = this.chaos[i].advance(dt, c.type, c.beats ? this.bpm / 60 / c.beats : c.rate, c.char, c.steps);
+    }
 
     // LFOs read the rate modulation of the previous block (one block late is inaudible, and it breaks the loop
     // "LFO → matrix → LFO rate")

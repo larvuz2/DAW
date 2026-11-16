@@ -2,7 +2,7 @@
 // instrument); for people, files and agents the same patch reads better as a document with oscillators, filters,
 // envelopes, LFOs and a list of modulation routes. These two functions convert between the forms, and
 // PATCH_FIELDS — readable field name → param key suffix — is the one mapping both they and the MCP tools use.
-import { GGS_PARAMS, OSC_IDS, ENV_COUNT, LFO_COUNT, MACRO_COUNT, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, ggsDefaults, ggsParamDef, migrateParams } from './params.js';
+import { GGS_PARAMS, OSC_IDS, ENV_COUNT, LFO_COUNT, MACRO_COUNT, CHAOS_COUNT, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, ggsDefaults, ggsParamDef, migrateParams } from './params.js';
 import { FILTER_INFO } from './filters.js';
 
 export const PATCH_FORMAT = 'ggs-synth-patch';
@@ -22,6 +22,7 @@ export const PATCH_FIELDS = {
     attackCurve: 'ACurve', decayCurve: 'DCurve', releaseCurve: 'RCurve'
   },
   lfo: { shape: 'Shape', rate: 'Rate', sync: 'Sync', trigger: 'Trig', fade: 'Fade', phase: 'Phase' },
+  chaos: { type: 'Type', rate: 'Rate', sync: 'Sync', character: 'Char', steps: 'Steps', path: 'Path' },
   voice: {
     level: 'level', velocity: 'velSens', releaseVelocity: 'relVelSens', polyphony: 'polyphony', mono: 'mono', legato: 'legato',
     glide: 'glide', quality: 'quality', gain: 'gain'
@@ -41,6 +42,7 @@ export function sectionKey(section, id, field) {
   if (section === 'filter') return `f${id}${suffix}`;
   if (section === 'envelope') return `env${id}${suffix}`;
   if (section === 'lfo') return `lfo${id}${suffix}`;
+  if (section === 'chaos') return `chaos${id}${suffix}`;
   return suffix;
 }
 
@@ -104,10 +106,11 @@ export function checkRoute(r) {
 const SOURCE_LABELS = {
   env1: 'Env 1 (amp)', env2: 'Env 2', env3: 'Env 3', env4: 'Env 4', lfo1: 'LFO 1', lfo2: 'LFO 2', lfo3: 'LFO 3', lfo4: 'LFO 4',
   velocity: 'velocity', pressure: 'pressure', timbre: 'slide', bend: 'pitch bend', key: 'key position', random: 'the per-note random',
-  releaseVel: 'release velocity', macro1: 'Macro 1', macro2: 'Macro 2', macro3: 'Macro 3', macro4: 'Macro 4'
+  releaseVel: 'release velocity', ...Object.fromEntries(Array.from({ length: MACRO_COUNT }, (_, i) => [`macro${i + 1}`, `Macro ${i + 1}`])),
+  chaos1: 'Chaos 1', chaos2: 'Chaos 2'
 };
 /** Sources that swing both ways (-1..1); the others run 0..1. */
-export const BIPOLAR_SOURCES = new Set(['lfo1', 'lfo2', 'lfo3', 'lfo4', 'bend', 'key', 'random']);
+export const BIPOLAR_SOURCES = new Set(['lfo1', 'lfo2', 'lfo3', 'lfo4', 'bend', 'key', 'random', 'chaos1', 'chaos2']);
 export const modSourceLabel = (source) => SOURCE_LABELS[source] || source;
 
 /**
@@ -202,6 +205,43 @@ export function describeRoute(params, route) {
 /** Every active route of a patch as sentences. */
 export const describeRoutes = (params) => modulationRoutes(params).map((r) => describeRoute(params, r));
 
+/**
+ * How far the matrix can move each target, all routes together: { target: { lo, hi } } in matrix units (what the
+ * voice sums before scaling; 0 = the knob's own position). A unipolar source pushes one way, a bipolar one both;
+ * "via" only scales a route down, so it does not widen the range. This is what the rings around the knobs show.
+ */
+export function modulationRanges(params) {
+  const out = {};
+  for (const r of modulationRoutes(params)) {
+    const range = out[r.target] || (out[r.target] = { lo: 0, hi: 0, routes: 0 });
+    const both = BIPOLAR_SOURCES.has(r.source) || (r.via && BIPOLAR_SOURCES.has(r.via));
+    const a = Math.abs(r.amount);
+    if (both) { range.lo -= a; range.hi += a; } else if (r.amount > 0) range.hi += a; else range.lo -= a;
+    range.routes++;
+  }
+  return out;
+}
+
+/** Where a target stands when the matrix adds `d` (matrix units) to it — the knob's unit, clamped to its range. */
+export const targetValue = (spec, d) => routeValue(spec, 1, d).value;
+
+/**
+ * What a macro is called. A preset names its macros; a macro the preset does not name (or one the player has
+ * rerouted from scratch) is called after what it moves — "F1 cutoff", "F1 cutoff +2" — and "Macro n" while it moves
+ * nothing. labels: the preset's names, if any.
+ */
+export function macroLabel(params, n, labels) {
+  if (labels?.[n - 1]) return labels[n - 1];
+  const routes = modulationRoutes(params).filter((r) => r.source === `macro${n}` || r.via === `macro${n}`);
+  if (!routes.length) return `Macro ${n}`;
+  const first = modTargetLabel(routes[0].target, params).replace(/^Filter (\d)/, 'F$1').replace(/^Osc ([ABC]) /, '$1 ').replace('position', 'pos').replace('resonance', 'res');
+  const name = first.charAt(0).toUpperCase() + first.slice(1);
+  return routes.length > 1 ? `${name} +${routes.length - 1}` : name;
+}
+
+/** Is a macro routed anywhere (as a source or as the "via" of a route)? */
+export const macroUsed = (params, n) => modulationRoutes(params).some((r) => r.source === `macro${n}` || r.via === `macro${n}`);
+
 /** A flat params object as a patch document. */
 export function paramsToPatch(params, { name = 'Patch' } = {}) {
   const p = { ...ggsDefaults(), ...params };
@@ -216,6 +256,7 @@ export function paramsToPatch(params, { name = 'Patch' } = {}) {
     filterRouting: p.filterRoute,
     envelopes: Array.from({ length: ENV_COUNT }, (_, i) => ({ id: i + 1, ...paramsToSection(p, 'envelope', i + 1) })),
     lfos: Array.from({ length: LFO_COUNT }, (_, i) => ({ id: i + 1, ...paramsToSection(p, 'lfo', i + 1) })),
+    chaos: Array.from({ length: CHAOS_COUNT }, (_, i) => ({ id: i + 1, ...paramsToSection(p, 'chaos', i + 1) })),
     macros: Array.from({ length: MACRO_COUNT }, (_, i) => p[`macro${i + 1}`]),
     modulation: modulationRoutes(p).map(({ slot: _slot, ...r }) => r),
     voice: paramsToSection(p, 'voice'),
@@ -246,7 +287,7 @@ export function patchToParams(patch) {
     Object.assign(out, sectionToParams('oscillator', id, { ...(Object.keys(fields).length && !('on' in fields) ? { on: true } : {}), ...fields }));
   }
   const numbered = (list, section, count) => {
-    for (const item of listOf(list, `${section}s`)) {
+    for (const item of listOf(list, section === 'chaos' ? 'chaos' : `${section}s`)) {
       const id = Number(item?.id);
       if (!(Number.isInteger(id) && id >= 1 && id <= count)) throw new Error(`Unknown ${section} "${item?.id}": use 1..${count}`);
       const { id: _id, ...fields } = item;
@@ -262,6 +303,7 @@ export function patchToParams(patch) {
   numbered(patch.filters, 'filter', 2);
   numbered(patch.envelopes, 'envelope', ENV_COUNT);
   numbered(patch.lfos, 'lfo', LFO_COUNT);
+  numbered(patch.chaos, 'chaos', CHAOS_COUNT);
   for (const section of ['sub', 'noise', 'voice']) if (patch[section] !== undefined) Object.assign(out, sectionToParams(section, null, patch[section]));
   if (patch.filterRouting !== undefined) out.filterRoute = patch.filterRouting;
   if (patch.macros !== undefined) listOf(patch.macros, 'macros').slice(0, MACRO_COUNT).forEach((v, i) => { out[`macro${i + 1}`] = v; });
@@ -293,9 +335,10 @@ export function describeSynth() {
     filterRouting: field('filterRoute'),
     envelope: section('envelope', 2),
     lfo: section('lfo', 1),
+    chaos: section('chaos', 1),
     voice: section('voice'),
     effects: { drive: section('drive'), chorus: section('chorus'), delay: section('delay'), reverb: section('reverb') },
-    counts: { oscillators: OSC_IDS, filters: 2, envelopes: ENV_COUNT, lfos: LFO_COUNT, macros: MACRO_COUNT, modulationSlots: MOD_SLOTS, params: GGS_PARAMS.length }
+    counts: { oscillators: OSC_IDS, filters: 2, envelopes: ENV_COUNT, lfos: LFO_COUNT, chaos: CHAOS_COUNT, macros: MACRO_COUNT, modulationSlots: MOD_SLOTS, params: GGS_PARAMS.length }
   };
 }
 
@@ -317,6 +360,11 @@ export function summarizePatch(params) {
   if (filters.length) lines.push(`Filters: ${filters.join(' · ')}${filters.length > 1 ? ` (${p.filterRoute})` : ''}`);
   lines.push(`Amp envelope: ${p.env1Delay ? `delay ${r2(p.env1Delay)} ` : ''}A ${r2(p.env1A)} ${p.env1Hold ? `H ${r2(p.env1Hold)} ` : ''}D ${r2(p.env1D)} S ${r2(p.env1S)} R ${r2(p.env1R)} s${p.mono ? `; mono${p.legato ? ' legato' : ''}${p.glide ? `, glide ${r2(p.glide)} s` : ''}` : `; ${p.polyphony} voices`}`);
   const routes = modulationRoutes(p);
+  for (let i = 1; i <= CHAOS_COUNT; i++) {
+    if (!routes.some((r) => r.source === `chaos${i}` || r.via === `chaos${i}`)) continue;
+    const sync = p[`chaos${i}Sync`];
+    lines.push(`Chaos ${i}: ${p[`chaos${i}Type`]}, ${sync === 'off' ? `${r2(p[`chaos${i}Rate`])} Hz` : sync}, character ${r2(p[`chaos${i}Char`])}${p[`chaos${i}Type`] === 'turing' ? `, ${p[`chaos${i}Steps`]} steps` : ''}, ${p[`chaos${i}Path`] === 'same' ? 'the same path for every note' : 'its own path per note'}`);
+  }
   if (routes.length) {
     lines.push(`Modulation: ${routes.map((r) => `${r.source}${r.via ? `×${r.via}` : ''}→${r.target} ${r.amount > 0 ? '+' : ''}${r2(r.amount)}`).join(', ')}`);
     for (const r of routes) lines.push(`  · ${describeRoute(p, r)}`);

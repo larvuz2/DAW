@@ -197,7 +197,7 @@ function sanitizeTarget(d, t) {
   const type = t.type;
   if (type === 'channel') {
     const c = chan(d, t.id);
-    req(channelAutomationParams(c).includes(t.param), `Channel automation param must be volume, pan, pitch, filterCutoff or filterRes${c.instrument.kind === 'ggs' ? ', or macro1..macro4' : ' (macro1..macro4 only on a GGS Synth channel)'}`);
+    req(channelAutomationParams(c).includes(t.param), `Channel automation param must be volume, pan, pitch, filterCutoff or filterRes${c.instrument.kind === 'ggs' ? ', or macro1..macro8' : ' (macro1..macro8 only on a GGS Synth channel)'}`);
     return { type, id: t.id, param: t.param };
   }
   if (type === 'mixer') {

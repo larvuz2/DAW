@@ -4,6 +4,7 @@ import {
   findChannel, findPattern, parseNote, noteName, STEP, ticksToSeconds, evaluateComposition, formatEvaluation,
   EXPRESSION_DIMS, EXPRESSION_RANGE, CURVE_SHAPES, MAX_EXPRESSION_POINTS, makeCurve, sanitizeCurve, transformCurve, describeExpression, expressionFields
 } from '@greanteadawy/core';
+import { modulationRoutes } from '@greanteadawy/synth-dsp';
 import { z, ok, projectIdArg, annotations as A, steps } from '../util.js';
 
 const pointSchema = z.object({
@@ -105,8 +106,7 @@ export function audibilityNotes(channel, dims) {
   }
   const p = channel.instrument.params;
   for (const dim of soft) {
-    let routed = false;
-    for (let i = 1; i <= 16; i++) if (p[`mod${i}Amt`] && p[`mod${i}Dst`] !== 'none' && (p[`mod${i}Src`] === dim || p[`mod${i}Via`] === dim)) routed = true;
+    const routed = modulationRoutes(p).some((r) => r.source === dim || r.via === dim);
     if (!routed) notes.push(`This patch does not route ${dim} anywhere yet, so the curve changes nothing: add a route with set_synth_modulation (e.g. ${dim} → f1Cutoff 0.3).`);
   }
   return notes;

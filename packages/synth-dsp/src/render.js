@@ -2,7 +2,7 @@
 // Used by tests, benchmarks and the server (analysing a patch without a browser).
 import { GgsVoice } from './voice.js';
 import { GgsFx } from './fx.js';
-import { completeParams, releaseTail } from './params.js';
+import { completeParams, releaseTail, MACRO_COUNT } from './params.js';
 import { hash32 } from './util.js';
 
 const BLOCK = 128;
@@ -51,7 +51,8 @@ export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120,
   const tmpL = new Float32Array(BLOCK);
   const tmpR = new Float32Array(BLOCK);
   const arrays = { pitch: new Float32Array(BLOCK), pressure: new Float32Array(BLOCK), timbre: new Float32Array(BLOCK) };
-  const macroValues = macros || [p.macro1, p.macro2, p.macro3, p.macro4];
+  // (a shorter list leaves the remaining macros at the patch's own values)
+  const macroValues = macros || Array.from({ length: MACRO_COUNT }, (_, i) => p[`macro${i + 1}`]);
   const active = [];
   let next = 0;
 

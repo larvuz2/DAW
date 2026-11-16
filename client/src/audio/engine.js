@@ -684,12 +684,11 @@ export class AudioEngine {
         case 'filterCutoff': return { key: `channel:${target.id}:filterCutoff`, params: [s.filter.frequency], map: (v) => Math.min(nyq, 20 * Math.pow(1000, v)), rest: () => Math.min(nyq, c.filterCutoff) };
         case 'filterRes': return { key: `channel:${target.id}:filterRes`, params: [s.filter.Q], map: (v) => 0.1 * Math.pow(200, v), rest: () => c.filterRes };
         case 'pitch': return null; // applied per note in Transport.scheduleRange
-        case 'macro1': case 'macro2': case 'macro3': case 'macro4': {
-          // a GGS Synth macro: the constant source that feeds every voice's macro input
-          const src = s.ggs?.macros[Number(target.param.slice(5)) - 1];
+        default: {
+          // a GGS Synth macro (macro1…macro8): the constant source that feeds every voice's macro input
+          const src = /^macro\d$/.test(target.param) ? s.ggs?.macros[Number(target.param.slice(5)) - 1] : null;
           return src ? { key: `channel:${target.id}:${target.param}`, params: [src.offset], map: (v) => v, rest: () => c.instrument.params[target.param] ?? 0 } : null;
         }
-        default: return null;
       }
     }
     if (target.type === 'mixer' || target.type === 'master') {
@@ -778,6 +777,16 @@ export class AudioEngine {
   // ------------------------------------------------------------------ meters
 
   /** Peak level per mixer insert (0..~1.5). */
+  /** The synth editor opened (on = true) or closed on a GGS channel: its voices report their modulation while it is open. */
+  watchGgs(channelId, on) {
+    this.strips.get(channelId)?.ggs?.setWatch(on);
+  }
+
+  /** Where the modulation of a GGS channel's newest note stands: Float32Array [sources…, targets…], or null. */
+  ggsLive(channelId) {
+    return this.strips.get(channelId)?.ggs?.live ?? null;
+  }
+
   getLevels() {
     const buf = this.meterBuf;
     return this.inserts.map((ins) => {

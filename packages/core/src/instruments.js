@@ -272,7 +272,7 @@ export const INSTRUMENTS = {
   },
   ggs: {
     label: 'GGS Synth', category: 'synth', melodic: true, defaultKey: 60, color: '#46c79a', expressive: true,
-    description: 'Wavetable / FM hybrid synthesizer: 3 wavetable oscillators (unison, warp, phase modulation) + sub + noise, 2 routable filters, 4 envelopes, 4 LFOs, 16-slot modulation matrix, 4 macros and built-in drive, chorus, delay and reverb. Every note has its own pitch, pressure and slide (timbre) curves — route them in the matrix. Its params live in packages/synth-dsp (the engine); use the synth tools (describe_synth, set_synth_*) rather than raw params.',
+    description: 'Wavetable / FM hybrid synthesizer: 3 wavetable oscillators (unison, warp, phase modulation) + sub + noise, 2 routable filters (21 models), 4 envelopes, 4 LFOs, 2 chaos sources, a 64-route modulation matrix, 8 macros and built-in drive, chorus, delay and reverb. Every note has its own pitch, pressure and slide (timbre) curves — route them in the matrix. Its params live in packages/synth-dsp (the engine); use the synth tools (describe_synth, set_synth_*) rather than raw params.',
     params: GGS_PARAMS,
     presets: GGS_PRESETS,
     // renames keys of patches saved by older versions (anything loaded or sent passes through here before validation)

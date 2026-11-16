@@ -36,8 +36,8 @@ test('the server registers the expression and synth tools, and describes the syn
   const names = tools.map((t) => t.name);
   for (const n of ['set_note_expression', 'get_note_expression', 'transform_note_expression', 'copy_note_expression', 'evaluate_composition',
     'describe_synth', 'create_synth_patch', 'get_synth_patch', 'update_synth_patch', 'set_synth_oscillator', 'set_synth_filter',
-    'set_synth_envelope', 'set_synth_lfo', 'set_synth_modulation', 'set_synth_effect', 'analyze_synth_patch']) assert.ok(names.includes(n), n);
-  assert.equal(names.length, 94);
+    'set_synth_envelope', 'set_synth_lfo', 'set_synth_chaos', 'set_synth_modulation', 'set_synth_effect', 'analyze_synth_patch']) assert.ok(names.includes(n), n);
+  assert.equal(names.length, 95);
   for (const t of tools) assert.ok(t.description, `${t.name} is described`);
   assert.match(await call('describe_synth'), /oscillators A, B, C/);
   assert.match(await call('describe_synth', { topic: 'wavetables' }), /glass\s+Spectral Glass \(12 frames\)/);
@@ -122,6 +122,21 @@ test('section tools edit one part of a patch; other instruments are refused with
   assert.equal(ins.env3Curve, undefined);
   await fails(call('set_synth_envelope', { channel: 'Lead', envelope: 1, hold: 9 }), /expected number to be <=5 at hold/);
   await call('set_synth_envelope', { channel: 'Lead', envelope: 1, delay: 0, hold: 0, attackCurve: f1.env1ACurve, decayCurve: f1.env1DCurve });
+  // chaos: configure a generator, see its path, be told to route it; then route it and the hint is gone
+  const chaos = await call('set_synth_chaos', { channel: 'Lead', chaos: 2, type: 'turing', sync: '1/16', character: 0.1, steps: 8, path: 'same' });
+  assert.match(chaos, /Chaos 2 \(turing; rate = steps per second\) over 12 cycles: [▁▂▃▄▅▆▇█]{48}/);
+  assert.match(chaos, /Not routed yet: add a route with set_synth_modulation \(source chaos2\), e\.g\. chaos2 → f1Cutoff 0\.15/);
+  ins = chan(await project(), 'Lead').instrument.params;
+  assert.deepEqual([ins.chaos2Type, ins.chaos2Sync, ins.chaos2Char, ins.chaos2Steps, ins.chaos2Path, ins.chaos1Type], ['turing', '1/16', 0.1, 8, 'same', 'lorenz']);
+  await call('set_synth_modulation', { channel: 'Lead', routes: [{ source: 'chaos2', target: 'f1Cutoff', amount: 0.15 }] });
+  const routed = await call('set_synth_chaos', { channel: 'Lead', chaos: 2, character: 0 });
+  assert.doesNotMatch(routed, /Not routed yet/);
+  assert.match(routed, /Chaos 2: turing, 1\/16, character 0, 8 steps, the same path for every note[\s\S]*Filter 1 cutoff [\d.]+ k?Hz ↔ [\d.]+ k?Hz as Chaos 2 swings −1 ↔ 1/);
+  await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 3, type: 'drift' }), /expected number to be <=2 at chaos/);
+  await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 1, type: 'henon' }), /Invalid option/);
+  await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 1 }), /Nothing to change/);
+  await call('set_synth_modulation', { channel: 'Lead', remove: [{ source: 'chaos2', target: 'f1Cutoff' }] });
+  assert.match(await call('describe_synth', { topic: 'modulation' }), /64 routes[\s\S]*macro8\s+macro 8[\s\S]*chaos1\s+chaos generator 1[\s\S]*CHAOS \(set_synth_chaos[\s\S]*drift\s+rate = how fast it wanders/);
   // a patch document written before the per-stage curves is still accepted
   await call('update_synth_patch', { channel: 'Lead', patch: { envelopes: [{ id: 4, decay: 0.2, curve: -1 }] } });
   assert.equal(chan(await project(), 'Lead').instrument.params.env4DCurve, -0.25);
@@ -144,16 +159,22 @@ test('set_synth_modulation: add, update in place, via, remove, replace, the 16-r
   ins = chan(await project(), 'Lead').instrument.params;
   assert.deepEqual([ins.mod3Src, ins.mod4Src], ['lfo1', 'none'], 'routes close up');
   await fails(call('set_synth_modulation', { channel: 'Lead', remove: [{ source: 'env4', target: 'pan' }] }), /No route env4 → pan to remove. Routes: pressure→f1Cutoff/);
-  const many = Array.from({ length: 16 }, (_, i) => ({ source: 'key', target: ['pan', 'level', 'pitch', 'f1Res'][i % 4], amount: 0.01 * (i + 1), via: ['velocity', 'random', 'macro1', 'macro2'][Math.floor(i / 4)] }));
-  await fails(call('set_synth_modulation', { channel: 'Lead', routes: many }), /makes 19 routes; a patch has 16/);
+  // 64 routes fit; the 65th is refused and nothing changes
+  const many = Array.from({ length: 62 }, (_, i) => ({ source: 'key', target: ['pan', 'level', 'pitch', 'f1Res'][i % 4], amount: 0.001 * (i + 1), via: ['velocity', 'random', 'macro1', 'macro2', 'macro5', 'macro6', 'macro7', 'macro8', 'chaos1', 'chaos2', 'env3', 'env4', 'lfo2', 'lfo3', 'lfo4', 'releaseVel'][Math.floor(i / 4)] }));
+  await fails(call('set_synth_modulation', { channel: 'Lead', routes: many }), /makes 65 routes; a patch has 64/);
   assert.equal(chan(await project(), 'Lead').instrument.params.mod4Src, 'none', 'nothing changed');
+  const full = await call('set_synth_modulation', { channel: 'Lead', routes: many.slice(0, 61), macros: [0.25, 0, 0, 1, 0, 0, 0, 0.5] });
+  ins = chan(await project(), 'Lead').instrument.params;
+  assert.deepEqual([ins.mod64Src, ins.mod64Via, ins.macro8, ins.macro4], ['key', 'releaseVel', 0.5, 1]);
+  assert.match(full, /Pan 0 ↔ 0 as key position swings −1 ↔ 1, depth scaled by velocity/);
+  assert.match(await call('get_synth_patch', { channel: 'Lead' }), /8 \(Pan \+\d+\) = 0\.5[\s\S]*Modulation slots used: 64\/64/);
   await call('set_synth_modulation', { channel: 'Lead', mode: 'replace', routes: [{ source: 'pressure', target: 'f1Cutoff', amount: 0.4 }, { source: 'timbre', target: 'oscBPos', amount: 0.42 }] });
   ins = chan(await project(), 'Lead').instrument.params;
   assert.deepEqual([ins.mod1Src, ins.mod2Src, ins.mod3Src], ['pressure', 'timbre', 'none']);
 });
 
 test('patch documents travel: get_synth_patch → create_synth_patch makes the same sound', async () => {
-  assert.match(await call('get_synth_patch', { channel: 'Lead' }), /GGS Synth "Lead"[\s\S]*Modulation slots used: 2\/16/);
+  assert.match(await call('get_synth_patch', { channel: 'Lead' }), /GGS Synth "Lead"[\s\S]*Modulation slots used: 2\/64/);
   const text = await call('get_synth_patch', { channel: 'Lead', format: 'document' });
   const doc = JSON.parse(text.slice(text.indexOf('{')));
   assert.equal(doc.format, 'ggs-synth-patch');
@@ -288,7 +309,9 @@ test('add_notes writes notes with their performance in one call', async () => {
 test('macros automate on a GGS channel only, and go when the channel stops being one', async () => {
   await call('place_pattern', { pattern: 'Lead', startBar: 1 });
   assert.match(await call('add_automation', { name: 'Open up', target: { type: 'channel', channel: 'Pad', param: 'macro1' }, startBar: 1, bars: 2, points: [{ bar: 0, value: 0 }, { bar: 2, value: 1 }] }), /Added automation "Open up" \[auto_/);
-  await fails(call('add_automation', { target: { type: 'channel', channel: 'Keys', param: 'macro1' }, startBar: 1, points: [{ bar: 0, value: 0 }] }), /macro1\.\.macro4 only on a GGS Synth channel/);
+  await fails(call('add_automation', { target: { type: 'channel', channel: 'Keys', param: 'macro1' }, startBar: 1, points: [{ bar: 0, value: 0 }] }), /macro1\.\.macro8 only on a GGS Synth channel/);
+  assert.match(await call('add_automation', { name: 'Eighth', target: { type: 'channel', channel: 'Pad', param: 'macro8' }, startBar: 3, bars: 1, points: [{ bar: 0, value: 1 }] }), /Added automation "Eighth"/);
+  await fails(call('add_automation', { target: { type: 'channel', channel: 'Pad', param: 'macro9' }, startBar: 1, points: [{ bar: 0, value: 0 }] }), /macro1\.\.macro8/);
   await call('update_channel', { channel: 'Pad', instrument: 'synth' });
   const p = await project();
   assert.equal(p.automations.length, 0);
@@ -301,6 +324,13 @@ test('evaluate_composition flags what will not sound as written', async () => {
   await call('create_synth_patch', { name: 'Bass', preset: 'Deep Sub' });
   await call('add_notes', { pattern: 'Lead', channel: 'Bass', notes: [{ note: 'C2', start: 0, length: 8 }, { note: 'G2', start: 0, length: 8 }, { note: 'F#2', start: 8, length: 8 }] });
   await call('set_synth_modulation', { channel: 'Lead', mode: 'replace', routes: [{ source: 'pressure', target: 'f1Cutoff', amount: 0.4 }] });
+  // a route far down the matrix counts too (both checks once only looked at the first 16 slots)
+  const slide = /channel "Lead": \d+ note\(s\) have a slide \(timbre\) curve, but the patch does not route timbre anywhere/;
+  const g = notesOf(await project(), 'Lead').find((n) => n.expression?.timbre);
+  await call('update_channel', { channel: 'Lead', params: { mod40Src: 'timbre', mod40Dst: 'oscAPos', mod40Amt: 0.2 } });
+  assert.doesNotMatch(await call('evaluate_composition'), slide);
+  assert.doesNotMatch(await call('set_note_expression', { pattern: 'Lead', channel: 'Lead', noteIds: [g.id], timbre: g.expression.timbre.length ? { points: g.expression.timbre.map((pt) => ({ at: pt.t, value: pt.v })) } : null }), /does not route timbre/);
+  await call('update_channel', { channel: 'Lead', params: { mod40Src: 'none', mod40Dst: 'none', mod40Amt: 0 } });
   const report = await call('evaluate_composition');
   assert.match(report, /COMPOSITION CHECK — 120 BPM, C major/);
   assert.match(report, /\[voices\] channel "Bass": The patch is mono but 2 notes sound at once/);

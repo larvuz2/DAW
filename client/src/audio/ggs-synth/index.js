@@ -1,5 +1,5 @@
 // GGS Synth on the main thread: loading the worklet, the per-channel rig (effects + macro sources) and the voices.
-import { ggsDefaults, releaseTail, FX_KEYS, hash32 } from '@greanteadawy/synth-dsp';
+import { ggsDefaults, releaseTail, FX_KEYS, hash32, MACRO_COUNT } from '@greanteadawy/synth-dsp';
 import { scheduleCurve } from '../dsp.js';
 import { workletUrl } from './module.js';
 
@@ -31,6 +31,8 @@ export function prepareGgs(ctx, project) {
 }
 
 const DEFAULTS = ggsDefaults();
+const MACROS = Array.from({ length: MACRO_COUNT }, (_, i) => `macro${i + 1}`);
+const LIVE_FOR = 0.2; // seconds a voice's last report stays "live" (they come about every 33 ms)
 const TABLE_KEYS = ['oscATable', 'oscBTable', 'oscCTable'];
 const compactCache = new WeakMap();
 /**
@@ -57,8 +59,10 @@ function delta(prev, next) {
 
 /**
  * The part of a GGS channel that outlives its notes: an input the voices play into, the effects processor after
- * it, and four constant sources — the macros — that feed every voice's macro AudioParams (so automation of a macro
+ * it, and eight constant sources — the macros — that feed every voice's macro AudioParams (so automation of a macro
  * is sample-accurate and reaches notes that are already sounding).
+ * While the synth editor is open on the channel (`watch`), its voices report where their modulation stands; `live`
+ * is the latest report of the newest note — what the rings around the knobs show.
  */
 export class GgsChannel {
   constructor(ctx, dest, params, bpm) {
@@ -70,9 +74,11 @@ export class GgsChannel {
     this.input.connect(dest); // until the effects are in: straight through
     this.fx = null;
     this.voices = new Set();
-    this.macros = [1, 2, 3, 4].map((i) => {
+    this.watching = false;
+    this.report = null; // { values: Float32Array [sources…, targets…], start, at }
+    this.macros = MACROS.map((key) => {
       const src = ctx.createConstantSource();
-      src.offset.value = params[`macro${i}`] ?? 0;
+      src.offset.value = params[key] ?? 0;
       src.start();
       return src;
     });
@@ -102,7 +108,7 @@ export class GgsChannel {
     this.params = params;
     if (!d) return;
     this.macros.forEach((src, i) => {
-      const key = `macro${i + 1}`;
+      const key = MACROS[i];
       if (key in d && !automated?.(key)) src.offset.setTargetAtTime(d[key], this.ctx.currentTime, 0.01);
     });
     // the effects processor also builds a newly chosen wavetable before any voice needs it
@@ -114,8 +120,29 @@ export class GgsChannel {
   resetMacros() {
     this.macros.forEach((src, i) => {
       src.offset.cancelScheduledValues(0);
-      src.offset.setValueAtTime(this.params[`macro${i + 1}`] ?? 0, this.ctx.currentTime);
+      src.offset.setValueAtTime(this.params[MACROS[i]] ?? 0, this.ctx.currentTime);
     });
+  }
+
+  /** The editor opened (or closed) on this channel: its voices start (stop) reporting their modulation. */
+  setWatch(on) {
+    this.watching = !!on;
+    if (!on) this.report = null;
+    for (const node of this.voices) node.port.postMessage({ type: 'watch', on: this.watching });
+  }
+
+  /** A voice's report. The newest note wins; an older one is only shown once the newer has gone quiet. */
+  heard(m) {
+    const now = this.ctx.currentTime;
+    const r = this.report;
+    if (r && m.start < r.start && now - r.at < LIVE_FOR) return;
+    this.report = { values: m.values, start: m.start, at: now };
+  }
+
+  /** Where the modulation of the newest sounding note stands ([sources…, targets…]), or null when nothing sounds. */
+  get live() {
+    const r = this.report;
+    return r && this.ctx.currentTime - r.at < LIVE_FOR ? r.values : null;
   }
 
   setTempo(bpm) {
@@ -149,7 +176,7 @@ export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, 
         params: compact(params), key, velocity: velRaw, start: t, bpm: rig?.bpm || 120,
         // the same note at the same time always gets the same "random" parts: renders repeat exactly
         seed: seed ?? hash32(Math.round(t * ctx.sampleRate) ^ Math.imul(key + 1, 0x85ebca6b)),
-        glideFrom: glideFrom || 0, legato: !!glideFrom
+        glideFrom: glideFrom || 0, legato: !!glideFrom, watch: !!rig?.watching
       }
     });
   } catch (err) {
@@ -178,7 +205,7 @@ export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, 
     if (e.timbre) scheduleCurve(v.expr.timbre, e.timbre, t, seconds);
   }
   if (rig) {
-    rig.macros.forEach((src, i) => src.connect(P.get(`macro${i + 1}`)));
+    rig.macros.forEach((src, i) => src.connect(P.get(MACROS[i])));
     rig.voices.add(node);
   }
   // a source-like handle for Voice: stop() = hard stop, onended when the processor says the note is over
@@ -187,10 +214,11 @@ export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, 
     stop(time) { try { kill.setValueAtTime(1, Math.max(time, ctx.currentTime)); } catch { /* ignore */ } }
   };
   node.port.onmessage = (ev) => {
+    if (ev.data?.type === 'mod') { rig?.heard(ev.data); return; }
     if (ev.data?.type !== 'ended') return;
     node.port.onmessage = null;
     rig?.voices.delete(node);
-    rig?.macros.forEach((m, i) => { try { m.disconnect(P.get(`macro${i + 1}`)); } catch { /* ignore */ } });
+    rig?.macros.forEach((m, i) => { try { m.disconnect(P.get(MACROS[i])); } catch { /* ignore */ } });
     try { node.disconnect(); } catch { /* ignore */ }
     src.onended?.();
   };

@@ -3,8 +3,9 @@
 // prefix (oscA…, f1…, env2…, lfo3…, mod7…); `section` and `group` tell editors how to lay them out.
 import { WAVETABLE_IDS } from './wavetables.js';
 import { FILTER_TYPES, filterIsNonlinear } from './filters.js';
+import { CHAOS_TYPES } from './chaos.js';
 
-export { FILTER_TYPES };
+export { FILTER_TYPES, CHAOS_TYPES };
 
 const n = (key, label, min, max, def, extra = {}) => ({ key, label, type: 'number', min, max, default: def, ...extra });
 const sel = (key, label, options, def, extra = {}) => ({ key, label, type: 'select', options, default: def, ...extra });
@@ -25,8 +26,11 @@ export const DELAY_SYNC = ['free', '1/32', '1/16', '1/16d', '1/8t', '1/8', '1/8d
 export const QUALITIES = ['eco', 'auto', 'high'];
 export const ENV_COUNT = 4;
 export const LFO_COUNT = 4;
-export const MACRO_COUNT = 4;
-export const MOD_SLOTS = 16;
+export const MACRO_COUNT = 8;
+export const MOD_SLOTS = 64;
+export const CHAOS_COUNT = 2;
+/** Where a chaos source starts: "note" = every note wanders its own way; "same" = every note replays one path. */
+export const CHAOS_PATHS = ['note', 'same'];
 
 /** Length of a tempo division in beats ("1/8d" = dotted eighth, "2bar" = two 4/4 bars). */
 export function syncBeats(div) {
@@ -98,12 +102,14 @@ export function migrateParams(params) {
 }
 
 /**
- * Modulation sources. Envelopes, velocity, pressure, timbre and the macros run 0..1; LFOs, random, key and bend are
- * bipolar (-1..1). All of them are per note except the macros and LFOs set to "free" (shared by every note).
+ * Modulation sources. Envelopes, velocity, pressure, timbre and the macros run 0..1; LFOs, chaos, random, key and
+ * bend are bipolar (-1..1). All of them are per note except the macros and LFOs set to "free" (shared by every note).
+ * (The voice addresses the env, lfo, macro and chaos groups by index: keep each group together and in order.)
  */
 export const MOD_SOURCES = [
   'none', 'env1', 'env2', 'env3', 'env4', 'lfo1', 'lfo2', 'lfo3', 'lfo4',
-  'velocity', 'pressure', 'timbre', 'bend', 'key', 'random', 'releaseVel', 'macro1', 'macro2', 'macro3', 'macro4'
+  'velocity', 'pressure', 'timbre', 'bend', 'key', 'random', 'releaseVel',
+  'macro1', 'macro2', 'macro3', 'macro4', 'macro5', 'macro6', 'macro7', 'macro8', 'chaos1', 'chaos2'
 ];
 export const MOD_SOURCE_INFO = {
   none: 'nothing',
@@ -112,7 +118,8 @@ export const MOD_SOURCE_INFO = {
   velocity: 'note velocity, 0..1', pressure: "the note's pressure curve, 0..1", timbre: "the note's slide/timbre curve, 0..1",
   bend: "the note's pitch curve in octaves (-1..1 = ±12 semitones)", key: 'keyboard position, -1..1 around C4 (±5 octaves)',
   random: 'a random value per note, -1..1', releaseVel: 'release velocity, 0 until the note is let go',
-  macro1: 'macro 1, 0..1', macro2: 'macro 2, 0..1', macro3: 'macro 3, 0..1', macro4: 'macro 4, 0..1'
+  ...Object.fromEntries(Array.from({ length: MACRO_COUNT }, (_, i) => [`macro${i + 1}`, `macro ${i + 1}, 0..1`])),
+  chaos1: 'chaos generator 1 (Lorenz, Rössler, drift or Turing machine), -1..1', chaos2: 'chaos generator 2, -1..1'
 };
 
 /**
@@ -213,6 +220,19 @@ function lfoParams(i) {
   ];
 }
 
+function chaosParams(i) {
+  const s = { section: 'chaos', group: `Chaos ${i}` };
+  const d = (desc) => ({ ...s, desc });
+  return [
+    sel(`chaos${i}Type`, 'Type', CHAOS_TYPES, i === 1 ? 'lorenz' : 'drift', d('The generator: lorenz (swings between two centres, flipping unpredictably), rossler (a wobbling loop that lurches), drift (a random walk that comes home — analog pitch drift), turing (a looping step pattern that mutates).')),
+    n(`chaos${i}Rate`, 'Rate', 0.01, 50, i === 1 ? 0.5 : 0.3, { unit: 'Hz', curve: 'log', ...d('Speed when Sync is off: swings (lorenz) or orbits (rossler) per second, how fast drift wanders, steps per second for turing.') }),
+    sel(`chaos${i}Sync`, 'Sync', LFO_SYNC, 'off', d('Locks the speed to the tempo: the length of one swing, orbit or step as a note value. Off = use Rate.')),
+    n(`chaos${i}Char`, 'Character', 0, 1, 0.5, d('What kind of chaos: lorenz 0 = long stays on one side, 1 = restless · rossler 0 = nearly periodic, 1 = spiky · drift 0 = jittery, 1 = smooth · turing = the chance that a step mutates (0 locks the loop).')),
+    n(`chaos${i}Steps`, 'Steps', 2, 32, 16, { step: 1, ...d('Turing only: the length of the looping pattern in steps.') }),
+    sel(`chaos${i}Path`, 'Path', CHAOS_PATHS, 'note', d('note = every note gets its own path (voices drift apart, like analog hardware); same = every note replays the same path from its start (notes of a chord move together, and a part sounds the same every time).'))
+  ];
+}
+
 function modParams(i) {
   const s = { section: 'mod', group: `Mod ${i}` };
   const d = (desc) => ({ ...s, desc });
@@ -250,6 +270,7 @@ export const GGS_PARAMS = [
   ...envParams(3, 0.005, 0.4, 0, 0.3),
   ...envParams(4, 0.005, 0.4, 0, 0.3),
   ...range(LFO_COUNT).flatMap(lfoParams),
+  ...range(CHAOS_COUNT).flatMap(chaosParams),
   ...range(MACRO_COUNT).map((i) => n(`macro${i}`, `Macro ${i}`, 0, 1, 0, { section: 'macro', group: 'Macros', desc: `Macro ${i}: one knob for the whole channel that can drive any number of targets through the matrix. It can be automated in the playlist.` })),
   ...range(MOD_SLOTS).flatMap(modParams),
   n('level', 'Level', 0, 1, 1, voice('Volume of each note before the effects. Set it to 0 and route pressure to Level for a sound that only speaks when pressed.')),
@@ -280,7 +301,8 @@ export const GGS_PARAMS = [
 const BY_KEY = new Map(GGS_PARAMS.map((p) => [p.key, p]));
 export const ggsParamDef = (key) => BY_KEY.get(key) || null;
 
-const DEFAULTS = Object.freeze(Object.fromEntries(GGS_PARAMS.map((p) => [p.key, p.default])));
+// (not frozen: spreading a frozen object takes V8's slow path — 40 µs instead of 1, on every note. Nobody writes to it.)
+const DEFAULTS = Object.fromEntries(GGS_PARAMS.map((p) => [p.key, p.default]));
 /** A fresh copy of the init patch (one saw through an open filter). */
 export const ggsDefaults = () => ({ ...DEFAULTS });
 
@@ -292,9 +314,11 @@ export function completeParams(params) {
   const out = { ...DEFAULTS };
   if (!params || typeof params !== 'object') return out;
   params = migrateParams(params);
-  for (const def of GGS_PARAMS) {
-    const v = params[def.key];
-    if (v === undefined || v === null) continue;
+  // (walks what was given, not the whole schema: a note brings only what differs from the init patch)
+  for (const key in params) {
+    const def = BY_KEY.get(key);
+    const v = params[key];
+    if (!def || v === undefined || v === null) continue;
     if (def.type === 'number') {
       if (typeof v === 'number' && Number.isFinite(v)) out[def.key] = v < def.min ? def.min : v > def.max ? def.max : v;
     } else if (def.type === 'select') {
@@ -310,17 +334,21 @@ export function completeParams(params) {
  * so quality "auto" runs such patches at twice the sample rate — and plain patches, which can't alias, at 1×.
  */
 export function needsOversampling(p) {
-  for (const x of OSC_IDS) {
-    if (!p[`osc${x}On`]) continue;
-    if (p[`osc${x}Warp`] !== 'off') return true;
-    if (p[`osc${x}FmFrom`] !== 'off') return true;
+  for (const k of OSC_CHECKS) {
+    if (!p[k.on]) continue;
+    if (p[k.warp] !== 'off') return true;
+    if (p[k.fmFrom] !== 'off') return true;
   }
   if ((p.f1On && (p.f1Drive > 0 || filterIsNonlinear(p.f1Type))) || (p.f2On && (p.f2Drive > 0 || filterIsNonlinear(p.f2Type)))) return true;
-  for (let i = 1; i <= MOD_SLOTS; i++) {
-    if (p[`mod${i}Src`] !== 'none' && p[`mod${i}Amt`] && /(Fm|WarpAmt|Drive)$/.test(p[`mod${i}Dst`])) return true;
+  for (const k of SLOT_CHECKS) {
+    if (p[k.src] !== 'none' && p[k.amt] && HARMONIC_TARGETS.has(p[k.dst])) return true;
   }
   return false;
 }
+// (key names built once: this runs for every note)
+const OSC_CHECKS = OSC_IDS.map((x) => ({ on: `osc${x}On`, warp: `osc${x}Warp`, fmFrom: `osc${x}FmFrom` }));
+const SLOT_CHECKS = range(MOD_SLOTS).map((i) => ({ src: `mod${i}Src`, amt: `mod${i}Amt`, dst: `mod${i}Dst` }));
+const HARMONIC_TARGETS = new Set(MOD_TARGETS.filter((t) => /(Fm|WarpAmt|Drive)$/.test(t)));
 
 /**
  * The longest a note can ring after its note-off, in seconds: the amp envelope's release (stretched by release

@@ -4,8 +4,12 @@
 //              or as AudioParams — gate, kill, the note's pitch / pressure / timbre curves and the channel's macros.
 //              Nothing depends on message timing, so an offline render is sample-identical every time.
 //   ggs-fx     the channel's drive / chorus / delay / reverb / output gain, after its voices are summed.
-// Messages are only used for edits made while a note sounds (a knob turned in the editor) and tempo changes.
-import { GgsVoice, GgsFx, prewarmTables } from '@greanteadawy/synth-dsp/engine';
+// Messages are only used for edits made while a note sounds (a knob turned in the editor) and tempo changes — and,
+// the other way, for what the editor shows while it is open: a watched voice reports where its modulation stands
+// about thirty times a second (nothing in the audio depends on it).
+import { GgsVoice, GgsFx, prewarmTables, MACRO_COUNT } from '@greanteadawy/synth-dsp/engine';
+
+const MACROS = Array.from({ length: MACRO_COUNT }, (_, i) => `macro${i + 1}`);
 
 const param = (name, defaultValue, minValue, maxValue, automationRate) => ({ name, defaultValue, minValue, maxValue, automationRate });
 
@@ -19,10 +23,7 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
       param('timbre', 0, 0, 1, 'a-rate'),
       // how the note is let go (read on the block where the gate falls: set both at the same time)
       param('release', 0.5, 0, 1, 'k-rate'),
-      param('macro1', 0, 0, 1, 'k-rate'),
-      param('macro2', 0, 0, 1, 'k-rate'),
-      param('macro3', 0, 0, 1, 'k-rate'),
-      param('macro4', 0, 0, 1, 'k-rate')
+      ...MACROS.map((name) => param(name, 0, 0, 1, 'k-rate'))
     ];
   }
 
@@ -35,11 +36,15 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
     this.off = false;
     this.done = false;
     this.pending = null; // edits that arrive before the note has started
-    this.macros = new Float32Array(4);
+    this.macros = new Float32Array(MACRO_COUNT);
     this.ctl = { pitch: 0, pressure: 0, timbre: 0, macros: this.macros, time: 0 };
+    this.watch = !!o.watch;
+    this.report = null; // [sources…, targets…] as last evaluated, copied out for the editor
+    this.nextReport = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m?.type === 'params') {
+      if (m?.type === 'watch') this.watch = !!m.on;
+      else if (m?.type === 'params') {
         if (this.voice) this.voice.setParams(m.values);
         else this.pending = { ...(this.pending || {}), ...m.values };
       } else if (m?.type === 'tempo') {
@@ -76,10 +81,7 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
     ctl.pitch = parameters.pitch;
     ctl.pressure = parameters.pressure;
     ctl.timbre = parameters.timbre;
-    this.macros[0] = parameters.macro1[0];
-    this.macros[1] = parameters.macro2[0];
-    this.macros[2] = parameters.macro3[0];
-    this.macros[3] = parameters.macro4[0];
+    for (let i = 0; i < MACRO_COUNT; i++) this.macros[i] = parameters[MACROS[i]][0];
     ctl.time = currentTime + from / sampleRate;
 
     // note-off on its exact sample: the first frame where the gate has fallen
@@ -98,6 +100,15 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
       voice.process(L, R, offAt, n - offAt, ctl);
     } else {
       voice.process(L, R, from, n - from, ctl);
+    }
+    if (this.watch && currentFrame >= this.nextReport) {
+      this.nextReport = currentFrame + sampleRate / 30;
+      const src = voice.src;
+      const dst = voice.dst;
+      if (!this.report) this.report = new Float32Array(src.length + dst.length);
+      this.report.set(src);
+      this.report.set(dst, src.length);
+      this.port.postMessage({ type: 'mod', start: this.startFrame, values: this.report });
     }
     return voice.finished ? this.finish() : true;
   }

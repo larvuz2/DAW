@@ -113,9 +113,11 @@ test('patch documents: round trip, partial documents and helpful errors', () => 
   assert.throws(() => routesToParams([{ source: 'lfo9', target: 'pitch', amount: 0.1 }]), /Unknown modulation source "lfo9"/);
   assert.throws(() => routesToParams([{ source: 'lfo1', target: 'cutoff', amount: 0.1 }]), /Unknown modulation target "cutoff".*f1Cutoff/);
   assert.throws(() => routesToParams([{ source: 'lfo1', target: 'pitch', amount: 3 }]), /-1 to 1/);
-  assert.throws(() => routesToParams(new Array(17).fill({ source: 'lfo1', target: 'pitch', amount: 0.1 })), /16 modulation slots/);
+  assert.throws(() => routesToParams(new Array(65).fill({ source: 'lfo1', target: 'pitch', amount: 0.1 })), /64 modulation slots/);
   const ref = describeSynth();
   assert.match(ref.oscillator.table, new RegExp(WAVETABLE_IDS[0]));
   assert.match(ref.filter.cutoff, /20\.\.20000 Hz/);
-  assert.equal(ref.counts.modulationSlots, 16);
+  assert.equal(ref.counts.modulationSlots, 64);
+  assert.equal(ref.counts.macros, 8);
+  assert.match(ref.chaos.type, /lorenz \| rossler \| drift \| turing/);
 });

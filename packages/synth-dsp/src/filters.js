@@ -53,8 +53,8 @@ const SVF = 0, MIX = 1, LADDER = 2, ACID = 3, MS20 = 4, FORMANT = 5, PHASER = 6,
 const FAMILY = { lp12: SVF, lp24: SVF, hp12: SVF, hp24: SVF, bp12: SVF, bp24: SVF, notch: SVF, peak: SVF, comb: COMB, allpass: MIX, morph: MIX,
   ladder24: LADDER, ladder12: LADDER, ladderBp: LADDER, ladderHp: LADDER, acid: ACID, ms20Lp: MS20, ms20Hp: MS20, formant: FORMANT, phaser: PHASER, combNeg: COMB };
 
-const NC = 20; // coefficient slots (the formant bank needs 17)
-const NS = 24; // state slots (the phaser needs 12 stages × 2 channels)
+export const NC = 20; // coefficient slots (the formant bank needs 17)
+export const NS = 24; // state slots (the phaser needs 12 stages × 2 channels)
 export const MIN_CUTOFF = 16;
 const COMB_MIN_HZ = 27;
 
@@ -167,13 +167,16 @@ const FORMANTS = 5;
 const PHASER_STAGES = 12;
 
 export class VoiceFilter {
-  /** sampleRate: the rate the filter runs at (the voice's internal, possibly oversampled, rate). */
-  constructor(sampleRate) {
+  /**
+   * sampleRate: the rate the filter runs at (the voice's internal, possibly oversampled, rate).
+   * mem: an Arena to take the state from (a voice passes its own; see Arena in util.js).
+   */
+  constructor(sampleRate, mem = null) {
     this.fs = sampleRate;
-    this.c = new Float64Array(NC); // coefficients now
-    this.t = new Float64Array(NC); // … and at the end of the block being rendered
-    this.d = new Float64Array(NC); // per-sample steps (formant bank)
-    this.s = new Float64Array(NS);
+    this.c = mem ? mem.f64(NC) : new Float64Array(NC); // coefficients now
+    this.t = mem ? mem.f64(NC) : new Float64Array(NC); // … and at the end of the block being rendered
+    this.d = mem ? mem.f64(NC) : new Float64Array(NC); // per-sample steps (formant bank)
+    this.s = mem ? mem.f64(NS) : new Float64Array(NS);
     this.rng = new Rng(SEED);
     this.line = null;
     this.linePos = 0;

@@ -8,7 +8,8 @@ import {
   GGS_PARAMS, GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, OSC_IDS, WARP_MODES, FM_SOURCES, SOURCE_DESTS, FILTER_TYPES, FILTER_ROUTES,
   SUB_WAVES, NOISE_TYPES, LFO_SHAPES, LFO_SYNC, LFO_TRIGGERS, DRIVE_TYPES, DELAY_SYNC, QUALITIES, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO,
   MOD_TARGET_INFO, MOD_SLOTS, WAVETABLE_IDS, describeWavetables, describeSynth, paramsToPatch, patchToParams, sectionToParams, modulationRoutes,
-  routesToParams, checkRoute, summarizePatch, ggsDefaults, releaseTail, FILTER_INFO, filterResponse, migrateParams
+  routesToParams, checkRoute, summarizePatch, ggsDefaults, releaseTail, FILTER_INFO, filterResponse, migrateParams,
+  MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, CHAOS_INFO, CHAOS_PATHS, chaosPreview, macroLabel, macroUsed
 } from '@greanteadawy/synth-dsp';
 import { z, ok, projectIdArg, annotations as A, uniqueName, normVelocity } from '../util.js';
 import { curveArg, buildExpression } from './expression.js';
@@ -60,7 +61,7 @@ export function registerSynthTools({ tool, backend, load }) {
 
   tool('describe_synth', {
     title: 'GGS Synth reference',
-    description: 'What the GGS Synth can do, for sound design: its sections and every field with range, default and what it does (topic "parameters"), the 21 filter models and what each sounds like ("filters"), the wavetables ("wavetables"), modulation sources and targets and what an amount of 1 means ("modulation"), and the preset library with macro assignments ("presets"). Read "overview" first.',
+    description: 'What the GGS Synth can do, for sound design: its sections and every field with range, default and what it does (topic "parameters"), the 21 filter models and what each sounds like ("filters"), the wavetables ("wavetables"), modulation sources and targets, the chaos generators and what an amount of 1 means ("modulation"), and the preset library with macro assignments ("presets"). Read "overview" first.',
     inputSchema: { topic: z.enum(['overview', 'parameters', 'filters', 'wavetables', 'modulation', 'presets']).optional().describe('Default: overview') },
     annotations: A.readOnly
   }, async ({ topic = 'overview' }) => {
@@ -81,7 +82,10 @@ export function registerSynthTools({ tool, backend, load }) {
         'An amount of 1 moves the target across its whole range when the source is at 1.',
         '', 'SOURCES:', ...MOD_SOURCES.filter((s) => s !== 'none').map((s) => `  ${s.padEnd(11)} ${MOD_SOURCE_INFO[s]}`),
         '', 'TARGETS:', ...MOD_TARGETS.filter((s) => s !== 'none').map((s) => `  ${s.padEnd(12)} ${MOD_TARGET_INFO[s]}`),
-        '', 'Envelope 1 always shapes the level. Pressure, timbre (slide) and bend come from each note (set_note_expression); velocity from the note; macros 1-4 from the channel (automatable: add_automation target channel param macro1..macro4).'
+        '', `Envelope 1 always shapes the level. Pressure, timbre (slide) and bend come from each note (set_note_expression); velocity from the note; macros 1-${MACRO_COUNT} from the channel (automatable: add_automation target channel param macro1..macro${MACRO_COUNT}).`,
+        '', `CHAOS (set_synth_chaos; sources chaos1..chaos${CHAOS_COUNT}) — modulation that never quite repeats. "character" 0..1 means something different for each:`,
+        ...CHAOS_TYPES.map((t) => `  ${t.padEnd(8)} rate = ${CHAOS_INFO[t].rate}; character = ${CHAOS_INFO[t].character.toLowerCase()}. ${CHAOS_INFO[t].desc}`),
+        '  path "note": every note wanders its own way (voices drift apart, renders still repeat exactly). path "same": every note replays one path from its start (a chord moves together).'
       ].join('\n'));
     }
     if (topic === 'presets') {
@@ -93,10 +97,10 @@ export function registerSynthTools({ tool, backend, load }) {
       '  oscillators A, B, C (wavetable, unison, warp, FM from another source) + sub + noise',
       `  → filter 1 / filter 2 (serial or parallel; ${FILTER_TYPES.length} models: clean lp/hp/bp 12 or 24 dB, notch, peak, all-pass, morph · analog-style ladder, acid, MS-20 · formant, phaser, combs; drive, key tracking, morph — topic "filters")`,
       '  → amp (envelope 1 × velocity) → channel effects: drive → chorus → delay → reverb → gain',
-      `Movement: 4 envelopes (delay, attack, hold, decay, sustain, release, with a curve per stage), 4 LFOs (Hz or tempo-synced; per note or free-running), 4 macros and a ${MOD_SLOTS}-route modulation matrix.`,
+      `Movement: 4 envelopes (delay, attack, hold, decay, sustain, release, with a curve per stage), 4 LFOs (Hz or tempo-synced; per note or free-running), ${CHAOS_COUNT} chaos generators (Lorenz, Rössler, drift, Turing machine: movement that never loops), ${MACRO_COUNT} macros and a ${MOD_SLOTS}-route modulation matrix.`,
       'Every note has its own pitch curve, pressure and slide (timbre): route pressure/timbre in the matrix to make them audible (set_note_expression writes the curves).',
       '',
-      'Workflow: create_synth_patch (preset or blank) → set_synth_oscillator / set_synth_filter / set_synth_envelope / set_synth_lfo / set_synth_modulation / set_synth_effect → analyze_synth_patch (renders a note or chord here and measures pitch, loudness, spectrum, envelope) → adjust. get_synth_patch reads a patch back; update_synth_patch applies a whole patch document.',
+      'Workflow: create_synth_patch (preset or blank) → set_synth_oscillator / set_synth_filter / set_synth_envelope / set_synth_lfo / set_synth_chaos / set_synth_modulation / set_synth_effect → analyze_synth_patch (renders a note or chord here and measures pitch, loudness, spectrum, envelope) → adjust. get_synth_patch reads a patch back; update_synth_patch applies a whole patch document.',
       'Topics: "parameters" (every field, its range and what it does), "filters", "wavetables", "modulation" (sources, targets, amounts), "presets".',
       '',
       'Sound-design starting points:',
@@ -106,13 +110,15 @@ export function registerSynthTools({ tool, backend, load }) {
       '  vowels / talking: a saw or pulse into filter "formant" (cutoff 1000, keyTrack 0), timbre or an LFO → f1Morph',
       '  pluck/keys: envelope 1 sustain 0 decay 0.3-3 s, envelope 2 (short) → oscillator position or f1Cutoff, velocity → f1Cutoff 0.15',
       '  lead: mono or poly, pressure → f1Cutoff 0.3, LFO → pitchFine 0.3 via pressure (vibrato you play), timbre → oscAPos',
-      '  FM bell: oscillator B (sine: table basic position 0, level 0) as fmFrom of A, fm 0.2-0.4, envelope 2 → oscAFm'
+      '  FM bell: oscillator B (sine: table basic position 0, level 0) as fmFrom of A, fm 0.2-0.4, envelope 2 → oscAFm',
+      '  analog life: chaos type "drift" (rate 0.2-0.5, path "note") → pitchFine 0.04-0.08 and → oscADetune 0.05: every voice wanders a few cents on its own',
+      '  evolving pad: chaos "lorenz" (rate 0.05-0.2, path "same") → oscAPos 0.2 and → f1Cutoff 0.08: motion that never loops, the chord moving as one'
     ].join('\n'));
   });
 
   tool('create_synth_patch', {
     title: 'Create a GGS Synth channel',
-    description: 'Add a GGS Synth channel with its own mixer insert: start from a preset (describe_synth topic "presets") or from the blank Init patch, optionally overlaid with a patch document (any subset of: oscillators [{ id: "A", table, position, … }], sub, noise, filters [{ id: 1, type, cutoff, … }], filterRouting, envelopes, lfos, macros [4 values], modulation [{ source, target, amount, via }], voice, effects { drive, chorus, delay, reverb }). Replies with the channel id and the patch.',
+    description: 'Add a GGS Synth channel with its own mixer insert: start from a preset (describe_synth topic "presets") or from the blank Init patch, optionally overlaid with a patch document (any subset of: oscillators [{ id: "A", table, position, … }], sub, noise, filters [{ id: 1, type, cutoff, … }], filterRouting, envelopes, lfos, chaos [{ id: 1, type, rate, character, … }], macros [up to 8 values], modulation [{ source, target, amount, via }] (up to 64 routes), voice, effects { drive, chorus, delay, reverb }). Replies with the channel id and the patch.',
     inputSchema: {
       projectId: projectIdArg,
       name: z.string().min(1).max(64).describe('Channel name, e.g. "Pad", "Lead"'),
@@ -150,12 +156,12 @@ export function registerSynthTools({ tool, backend, load }) {
     const info = GGS_PRESET_INFO[ch.instrument.preset];
     if (format === 'document') return ok(`Patch document of "${ch.name}" [${ch.id}]`, paramsToPatch(ch.instrument.params, { name: ch.name }));
     const routes = modulationRoutes(ch.instrument.params);
-    return ok(`GGS Synth "${ch.name}" [${ch.id}] — started from preset ${ch.instrument.preset}\n${summarizePatch(ch.instrument.params)}\nMacros: ${[1, 2, 3, 4].map((i) => `${i}${info ? ` (${info.macros[i - 1]})` : ''} = ${ch.instrument.params[`macro${i}`]}`).join(', ')}\nModulation slots used: ${routes.length}/${MOD_SLOTS}`);
+    return ok(`GGS Synth "${ch.name}" [${ch.id}] — started from preset ${ch.instrument.preset}\n${summarizePatch(ch.instrument.params)}\nMacros: ${Array.from({ length: MACRO_COUNT }, (_, k) => k + 1).filter((i) => i <= 4 || macroUsed(ch.instrument.params, i)).map((i) => `${i} (${macroLabel(ch.instrument.params, i, info?.macros)}) = ${ch.instrument.params[`macro${i}`]}`).join(', ')}\nModulation slots used: ${routes.length}/${MOD_SLOTS}`);
   });
 
   tool('update_synth_patch', {
     title: 'Apply a patch document',
-    description: 'Apply a whole or partial patch document to a GGS Synth channel in one edit: any of oscillators, sub, noise, filters, filterRouting, envelopes, lfos, macros, modulation (replaces ALL routes), voice { level, velocity, releaseVelocity, polyphony, mono, legato, glide, quality, gain }, effects. Also loads a preset first when preset is given. Everything is validated before anything changes.',
+    description: 'Apply a whole or partial patch document to a GGS Synth channel in one edit: any of oscillators, sub, noise, filters, filterRouting, envelopes, lfos, chaos, macros, modulation (replaces ALL routes), voice { level, velocity, releaseVelocity, polyphony, mono, legato, glide, quality, gain }, effects. Also loads a preset first when preset is given. Everything is validated before anything changes.',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
       preset: z.enum(Object.keys(GGS_PRESETS)).optional().describe('Load this preset first (resets the patch)'),
@@ -270,6 +276,34 @@ export function registerSynthTools({ tool, backend, load }) {
     return applyParams(p, ch, sectionToParams('lfo', lfo, fields), `Set LFO ${lfo}`);
   });
 
+  tool('set_synth_chaos', {
+    title: 'Set a synth chaos source',
+    description: 'Configure one of the two chaos generators of a GGS Synth — modulation that never quite repeats: "lorenz" (swings between two centres and flips unpredictably), "rossler" (a wobbling loop that lurches), "drift" (a random walk that comes home: analog pitch drift) or "turing" (a looping pattern of steps that mutates — generative sequences). rate in Hz or a tempo division (sync); character 0..1 (lorenz: calm … restless · rossler: nearly periodic … spiky · drift: jittery … smooth · turing: chance that a step mutates, 0 = a locked loop); steps = turing loop length; path "note" (default: every note wanders its own way, like analog voices) or "same" (every note replays one path: chords move together). A chaos source does nothing until routed with set_synth_modulation (source chaos1 / chaos2). Renders repeat exactly: a path is fixed by its note. The reply sketches the path.',
+    inputSchema: {
+      projectId: projectIdArg, channel: channelArg,
+      chaos: z.number().int().min(1).max(CHAOS_COUNT),
+      type: z.enum(CHAOS_TYPES).optional(),
+      rate: z.number().min(0.01).max(50).optional().describe('Hz (used when sync is "off"): swings, orbits or steps per second'),
+      sync: z.enum(LFO_SYNC).optional().describe('Tempo-synced length of one swing / orbit / step, e.g. "1/16", "1bar"; "off" = use rate'),
+      character: unit.optional().describe('What kind of chaos (see the description); default 0.5'),
+      steps: z.number().int().min(2).max(32).optional().describe('turing only: loop length'),
+      path: z.enum(CHAOS_PATHS).optional()
+    },
+    annotations: A.edit
+  }, async ({ projectId, channel, chaos, ...fields }) => {
+    const p = await load(projectId);
+    const ch = ggsChannel(p, channel);
+    const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+    const reply = await applyParams(p, ch, sectionToParams('chaos', chaos, given), `Set chaos ${chaos}`);
+    const now = { ...ch.instrument.params, ...sectionToParams('chaos', chaos, given) };
+    const type = now[`chaos${chaos}Type`];
+    // twelve cycles of the path as a row of levels, so the shape of the movement can be read
+    const sketch = Array.from(chaosPreview({ type, character: now[`chaos${chaos}Char`], steps: now[`chaos${chaos}Steps`] }, 48, 12), (v) => '▁▂▃▄▅▆▇█'[Math.min(7, Math.floor((v + 1) * 4))]).join('');
+    const routed = modulationRoutes(now).some((r) => r.source === `chaos${chaos}` || r.via === `chaos${chaos}`);
+    reply.content[0].text += `\nChaos ${chaos} (${type}; rate = ${CHAOS_INFO[type].rate}) over 12 cycles: ${sketch}${routed ? '' : `\nNot routed yet: add a route with set_synth_modulation (source chaos${chaos}), e.g. chaos${chaos} → ${type === 'drift' ? 'pitchFine 0.06' : type === 'turing' ? 'f1Cutoff 0.15' : 'oscAPos 0.2'}.`}`;
+    return reply;
+  });
+
   const routeSchema = z.object({
     source: z.enum(MOD_SOURCES.filter((s) => s !== 'none')),
     target: z.enum(MOD_TARGETS.filter((s) => s !== 'none')),
@@ -279,13 +313,13 @@ export function registerSynthTools({ tool, backend, load }) {
 
   tool('set_synth_modulation', {
     title: 'Set synth modulation routes',
-    description: 'Connect modulation sources to targets in a GGS Synth\'s matrix (16 routes): envelopes, LFOs, velocity, the note\'s pressure / timbre (slide) / bend curves, key, random, release velocity and the 4 macros → pitch, oscillator position/level/pan/warp/FM/detune, filter cutoff/resonance/drive/morph, level, pan, LFO rates. The reply says what every route does in the units of its target (e.g. "Filter 1 cutoff 850 Hz → 4.49 kHz as pressure goes 0 → 1"). mode "add" (default) adds routes, updating an existing route with the same source, target and via; "replace" replaces the whole matrix. remove deletes routes by source+target. macros sets the four macro values. This is how per-note expression becomes sound: e.g. pressure → f1Cutoff 0.3, timbre → oscAPos 0.5.',
+    description: 'Connect modulation sources to targets in a GGS Synth\'s matrix (64 routes): envelopes, LFOs, chaos generators, velocity, the note\'s pressure / timbre (slide) / bend curves, key, random, release velocity and the 8 macros → pitch, oscillator position/level/pan/warp/FM/detune, filter cutoff/resonance/drive/morph, level, pan, LFO rates. The reply says what every route does in the units of its target (e.g. "Filter 1 cutoff 850 Hz → 4.49 kHz as pressure goes 0 → 1"). mode "add" (default) adds routes, updating an existing route with the same source, target and via; "replace" replaces the whole matrix. remove deletes routes by source+target. macros sets macro values (up to 8, in order). This is how per-note expression becomes sound: e.g. pressure → f1Cutoff 0.3, timbre → oscAPos 0.5.',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
       routes: z.array(routeSchema).max(MOD_SLOTS).optional(),
       mode: z.enum(['add', 'replace']).optional(),
       remove: z.array(z.object({ source: z.string(), target: z.string() })).optional(),
-      macros: z.array(unit).max(4).optional().describe('Values of macros 1-4')
+      macros: z.array(unit).max(MACRO_COUNT).optional().describe('Values of the macros, from macro 1 (a shorter list leaves the rest alone)')
     },
     annotations: A.edit
   }, async ({ projectId, channel, routes = [], mode = 'add', remove = [], macros }) => {
@@ -346,7 +380,7 @@ export function registerSynthTools({ tool, backend, load }) {
       noteSeconds: z.number().min(0.05).max(8).optional().describe('How long the notes are held (default 1.5)'),
       seconds: z.number().min(0.2).max(12).optional().describe('How long to render (default: the notes plus their release, at most 12)'),
       pitch: curveArg.optional(), pressure: curveArg.optional(), timbre: curveArg.optional(),
-      macros: z.array(unit).max(4).optional().describe('Macro values for this render (default: the patch\'s own)')
+      macros: z.array(unit).max(MACRO_COUNT).optional().describe('Macro values for this render, from macro 1 (default: the patch\'s own)')
     },
     annotations: A.readOnly
   }, async (a) => {
@@ -360,7 +394,7 @@ export function registerSynthTools({ tool, backend, load }) {
     const duration = a.noteSeconds ?? 1.5;
     const curves = buildExpression(a, duration);
     const breakpoints = Object.fromEntries(EXPRESSION_DIMS.filter((d) => curves[d]).map((d) => [d, flattenCurve(curves[d]).map((pt) => ({ t: pt.t * duration, v: pt.v }))]));
-    const macros = a.macros ? [0, 1, 2, 3].map((i) => a.macros[i] ?? params[`macro${i + 1}`]) : null;
+    const macros = a.macros ? Array.from({ length: MACRO_COUNT }, (_, i) => a.macros[i] ?? params[`macro${i + 1}`]) : null;
     const seconds = Math.min(12, a.seconds ?? duration + Math.min(6, releaseTail(params, 0.5)) + 0.6);
     const r = await renderInWorker({
       params, bpm: p.bpm, sampleRate: 44100, seconds, macros,

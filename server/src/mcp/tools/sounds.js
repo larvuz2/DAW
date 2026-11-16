@@ -21,7 +21,7 @@ export function registerSoundTools({ tool, backend, load }) {
     if (kind === 'ggs') {
       // 200+ params: the synth has its own, structured reference
       const d = describeInstruments().find((i) => i.kind === 'ggs');
-      return ok(`Instrument ggs (${d.label}): ${d.description}\nPresets: ${d.presets.join(', ')}.\n${d.params.length} parameters — read them by section with describe_synth (topics: overview, parameters, wavetables, modulation, presets) and edit them with create_synth_patch / set_synth_oscillator / set_synth_filter / set_synth_envelope / set_synth_lfo / set_synth_modulation / set_synth_effect. Raw params (update_channel params) use keys such as oscAPos, f1Cutoff, env2D, lfo1Rate, mod1Src.`);
+      return ok(`Instrument ggs (${d.label}): ${d.description}\nPresets: ${d.presets.join(', ')}.\n${d.params.length} parameters — read them by section with describe_synth (topics: overview, parameters, filters, wavetables, modulation, presets) and edit them with create_synth_patch / set_synth_oscillator / set_synth_filter / set_synth_envelope / set_synth_lfo / set_synth_chaos / set_synth_modulation / set_synth_effect. Raw params (update_channel params) use keys such as oscAPos, f1Cutoff, env2D, lfo1Rate, mod1Src.`);
     }
     if (kind) return ok(`Instrument ${kind}`, describeInstruments().find((i) => i.kind === kind));
     const all = describeInstruments().filter((i) => !category || i.category === category);

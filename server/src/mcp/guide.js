@@ -19,7 +19,7 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   stereo (width + monoBelow), pump (sidechain ducking: source = a channel, or a tempo grid), limiter), output routing and sends.
 - **Markers** name song sections above the playlist (arrange_song makes them; set_markers edits them).
 - **Automation** clips move a parameter over time (channel volume/pan/pitch/filterCutoff/filterRes, a GGS Synth's
-  macro1..macro4, mixer volume/pan, automatable effect params).
+  macro1..macro8, mixer volume/pan, automatable effect params).
 - **Expression**: every note can carry its own pitch curve (semitones), pressure curve and slide/timbre curve (0..1)
   and a release velocity — an MPE performance written into the note (set_note_expression).
 
@@ -61,7 +61,7 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   warp, FM between oscillators), sub + noise, 2 filters (serial/parallel; 21 models: clean lp/hp/bp/notch/peak/
   all-pass/morph, analog-style ladder24/ladder12/ladderBp/ladderHp, acid (TB-303 diode ladder), ms20Lp/ms20Hp,
   formant (vowels), phaser, comb/combNeg; drive, key tracking and a per-type "morph"), 4 envelopes (delay, attack,
-  hold, decay, sustain, release, each slope with its own curve), 4 LFOs, 4 macros, a 16-route modulation matrix and
+  hold, decay, sustain, release, each slope with its own curve), 4 LFOs, 2 chaos generators, 8 macros, a 64-route modulation matrix and
   built-in drive/chorus/delay/reverb. 30 presets in six families (pads, leads, bass, keys, sequences, experimental),
   all levelled to about -18 LUFS per note.
 - Pick the filter for the job: lp24 = neutral and precise; ladder24 = warm, fat, sings (basses, leads; resonance
@@ -71,7 +71,7 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   morph = damping). set_synth_filter replies with the measured response of what you set.
 - describe_synth is the reference (topics: overview, parameters, filters, wavetables, modulation, presets). create_synth_patch
   makes a channel from a preset or from scratch; set_synth_oscillator / set_synth_filter / set_synth_envelope /
-  set_synth_lfo / set_synth_modulation / set_synth_effect edit one section each; get_synth_patch reads a patch back
+  set_synth_lfo / set_synth_chaos / set_synth_modulation / set_synth_effect edit one section each; get_synth_patch reads a patch back
   (format "document" = a portable patch); update_synth_patch applies a document.
 - analyze_synth_patch renders a note or chord on the server (no browser needed) and measures pitch, loudness, spectrum
   and envelope — optionally with pressure/slide/pitch curves and macro values. Design by ear-with-numbers: change,
@@ -89,8 +89,14 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 - Make lines human: a scoop into important notes (pitch scoop depth 0.5–2), vibrato that starts late on long notes
   (rateHz 5–6, depth 0.15–0.4, delay 0.3), pressure swells on pads (swell peak 0.8), slide ramps to open a sound
   through a phrase, a fall at phrase ends. Less is more: shape the 20% of notes that matter.
-- Macros (macro1..macro4) are a patch's performance knobs: set them with set_synth_modulation macros, and automate
-  them over the song with add_automation (target channel, param macro1).
+- Macros (macro1..macro8) are a patch's performance knobs: set them with set_synth_modulation macros, and automate
+  them over the song with add_automation (target channel, param macro1). Presets name and route the first four;
+  5-8 are free for your own (route them: macro5 → whatever the part needs to move).
+- Chaos (set_synth_chaos, sources chaos1 / chaos2) is movement that never loops: "drift" on pitchFine 0.04-0.08
+  with path "note" is analog voice drift (every note a few cents off, differently); "lorenz" or "rossler" slowly on
+  a wavetable position or a filter keeps a pad alive without an audible LFO cycle (path "same" moves a chord as
+  one); "turing" tempo-synced on a filter or pitch is a generative step pattern (character 0 locks the loop).
+  Renders still repeat exactly — a path is fixed by its note.
 - evaluate_composition checks the song as written (keys, dynamics, voices, expression that nothing hears, unplaced
   patterns) — run it before render_mix.
 

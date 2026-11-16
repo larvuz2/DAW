@@ -269,7 +269,7 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   // ---------------------------------------------------------------- automation
   tool('add_automation', {
     title: 'Add automation clip',
-    description: 'Automate a parameter over time with an automation clip in the playlist (song mode). Targets: channel (volume|pan|pitch|filterCutoff|filterRes, and macro1..macro4 on a GGS Synth channel — a macro moves whatever the patch routes it to), mixer insert (volume|pan), effect (automatable param, e.g. filter cutoff, reverb mix, delay feedback), master (volume|pan). Point values are 0..1 across the parameter range (filterCutoff is log-scaled: 0 = 20 Hz, 0.5 ≈ 630 Hz, 1 = 20 kHz; pan 0.5 = center; pitch 0.5 = no shift; volume: 0.8 = unity gain (0 dB), 0.64 = the default insert fader, 0.62 ≈ the default channel volume, 1 = +1.9 dB).',
+    description: 'Automate a parameter over time with an automation clip in the playlist (song mode). Targets: channel (volume|pan|pitch|filterCutoff|filterRes, and macro1..macro8 on a GGS Synth channel — a macro moves whatever the patch routes it to), mixer insert (volume|pan), effect (automatable param, e.g. filter cutoff, reverb mix, delay feedback), master (volume|pan). Point values are 0..1 across the parameter range (filterCutoff is log-scaled: 0 = 20 Hz, 0.5 ≈ 630 Hz, 1 = 20 kHz; pan 0.5 = center; pitch 0.5 = no shift; volume: 0.8 = unity gain (0 dB), 0.64 = the default insert fader, 0.62 ≈ the default channel volume, 1 = +1.9 dB).',
     inputSchema: {
       projectId: projectIdArg,
       name: z.string().max(64).optional(),

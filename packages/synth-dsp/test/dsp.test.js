@@ -360,7 +360,7 @@ test('damaged or partial params never break a voice', () => {
     const r = renderPatch({ params: { ...params, polyphony: 4, env1A: 0.01, env1D: 0.1, env1R: 0.1, lfo1Rate: 7, delayTime: 200, mod1Src: 'lfo1', mod1Dst: 'f1Cutoff', mod1Amt: 1, mod2Src: 'pressure', mod2Dst: 'pitch', mod2Amt: 1 }, notes: [{ key: 30, duration: 0.2, pressure: [{ t: 0, v: 0 }, { t: 0.2, v: 1 }] }, { key: 110, start: 0.05, duration: 0.2 }], seconds: 0.5 });
     assert.ok(r.channels[0].every(Number.isFinite) && r.channels[1].every(Number.isFinite), 'finite output at the limits');
   }
-  assert.ok(MOD_SOURCES.length === 20 && MOD_TARGETS.includes('f1Cutoff') && MOD_TARGETS.includes('oscCDetune'));
+  assert.ok(MOD_SOURCES.length === 26 && MOD_TARGETS.includes('f1Cutoff') && MOD_TARGETS.includes('oscCDetune'));
 });
 
 test('review fixes: silent noise still modulates, long echoes are not cut, tables can be built ahead', async () => {

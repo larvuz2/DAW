@@ -8,6 +8,7 @@ import { INSTRUMENTS, makeInstrument } from './instruments.js';
 import { createEffect, EFFECTS } from './effects.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
 import { sanitizeExpression } from './expression.js';
+import { MACRO_COUNT } from '@greanteadawy/synth-dsp';
 
 export const PROJECT_FORMAT = 'greanteadawy-project';
 export const PROJECT_VERSION = 1;
@@ -15,8 +16,8 @@ export const PROJECT_VERSION = 1;
 export const MAX_NUDGE_MS = 50;
 
 export const CHANNEL_AUTOMATION_PARAMS = ['volume', 'pan', 'filterCutoff', 'filterRes', 'pitch'];
-export const MACRO_PARAMS = ['macro1', 'macro2', 'macro3', 'macro4'];
-/** What can be automated on a channel: the strip's own controls, plus the four macros of a GGS Synth. */
+export const MACRO_PARAMS = Array.from({ length: MACRO_COUNT }, (_, i) => `macro${i + 1}`);
+/** What can be automated on a channel: the strip's own controls, plus the eight macros of a GGS Synth. */
 export function channelAutomationParams(channel) {
   return channel?.instrument?.kind === 'ggs' ? [...CHANNEL_AUTOMATION_PARAMS, ...MACRO_PARAMS] : CHANNEL_AUTOMATION_PARAMS;
 }

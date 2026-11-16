@@ -6,17 +6,14 @@ import { INSTRUMENTS } from './instruments.js';
 import { SCALES, scalePitchClasses, noteName } from './music.js';
 import { patternLength, songLength } from './model.js';
 import { EXPRESSION_DIMS } from './expression.js';
+import { modulationRoutes } from '@greanteadawy/synth-dsp';
 
 const PC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const pct = (x) => `${Math.round(x * 100)}%`;
 
 /** Does a GGS patch listen to a modulation source (as a source or as a "via")? */
 function patchUses(params, source) {
-  for (let i = 1; i <= 16; i++) {
-    if (!params[`mod${i}Amt`] || params[`mod${i}Dst`] === 'none' || !params[`mod${i}Dst`]) continue;
-    if (params[`mod${i}Src`] === source || params[`mod${i}Via`] === source) return true;
-  }
-  return false;
+  return modulationRoutes(params).some((r) => r.source === source || r.via === source);
 }
 
 /** The most notes sounding at once in a list. */
