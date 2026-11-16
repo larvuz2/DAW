@@ -11,11 +11,18 @@ export const unitArg = z.enum(['steps', 'beats', 'bars', 'ticks']).optional().de
 export const positionArg = z.union([z.number().min(0), z.string().min(1).max(24)]);
 /** How long: a number (steps unless `unit` says otherwise) or a duration as text. */
 export const durationArg = z.union([z.number().positive(), z.string().min(1).max(24)]);
-export const POSITION_WORDS = 'a number (steps from the start, 0-based) or text: "2" = bar 2, "2.3" = bar 2 beat 3, "2.3.2" = one sixteenth later, "6s" = 6 steps, "1.5b" = 1.5 beats';
+export const POSITION_WORDS = 'a number (steps from the start, 0-based) or text: "2.1" = bar 2, "2.3" = bar 2 beat 3, "2.3.2" = one sixteenth later, "6s" = 6 steps, "1.5b" = 1.5 beats (a bare "2" is refused: is it bar 2 or the number 2?)';
 export const DURATION_WORDS = 'a number (steps) or text: "1/4", "1/8", "1/16", "1/8t" (triplet), "1/4d" (dotted), "2bar", "1.5b" (beats)';
 
 /** A position argument → ticks: text is a musical position, a number counts in `unit`. */
-export const positionTicks = (value, unit, p) => (typeof value === 'string' ? parsePosition(value, p) : toTicks(value, unit, p));
+export function positionTicks(value, unit, p) {
+  if (typeof value !== 'string') return toTicks(value, unit, p);
+  // As a musical position "8" is bar 8 — but a number that arrives as text ("8" for 8) is far more often a slip, and
+  // the two are bars apart. Nothing is placed on a guess: the caller says which one it is.
+  const bare = /^\s*(\d+)\s*$/.exec(value);
+  if (bare) throw new Error(`the position "${bare[1]}" is text, which could mean two things: send the number ${Number(bare[1])} for ${Number(bare[1])} ${unit || 'steps'} from the start, or "${bare[1]}.1" for bar ${bare[1]}`);
+  return parsePosition(value, p);
+}
 /** A duration argument → ticks (at least 1). */
 export const durationTicks = (value, unit, p) => (typeof value === 'string' ? parseDuration(value, p) : Math.max(1, toTicks(value, unit, p)));
 

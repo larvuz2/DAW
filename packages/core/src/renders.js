@@ -54,6 +54,8 @@ export function toPcm16(channel) {
 
 /** What is left below this, in dB relative to the mix, is rounding and not a change… */
 export const SAME_AUDIO_DB = -80;
+/** …and no single sample may differ by more than this many steps of 16 bits (the mixer's last bit moves a sample by one). */
+const SAME_PEAK_LSB = 2;
 /** …and so is anything below the 16-bit floor the earlier render is kept at. */
 const FLOOR_DBFS = -96;
 
@@ -67,7 +69,7 @@ const FLOOR_DBFS = -96;
  *   worstAt       seconds: the middle of the second in which the two differ most (null when they do not)
  *   seconds       how much was compared (the shorter of the two)
  *   lengthDelta   seconds this render is longer (negative: shorter)
- *   same          nothing is left but rounding, and the lengths agree
+ *   same          nothing is left but rounding — on average and at every single sample — and the lengths agree
  */
 export function nullTest(earlier, current, sampleRate) {
   const chans = Math.min(earlier.length, current.length);
@@ -103,7 +105,8 @@ export function nullTest(earlier, current, sampleRate) {
   const lengthDelta = chans ? Math.round(((current[0].length - earlier[0].length) / sampleRate) * 1000) / 1000 : 0;
   return {
     residualDb, residualDbfs, peakDb: db(peak / (32767 * 32767)), worstAt: worst < 0 ? null : worst + 0.5, seconds: Math.round((n / sampleRate) * 100) / 100, lengthDelta,
-    same: lengthDelta === 0 && (residualDb <= SAME_AUDIO_DB || residualDbfs <= FLOOR_DBFS)
+    // (the average alone would let a click pass in a long song: 50 ms at −60 dBFS vanish in four minutes of music)
+    same: lengthDelta === 0 && peak <= SAME_PEAK_LSB * SAME_PEAK_LSB && (residualDb <= SAME_AUDIO_DB || residualDbfs <= FLOOR_DBFS)
   };
 }
 
@@ -241,6 +244,10 @@ export function compareRenders(a, b) {
   const identical = !!a?.hash && a.hash === b?.hash;
   const nulled = b?.nullTest && a?.hash && b.nullTest.against === a.hash ? b.nullTest : null;
   if (identical) return { identical, same: true, lines: ['Bit-identical: the same audio, sample for sample. Whatever changed in between is not heard in this render.'], deltas, nullTest: nulled };
+  // (no numbers on one side is not "no difference")
+  if (!Number.isFinite(x.lufs) || !Number.isFinite(y.lufs)) {
+    if (!nulled?.same) return { identical, same: false, lines: [`${Number.isFinite(y.lufs) ? 'the earlier render' : 'this render'} came back without its analysis: there is nothing to compare — render again`], deltas, nullTest: nulled };
+  }
   if (nulled?.same) {
     const left = nulled.residualDb <= -200 ? 'nothing at 16 bits' : `${nulled.residualDb} dB relative to the mix`;
     return { identical, same: true, lines: [`The same audio: subtracting the earlier render leaves ${left} — the last bit of a browser's mixer, which is not the same from run to run, and nothing more. Whatever changed in between is not heard in this render.`], deltas, nullTest: nulled };
@@ -284,7 +291,9 @@ export function compareRenders(a, b) {
     const where = nulled.worstAt === null ? '' : `, most of it around ${clock(nulled.worstAt)}`;
     const size = nulled.residualDb > -30 ? 'a clear change' : nulled.residualDb > -50 ? 'a moderate change' : 'a very small change';
     if (!lines.length) lines.push(`no meter moved (${still})`);
-    lines.push(`null test: ${size} — what is left after subtracting the earlier render is at ${nulled.residualDb} dB relative to the mix (0 dB would be unrelated audio; below ${SAME_AUDIO_DB} dB is rounding)${where}`);
+    // on average nothing is left, yet single samples differ: something short changed (a click, one hit, the end of a tail)
+    if (nulled.residualDb <= SAME_AUDIO_DB && nulled.lengthDelta === 0) lines.push(`null test: a brief difference — averaged over the render what is left is at ${nulled.residualDb} dB (rounding), but single samples differ by up to ${nulled.peakDb} dBFS${where}: something short changed`);
+    else lines.push(`null test: ${size} — what is left after subtracting the earlier render is at ${nulled.residualDb} dB relative to the mix (0 dB would be unrelated audio; below ${SAME_AUDIO_DB} dB is rounding)${where}`);
   } else if (!lines.length) {
     // (without the earlier render's samples there is no telling a change this small from the mixer's rounding)
     lines.push(`the same by every meter (${still}). Not bit-identical — but a browser sums its mixer in a different order from run to run, so that alone is not a change; a render straight after this one is null-tested against it and settles it`);

@@ -38,7 +38,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   Duration: 1/4, 1/8, 1/16, 1/8t (triplet), 1/4d (dotted), 1/4+1/16 (tied), 2bar, 1.5b (beats), 3s (steps).
   get_pattern format "text" prints the same lines with the note ids in a comment — send them back as they are.
   The same positions and durations work wherever a note's start and length are given (add_notes notes, update_notes,
-  add_roll): a number is steps, text is musical ("start": "2.3", "length": "1/8t").
+  add_roll): a number is steps, text is musical ("start": "2.3", "length": "1/8t"). There a bare "2" is refused —
+  bar 2 is "2.1", and the number 2 is 2 steps; inside note text "2" is bar 2. A comment (" # …") runs to the end of
+  its line: put no ";" in one.
 - Melody strings: "C5:2 D5:2 Eb5:4 -:2 G5:6" (note:length — steps, or a note value: "C5:1/8 D5:1/8t E5:1/4d" — "-" =
   rest, "!" suffix = accent, "~" suffix = slide into the next note on mono instruments with glide).
 - Chords: symbols (Am7, F, Cmaj9, G7sus4, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°). music_theory lists diatonic chords.

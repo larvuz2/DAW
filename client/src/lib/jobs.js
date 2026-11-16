@@ -114,6 +114,8 @@ async function renderJob(jobId, job, sync) {
   const masking = job.masking && metered ? maskingReport(metered.map((s) => ({ name: s.name, frames: s.bandFrames }))) : null;
   // what is left when the previous render of the same thing is subtracted: nothing but rounding = nothing changed
   const key = `${project.id}|${mode}|${mode === 'pattern' ? `${job.patternId}|${opts.loops}` : ''}`;
+  // (a render kept for a project that is no longer the one being worked on is 10 MB a minute of nothing)
+  for (const k of [...remembered.keys()]) if (!k.startsWith(`${project.id}|`)) remembered.delete(k);
   const earlier = remembered.get(key);
   const nulled = earlier && earlier.sampleRate === buffer.sampleRate ? { against: earlier.hash, ...nullTest(earlier.pcm, channels, buffer.sampleRate) } : null;
   remembered.delete(key);

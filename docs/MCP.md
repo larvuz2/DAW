@@ -41,7 +41,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   Duration: 1/4, 1/8, 1/16, 1/8t (triplet), 1/4d (dotted), 1/4+1/16 (tied), 2bar, 1.5b (beats), 3s (steps).
   get_pattern format "text" prints the same lines with the note ids in a comment — send them back as they are.
   The same positions and durations work wherever a note's start and length are given (add_notes notes, update_notes,
-  add_roll): a number is steps, text is musical ("start": "2.3", "length": "1/8t").
+  add_roll): a number is steps, text is musical ("start": "2.3", "length": "1/8t"). There a bare "2" is refused —
+  bar 2 is "2.1", and the number 2 is 2 steps; inside note text "2" is bar 2. A comment (" # …") runs to the end of
+  its line: put no ";" in one.
 - Melody strings: "C5:2 D5:2 Eb5:4 -:2 G5:6" (note:length — steps, or a note value: "C5:1/8 D5:1/8t E5:1/4d" — "-" =
   rest, "!" suffix = accent, "~" suffix = slide into the next note on mono instruments with glide).
 - Chords: symbols (Am7, F, Cmaj9, G7sus4, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°). music_theory lists diatonic chords.
@@ -288,7 +290,7 @@ Create a new project, make it active and open it in the browser. Templates: defa
 | `bpm` | number |  |  |
 | `template` | `default` \| `empty` \| `trap` \| `house` \| `boombap` \| `lofi` \| `techno` \| `band` \| `indian` \| `eastasian` \| `drill` \| `afrobeats` \| `reggaeton` \| `dnb` \| `synthwave` \| `disco` \| `neosoul` \| `bossanova` \| `cinematic` \| `beatbox` \| `expressive` |  | Starter template (default "empty") |
 | `key` | string |  | Key root, e.g. "C", "F#" (used for roman-numeral chords and the piano roll scale highlight) |
-| `scale` | `major` \| `minor` \| `harmonicMinor` \| `melodicMinor` \| `dorian` \| `phrygian` \| `lydian` \| `mixolydian` \| `locrian` \| `majorPentatonic` \| `minorPentatonic` \| `blues` \| `hirajoshi` \| `inSen` \| `iwato` \| `yo` \| `bhairav` \| `todi` \| `purvi` \| `marwa` \| `chromatic` |  |  |
+| `scale` | `major` \| `minor` \| `harmonicMinor` \| `melodicMinor` \| `dorian` \| `phrygian` \| `lydian` \| `mixolydian` \| `locrian` \| `majorPentatonic` \| `minorPentatonic` \| `blues` \| `hirajoshi` \| `inSen` \| `iwato` \| `yo` \| `bhairav` \| `todi` \| `purvi` \| `marwa` \| `chromatic` \| `locrianNat6` \| `ionianSharp5` \| `dorianSharp4` \| `phrygianDominant` \| `lydianSharp2` \| `ultralocrian` \| `dorianFlat2` \| `lydianAugmented` \| `lydianDominant` \| `mixolydianFlat6` \| `locrianNat2` \| `altered` \| `majorBlues` \| `egyptian` \| `dominantPentatonic` \| `minor6Pentatonic` \| `wholeTone` \| `diminishedWholeHalf` \| `diminishedHalfWhole` \| `augmented` \| `tritone` \| `harmonicMajor` \| `hungarianMinor` \| `hungarianMajor` \| `doubleHarmonic` \| `neapolitanMajor` \| `neapolitanMinor` \| `persian` \| `enigmatic` \| `prometheus` \| `spanishEightTone` \| `kumoi` \| `pelog` \| `bebopDominant` \| `bebopMajor` \| `bebopMinor` |  |  |
 | `timeSignature` | string |  | e.g. "4/4", "3/4", "6/8" |
 
 ### `open_project`
@@ -338,7 +340,7 @@ Change tempo, swing, time signature, name or key/scale.
 | `swing` | number |  | Swing 0–100: delays every 2nd 16th. MPC/Ableton swing % ≈ 50 + swing/4 (MPC 54% = 16, 58% = 32, 62% = 48, 66% ≈ triplet shuffle = 64; 100 = 75%, dotted). Typical: house 15–25, boom bap 40–55, lo-fi 50–65. |
 | `timeSignature` | string |  | e.g. "4/4", "3/4", "6/8" |
 | `key` | string |  |  |
-| `scale` | `major` \| `minor` \| `harmonicMinor` \| `melodicMinor` \| `dorian` \| `phrygian` \| `lydian` \| `mixolydian` \| `locrian` \| `majorPentatonic` \| `minorPentatonic` \| `blues` \| `hirajoshi` \| `inSen` \| `iwato` \| `yo` \| `bhairav` \| `todi` \| `purvi` \| `marwa` \| `chromatic` |  |  |
+| `scale` | `major` \| `minor` \| `harmonicMinor` \| `melodicMinor` \| `dorian` \| `phrygian` \| `lydian` \| `mixolydian` \| `locrian` \| `majorPentatonic` \| `minorPentatonic` \| `blues` \| `hirajoshi` \| `inSen` \| `iwato` \| `yo` \| `bhairav` \| `todi` \| `purvi` \| `marwa` \| `chromatic` \| `locrianNat6` \| `ionianSharp5` \| `dorianSharp4` \| `phrygianDominant` \| `lydianSharp2` \| `ultralocrian` \| `dorianFlat2` \| `lydianAugmented` \| `lydianDominant` \| `mixolydianFlat6` \| `locrianNat2` \| `altered` \| `majorBlues` \| `egyptian` \| `dominantPentatonic` \| `minor6Pentatonic` \| `wholeTone` \| `diminishedWholeHalf` \| `diminishedHalfWhole` \| `augmented` \| `tritone` \| `harmonicMajor` \| `hungarianMinor` \| `hungarianMajor` \| `doubleHarmonic` \| `neapolitanMajor` \| `neapolitanMinor` \| `persian` \| `enigmatic` \| `prometheus` \| `spanishEightTone` \| `kumoi` \| `pelog` \| `bebopDominant` \| `bebopMajor` \| `bebopMinor` |  |  |
 | `dryRun` | boolean |  | true = check the call and report what it would change, without changing anything |
 
 ### `save_version`
@@ -518,7 +520,7 @@ Exact notes for scales and chords, diatonic chords of a key, or roman-numeral pr
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `action` | `scale` \| `chord` \| `diatonic_chords` \| `progression` | yes |  |
 | `key` | string |  | Root, e.g. "A", "F#" (default: project key) |
-| `scale` | `major` \| `minor` \| `harmonicMinor` \| `melodicMinor` \| `dorian` \| `phrygian` \| `lydian` \| `mixolydian` \| `locrian` \| `majorPentatonic` \| `minorPentatonic` \| `blues` \| `hirajoshi` \| `inSen` \| `iwato` \| `yo` \| `bhairav` \| `todi` \| `purvi` \| `marwa` \| `chromatic` |  | Default: project scale |
+| `scale` | `major` \| `minor` \| `harmonicMinor` \| `melodicMinor` \| `dorian` \| `phrygian` \| `lydian` \| `mixolydian` \| `locrian` \| `majorPentatonic` \| `minorPentatonic` \| `blues` \| `hirajoshi` \| `inSen` \| `iwato` \| `yo` \| `bhairav` \| `todi` \| `purvi` \| `marwa` \| `chromatic` \| `locrianNat6` \| `ionianSharp5` \| `dorianSharp4` \| `phrygianDominant` \| `lydianSharp2` \| `ultralocrian` \| `dorianFlat2` \| `lydianAugmented` \| `lydianDominant` \| `mixolydianFlat6` \| `locrianNat2` \| `altered` \| `majorBlues` \| `egyptian` \| `dominantPentatonic` \| `minor6Pentatonic` \| `wholeTone` \| `diminishedWholeHalf` \| `diminishedHalfWhole` \| `augmented` \| `tritone` \| `harmonicMajor` \| `hungarianMinor` \| `hungarianMajor` \| `doubleHarmonic` \| `neapolitanMajor` \| `neapolitanMinor` \| `persian` \| `enigmatic` \| `prometheus` \| `spanishEightTone` \| `kumoi` \| `pelog` \| `bebopDominant` \| `bebopMajor` \| `bebopMinor` |  | Default: project scale |
 | `chord` | string |  | For action=chord, e.g. "Cmaj9", "F#m7b5" |
 | `progression` | string |  | For action=progression: roman numerals separated by spaces or dashes, e.g. "i-VI-III-VII" or "I V vi IV" |
 | `octave` | integer |  |  |
@@ -628,7 +630,7 @@ Write a monophonic line from a compact string: "C5:2 D5:2 Eb5:4 -:2 G5:6" — ea
 
 ### `add_chords`
 
-Write a chord progression into a channel. Chord symbols (Am, F, Cmaj7, G7, Dm9, Esus4, Bdim, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°); "-" = rest. Qualities: 5 6 7 9 11 13 maj M m min - dim aug + sus2 sus4 sus m6 maj7 M7 m7 min7 mMaj7 mMaj9 aug7 +7 m7b5 dim7 7sus4 add9 madd9 maj9 m9 m11 maj13 m13. Chords are voice-led smoothly around a register. Styles: block (sustained), rhythm (hit on each x of a step string), arp-up, arp-down, arp-updown, broken. Voicings: close (default), open (wider pads), drop2 (jazz/neo-soul keys), drop3, spread (cinematic: root low, tones opened up), shell (root-3rd-7th: lo-fi/jazz comping), rootless (no root + 9th: modern keys over a bassline).
+Write a chord progression into a channel. Chord symbols (Am, F, Cmaj7, G7, Dm9, Esus4, Bdim, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°); "-" = rest. Qualities: 5 6 7 9 11 13 69 maj M major m min - minor mi dim ° o mb5 º aug + +5 (b5) no3 sus2 sus4 sus 7sus4 7sus 7sus2 9sus4 9sus 13sus4 13sus maj6 M6 add6 m6 min6 -6 6/9 6add9 maj6/9 m6/9 m69 min6/9 maj7 M7 Δ Δ7 ma7 major7 △ △7 dom7 dom m7 min7 -7 mi7 mMaj7 mM7 mmaj7 minmaj7 m/maj7 -Δ7 m(maj7) dim7 °7 o7 º7 m7b5 ø ø7 m7-5 half-diminished maj7#5 augmaj7 +M7 +maj7 maj7+5 maj7b5 add9 add2 madd9 madd2 m(add9) add11 add4 madd11 madd4 m(add11) maj9 M9 Δ9 dom9 m9 min9 -9 mMaj9 mM9 mmaj9 m(maj9) m7b9 m9b5 dom11 m11 min11 -11 m7add11 m7add4 m7(add11) maj11 M11 maj7#11 M7#11 maj7+11 maj9#11 M9#11 dom13 m13 min13 -13 maj13 M13 maj13#11 7b5 7-5 aug7 +7 7+5 7aug 7+ 7#5 7b9 7-9 7#9 7+9 7#11 7+11 7b13 9#11 9+11 9b13 13b9 13#11 7b5b9 7#5b9 7b5#9 7#5#9 7alt alt 7b9#9 7b9#11 7#9#11 7b9b13 7#9b13 quartal q 4ths q3 quartal4 q4. Chords are voice-led smoothly around a register. Styles: block (sustained), rhythm (hit on each x of a step string), arp-up, arp-down, arp-updown, broken. Voicings: close (default), open (wider pads), drop2 (jazz/neo-soul keys), drop3, spread (cinematic: root low, tones opened up), shell (root-3rd-7th: lo-fi/jazz comping), rootless (no root + 9th: modern keys over a bassline).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -679,7 +681,7 @@ Add a fast repeated-note roll (trap hi-hat rolls, snare build-ups, stutters) wit
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `pattern` | string | yes |  |
 | `channel` | string | yes |  |
-| `start` | number \| string | yes | Where the roll starts: a number (steps from the start, 0-based) or text: "2" = bar 2, "2.3" = bar 2 beat 3, "2.3.2" = one sixteenth later, "6s" = 6 steps, "1.5b" = 1.5 beats |
+| `start` | number \| string | yes | Where the roll starts: a number (steps from the start, 0-based) or text: "2.1" = bar 2, "2.3" = bar 2 beat 3, "2.3.2" = one sixteenth later, "6s" = 6 steps, "1.5b" = 1.5 beats (a bare "2" is refused: is it bar 2 or the number 2?) |
 | `length` | number \| string | yes | How long it runs: a number (steps) or text: "1/4", "1/8", "1/16", "1/8t" (triplet), "1/4d" (dotted), "2bar", "1.5b" (beats) |
 | `rate` | `1/8` \| `1/12` \| `1/16` \| `1/24` \| `1/32` \| `1/48` \| `1/64` |  | Note spacing: 1/32 (default), 1/24 (triplet 16ths), 1/48, 1/64, 1/16, 1/12... |
 | `note` | string,number |  | Default: the channel step note |

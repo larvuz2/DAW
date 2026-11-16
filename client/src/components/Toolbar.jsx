@@ -180,7 +180,7 @@ export function Toolbar() {
           <Icon name="mic" size={16} />
         </button>
         <div className="tempo" title="Tempo (BPM)">
-          <DragNumber value={project.bpm} min={20} max={400} step={1} sensitivity={0.3}
+          <DragNumber value={project.bpm} min={20} max={400} step={1} sensitivity={0.3} label="Tempo in BPM"
             format={(v) => v.toFixed(v % 1 ? 2 : 0)} className="tempo-num"
             onChange={(v) => st.dispatch([{ type: 'project/update', patch: { bpm: v } }], { coalesce: 'bpm' })} />
           <span className="tempo-label">BPM</span>

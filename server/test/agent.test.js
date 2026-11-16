@@ -11,12 +11,14 @@ let user;
 let client;
 let call;
 let pid;
+let token;
 
 before(async () => {
   srv = await startServer();
   user = agent(srv.base);
   await user.post('/api/auth/setup', { username: 'agent', password: 'agent-pass-1' });
-  client = await mcpClient(srv.base, (await user.post('/api/me/token')).body.token);
+  token = (await user.post('/api/me/token')).body.token;
+  client = await mcpClient(srv.base, token);
   call = callTool(client);
   await call('create_project', { name: 'Agent', template: 'empty', key: 'A', scale: 'minor', bpm: 120 });
   pid = (await user.get('/api/active')).body.projectId;
@@ -355,4 +357,77 @@ test('render_mix: every render has an id, and is compared with the one before', 
   } finally {
     sock.ws.close();
   }
+});
+
+test('review: an oversized name, stray fields by the thousand, a number sent as text, a batch that cannot be put in place', async () => {
+  await unchanged(async () => {
+    // a megabyte of parameter name is answered at once, and briefly (it used to take half a minute, for everybody)
+    const t0 = Date.now();
+    const long = await call('update_channel', { channel: 'Lead', params: { ['f'.repeat(1_000_000)]: 1 } }).catch((e) => e.message);
+    assert.match(long, /Unknown parameter "f+…"/);
+    assert.ok(long.length < 600 && Date.now() - t0 < 3000, `${long.length} characters in ${Date.now() - t0} ms`);
+    // thousands of unknown arguments: eight are named, the rest counted
+    const many = await call('set_mixer', { insert: 1, ...Object.fromEntries(Array.from({ length: 5000 }, (_, i) => [`x${i}`, 1])) }).catch((e) => e.message);
+    assert.match(many, /unknown argument "x0"/);
+    assert.match(many, /… and 4992 more unknown arguments/);
+    assert.ok(many.length < 4000, `${many.length} characters`);
+    // …and inside an object of a list (this overflowed the stack)
+    const deep = await call('add_notes', { pattern: 'Verse', channel: 'Lead', notes: [{ note: 'C4', start: 0, ...Object.fromEntries(Array.from({ length: 200_000 }, (_, i) => [`y${i}`, 1])) }] }).catch((e) => e.message);
+    assert.match(deep, /unknown field "y0" in notes\[0\]/);
+    assert.ok(deep.length < 6000, `${deep.length} characters`);
+    assert.match(await call('x'.repeat(200_000), {}).catch((e) => e.message), /Tool "x+…" not found/);
+
+    // "8" as text could be bar 8 or a slip for the number 8 (8 steps): nothing is placed on a guess
+    await fails(call('add_notes', { pattern: 'Verse', channel: 'Lead', notes: [{ note: 'C4', start: '8', length: 2 }] }), /the position "8" is text, which could mean two things: send the number 8 for 8 steps from the start, or "8\.1" for bar 8/);
+    await fails(call('add_roll', { pattern: 'Verse', channel: 'Kick', start: '2', length: '1/4' }), /"2\.1" for bar 2/);
+  });
+  // (in note text a bare number is a bar, as the grammar says)
+  assert.match(await call('add_notes', { pattern: 'Verse', channel: 'Lead', text: '2 C4 1/4', dryRun: true }), /bar 2|DRY RUN/);
+
+  // a batch whose calls are all fine but which cannot be applied (the project changed meanwhile) says so
+  const { createRemoteBackend } = await import('../src/backend.js');
+  const { createMcpServer } = await import('../src/mcp/tools.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const backend = createRemoteBackend(srv.base, { token });
+  for (const [failure, hint] of [['Channel ch_gone not found', /was changed \(or removed\) by someone else[^\n]*get_project/], ['request entity too large', /too large to send as one change\. Split it/]]) {
+    const failing = { ...backend, applyOps: async () => { throw new Error(failure); } };
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const server = createMcpServer(failing);
+    await server.connect(a);
+    const other = new Client({ name: 'review', version: '1' });
+    await other.connect(b);
+    const said = await callTool(other)('batch', { projectId: pid, calls: [{ tool: 'set_mixer', args: { insert: 1, volumeDb: -3 } }] }).catch((e) => e.message);
+    assert.match(said, /The batch was not applied — nothing was changed/);
+    assert.match(said, new RegExp(failure));
+    assert.match(said, hint);
+    await other.close();
+  }
+});
+
+test('review: a version file that is not a version is skipped in the list and is not a server error', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  await call('save_version', { name: 'good one' });
+  const find = async (dir) => {
+    for (const e of await fs.readdir(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name === pid && (await fs.readdir(full)).some((f) => f.endsWith('.json')) && full.includes('version')) return full;
+        const deeper = await find(full);
+        if (deeper) return deeper;
+      }
+    }
+    return null;
+  };
+  const dir = await find(srv.dataDir);
+  assert.ok(dir, 'the versions directory of the project');
+  await fs.writeFile(path.join(dir, 'v_list.json'), '[1,2,3]');
+  await fs.writeFile(path.join(dir, 'v_empty.json'), JSON.stringify({ id: 'v_empty', name: 'no project', createdAt: new Date().toISOString(), project: null }));
+  const listed = await call('list_versions', {});
+  assert.match(listed, /good one/);
+  assert.doesNotMatch(listed, /no project/);
+  const res = await user.get(`/api/projects/${pid}/versions/v_empty`);
+  assert.equal(res.status, 404);
+  assert.match(JSON.stringify(res.body), /damaged/);
 });

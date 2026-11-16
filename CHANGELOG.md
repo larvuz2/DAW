@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.11.1 — Review of the agent tools
+
+An independent review of 0.11.0 found no critical problem, one serious one and a handful of gaps. Fixed, each with a
+test:
+
+- **One call could stall the server for everybody.** A parameter, tool or field name of a megabyte was compared
+  letter by letter with every known name (28 s for one request, during which nobody else was answered); thousands of
+  unknown arguments produced a 34 MB answer; 200 000 stray fields in one note overflowed the stack. Names longer
+  than 64 characters are no longer compared, an error repeats at most 60 characters of what was sent, and eight
+  unknown arguments are named — the rest are counted.
+- **A number sent as text is no longer taken for a bar.** `"start": "8"` meant bar 8, while `8` means 8 steps —
+  bars apart, and with the same friendly answer. As an argument a bare `"8"` is now refused with both spellings
+  (`8` for steps, `"8.1"` for the bar). Inside note text `8 C4 1/4` is still bar 8.
+- **A batch that cannot be put in place says why**: all calls valid, but the project changed meanwhile (read it
+  again and resend) or the change is too large (split it). Nothing was applied in either case, as before.
+- **The diff left out things you hear**: a muted or renamed playlist track when the number of tracks also changed
+  (each track is now named), and a reordered effect chain when a knob moved too. Wording: "110 notes removed",
+  "1 bar", "8.25 steps" (not "8.25s"), audio clips without their sample id; a release velocity of 0.5 is no change
+  from none.
+- **"The same audio" also looks at single samples.** The null test averaged over the whole render, so a 50 ms click
+  at −60 dBFS vanished in four minutes of music. It now also requires that no sample differs by more than two steps
+  of 16 bits, and says "a brief difference" when the average is rounding but a moment is not. Two renders of which
+  one came back without numbers are no longer "the same by every meter".
+- **Spectrum of long audio**: up to twelve minutes every frame is measured (was three); longer audio is thinned at
+  scattered frames, not on a regular grid a hi-hat could fall in or out of step with.
+- **Note text**: `1.4.3` in 7/8 is past the bar line and says so; a ";" inside a comment is asked back (it could
+  end the comment or belong to it); a pitch below MIDI 12 is refused (`60 1 4` is not key 60 at step 1); velocities
+  are 0–1 or whole MIDI values 2–127 (`v1.5`, `v0x10` are errors).
+- A damaged version file no longer breaks the version list or answers with a server error; the render log keeps
+  only plain numbers and short text of what the browser reports; the tab drops remembered renders of other
+  projects; the published tool schemas say `additionalProperties: false`; the tempo field has a name for screen
+  readers.
+
+Not changed: a `__proto__` argument is dropped by the MCP library before the tools see it (harmless, but silent), and
+typing `1,000` in the tempo field reads as 1.0 (the comma is a decimal comma).
+
 ## 0.11.0 — Tools built for an agent
 
 The third batch from GGS Composer: what makes working through the MCP tools cheaper, safer and easier to check.

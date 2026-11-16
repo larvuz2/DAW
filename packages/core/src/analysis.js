@@ -9,7 +9,7 @@ const r1 = (x) => (Number.isFinite(x) ? Math.round(x * 10) / 10 : null);
 const r2 = (x) => (Number.isFinite(x) ? Math.round(x * 100) / 100 : null);
 const r3 = (x) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : null);
 /** At most this many spectrum frames per analysis (about three minutes at 44.1 kHz with every frame taken). */
-const SPECTRUM_FRAMES = 4000;
+const SPECTRUM_FRAMES = 16000;
 /** Spectral bands used for "spectral balance" percentages (Hz). */
 const BANDS = [['sub', 20, 60], ['low', 60, 250], ['lowMid', 250, 500], ['mid', 500, 2000], ['highMid', 2000, 6000], ['high', 6000, 20000]];
 const toDb = (x) => (x > 1e-10 ? 20 * Math.log10(x) : -200);
@@ -471,14 +471,14 @@ export function analyzeAudio({ channels: input, sampleRate: fs }, opts = {}) {
   // Half-overlapping Hann frames on a grid that starts half a frame before the audio does: every sample counts the
   // same, wherever it falls in a frame, and the grid does not move when the level does. (Frames laid end to end
   // from the first sample above −60 dB — as this used to do — weigh a kick by where it lands in its frame, and
-  // land elsewhere when the mix is 6 dB quieter: the "same" mix then showed a different balance.) Long audio takes
-  // every m-th frame of the grid, m from the length alone.
-  const hop = N / 2;
-  const every = Math.max(1, Math.ceil(n / hop / SPECTRUM_FRAMES));
+  // land elsewhere when the mix is 6 dB quieter: the "same" mix then showed a different balance.) Audio longer than
+  // twelve minutes takes one frame out of every m of the grid, m from the length alone — which one is picked by a
+  // hash of its number, because every m-th frame is a rhythm of its own that a hi-hat can fall in or out of step with.
+  const frames = spectrumFrames(n, N);
   const fLo = Math.max(1, Math.floor(100 / binHz));
   const fHi = Math.min(N / 2, Math.floor(10000 / binHz));
   for (let j = 0; ; j++) {
-    const start = (j * every - 1) * hop;
+    const start = frames.start(j);
     if (start >= regionEnd) break;
     if (start + N <= regionStart) continue;
     const p = powerSpectrum(mono, start, N, re, im);
@@ -669,6 +669,19 @@ export function analyzeAudio({ channels: input, sampleRate: fs }, opts = {}) {
   if (segments) result.loudnessPerSegment = { segmentSeconds: r2(opts.segmentSeconds), label: opts.segmentLabel || '', lufs: segments };
   result.summary = describeAnalysis(result);
   return result;
+}
+
+/**
+ * Where the spectrum frames of `n` samples start: frames of N on a half-overlapping grid that begins half a frame
+ * before the audio. Up to `max` frames the whole grid is used; longer audio takes one frame out of every `every`,
+ * picked by a fixed scramble of its number — the same audio is always measured at the same places, but not at a
+ * regular beat of its own.
+ */
+export function spectrumFrames(n, N, max = SPECTRUM_FRAMES) {
+  const hop = N / 2;
+  const every = Math.max(1, Math.ceil(n / hop / max));
+  const pick = (j) => ((Math.imul(j + 1, 0x9e3779b1) >>> 16) & 0xffff) % every;
+  return { hop, every, start: (j) => (j * every + (every > 1 ? pick(j) : 0) - 1) * hop };
 }
 
 /**

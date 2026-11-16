@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { summarizeProject, diffProjects, didYouMean } from '@greanteadawy/core';
+import { summarizeProject, diffProjects, didYouMean, brief } from '@greanteadawy/core';
 import { GUIDE, INSTRUCTIONS } from './guide.js';
 import { z, ok, projectIdArg, annotations as A } from './util.js';
 import { validateArgs } from './validate.js';
@@ -86,14 +86,15 @@ export function createMcpServer(realBackend) {
     const editable = !readOnly && !MORE_THAN_EDITS.has(name);
     const shape = { ...(config.inputSchema || {}), ...(editable ? { dryRun: dryRunArg } : {}) };
     registry.set(name, { name, shape, handler, editable, readOnly });
-    server.registerTool(name, { ...config, inputSchema: shape }, (args, extra) => call(name, args, extra));
+    // (the strict object makes the published schema say what `call` enforces: no arguments beyond these)
+    server.registerTool(name, { ...config, inputSchema: z.strictObject(shape) }, (args, extra) => call(name, args, extra));
   }
 
   /** Check the arguments of one call and run it: for real, or (dryRun) against a copy. */
   async function call(name, rawArgs, extra) {
     try {
       const t = registry.get(name);
-      if (!t) throw new Error(`Tool "${name}" not found.${didYouMean(name, [...registry.keys()])}`);
+      if (!t) throw new Error(`Tool "${brief(name)}" not found.${didYouMean(name, [...registry.keys()])}`);
       const given = rawArgs && typeof rawArgs === 'object' ? rawArgs : {};
       if (!t.editable && !t.own && given.dryRun) {
         throw new Error(t.readOnly ? `${name} only reads: there is nothing to try. Call it without dryRun.` : `${name} does more than edit the project (files, playback, rendering, versions or the library), so it cannot be tried with dryRun.`);
@@ -124,7 +125,7 @@ export function createMcpServer(realBackend) {
       const { tool: name, args: given = {} } = calls[i];
       try {
         const t = registry.get(name);
-        if (!t) throw new Error(`Tool "${name}" not found.${didYouMean(name, [...registry.keys()])}`);
+        if (!t) throw new Error(`Tool "${brief(name)}" not found.${didYouMean(name, [...registry.keys()])}`);
         if (t.own) throw new Error('a batch cannot contain a batch');
         if (given.dryRun) throw new Error('set dryRun on the batch itself: it tries all of its calls together');
         const { dryRun: _off, ...rest } = given;
@@ -143,7 +144,15 @@ export function createMcpServer(realBackend) {
     const list = replies.join('\n');
     if (dryRun) return ok(`DRY RUN — nothing was changed. All ${calls.length} calls are valid; they would answer:\n${list}\nTogether they would change:\n${changesOf(session)}`);
     if (!session.ops.length) return ok(`None of the ${calls.length} calls edits the project, so there was nothing to apply:\n${list}`);
-    await session.commit();
+    try {
+      await session.commit();
+    } catch (e) {
+      // every call was fine against the project as it was read: what failed is putting the result in place
+      const why = /too large/i.test(e.message)
+        ? 'it is too large to send as one change. Split it into two batches.'
+        : 'the project was changed (or removed) by someone else while the batch was being prepared. Read it again (get_project) and send the batch again.';
+      throw new Error(`The batch was not applied — nothing was changed: ${e.message.replace(/\.$/, '')}. All ${calls.length} calls were valid, but ${why}`, { cause: e });
+    }
     return ok(`Applied ${calls.length} calls as ONE change (undo reverts all of it):\n${list}`);
   }
 
@@ -174,7 +183,7 @@ export function createMcpServer(realBackend) {
   server.registerTool('batch', {
     title: 'Several edits as one change',
     description: `Run up to ${MAX_BATCH} editing tools as ONE change: either every call succeeds and the project gets a single update (one undo step, one refresh in the studio) — or, if any call fails, nothing is changed at all and the answer says which call to fix. Use it for edits that belong together: a new section (pattern + notes + clips), a sound with its effects and sends, a mix move over several inserts. It is also faster than separate calls. dryRun=true tries the whole batch and reports what it would change. Only tools that edit the project, and read-only tools, can be in a batch — not rendering, playback, exports, versions, undo, samples or creating/opening projects.`,
-    inputSchema: batchShape,
+    inputSchema: z.strictObject(batchShape),
     annotations: A.edit
   }, (args, extra) => call('batch', args, extra));
 

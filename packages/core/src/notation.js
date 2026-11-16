@@ -137,7 +137,10 @@ export function parsePosition(value, project) {
     if (beat < 1 || beat > Math.ceil(beats)) fail(`a bar has ${beats} beats here, so the beat is 1–${Math.ceil(beats)}`);
     if (step < 1 || step > stepsInBeat) fail(`the third number is the sixteenth inside the beat, 1–${stepsInBeat} (for finer positions add ticks as a fourth number, 0–${STEP - 1}, or use steps: "2.5s")`);
     if (tick >= STEP) fail(`the fourth number is ticks inside the sixteenth, 0–${STEP - 1}`);
-    ticks = (bar - 1) * ticksPerBar(project) + (beat - 1) * PPQ + (step - 1) * STEP + tick;
+    const inBar = (beat - 1) * PPQ + (step - 1) * STEP + tick;
+    // (7/8 has three and a half beats: "1.4.3" would be past the bar line)
+    if (inBar >= ticksPerBar(project)) fail(`that is past the end of the bar, which has ${beats} beats here`);
+    ticks = (bar - 1) * ticksPerBar(project) + inBar;
   }
   if (!(ticks <= MAX_POSITION)) fail('it is too far away');
   return ticks;
@@ -198,11 +201,11 @@ export function formatDuration(ticks, project) {
   return `${round3(ticks / STEP)}s`;
 }
 
-/** 0..1 as it is; 2..127 is a MIDI velocity; between 1 and 2 counts as full. */
+/** 0..1 as it is; a whole number 2..127 is a MIDI velocity. Anything else (1.5, 0x10, 200) is refused, not guessed. */
 function velocityOf(text, line) {
-  const v = Number(text);
-  if (!Number.isFinite(v) || v < 0 || v > 127) throw new Error(`${line}: velocity "v${text}" must be 0–1 (1 = full) or a MIDI velocity 2–127`);
-  return v <= 1 ? v : v < 2 ? 1 : Math.min(1, v / 127);
+  const v = /^\d+(\.\d+)?$|^\.\d+$/.test(text) ? Number(text) : NaN;
+  if (!(v >= 0 && v <= 1) && !(Number.isInteger(v) && v >= 2 && v <= 127)) throw new Error(`${line}: velocity "v${text}" must be 0–1 (1 = full) or a MIDI velocity 2–127`);
+  return v <= 1 ? v : v / 127;
 }
 
 /**
@@ -215,10 +218,16 @@ export function parseNoteText(text, project, { velocity = 0.8 } = {}) {
   let prevStart = 0;
   let prevEnd = 0;
   let count = 0;
-  const lines = String(text ?? '').split(/[\n;]/);
+  // A comment starts at a "#" that stands alone or begins a word (the one in "F#3" is a sharp) and runs to the end of
+  // its line. A ";" inside one could be the end of the comment or part of it — notes added or notes lost — so that
+  // is asked back, not guessed.
+  const lines = String(text ?? '').split('\n').flatMap((line) => {
+    const comment = /(^|\s)#.*$/.exec(line);
+    if (comment && comment[0].includes(';')) throw new Error(`The comment "${comment[0].trim().slice(0, 40)}" holds a ";": a comment runs to the end of its line, so put what follows the ";" on a line of its own (or drop the ";" from the comment)`);
+    return (comment ? line.slice(0, comment.index) : line).split(';');
+  });
   lines.forEach((raw, i) => {
-    // (a comment starts at a "#" that stands alone or begins a word — the one in "F#3" is a sharp)
-    const body = raw.replace(/(^|\s)#.*$/, '').trim();
+    const body = raw.trim();
     if (!body) return;
     const where = `Line ${i + 1} ("${body.length > 40 ? `${body.slice(0, 37)}…` : body}")`;
     const tokens = body.split(/\s+/);
@@ -234,6 +243,8 @@ export function parseNoteText(text, project, { velocity = 0.8 } = {}) {
       } else start = parsePosition(startText, project);
       keys = pitchText.split('+').map((k) => {
         if (!k) throw new Error(`"${pitchText}" has an empty pitch (pitches of a chord are joined by "+", e.g. C4+E4+G4)`);
+        // ("60 1 4" is not key 60 at step 1: the order is start, pitch, duration — and nobody writes MIDI note 1)
+        if (/^\d+$/.test(k) && Number(k) < 12) throw new Error(`the pitch "${k}" would be MIDI note ${k}, below anything a speaker plays: a line is <start> <pitch> <duration>, the pitch a name such as C4 or a MIDI number from 12`);
         return parseNote(k);
       });
       length = parseDuration(lengthText, project);

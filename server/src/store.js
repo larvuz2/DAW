@@ -249,6 +249,8 @@ export class ProjectStore extends EventEmitter {
     for (const f of files) {
       try {
         const { project, ...v } = JSON.parse(await fs.readFile(path.join(dir, f), 'utf8'));
+        // (a file that is JSON but not a version — damaged, or put there by hand — is skipped like one that is not JSON)
+        if (typeof v.id !== 'string' || typeof v.createdAt !== 'string' || !project || typeof project !== 'object') continue;
         out.push({ ...v, channels: project?.channels?.length ?? 0, patterns: project?.patterns?.length ?? 0 });
       } catch { /* skip */ }
     }
@@ -265,6 +267,7 @@ export class ProjectStore extends EventEmitter {
     } catch {
       throw httpError(404, `Version ${versionId} not found`);
     }
+    if (!data || typeof data !== 'object' || Array.isArray(data) || !data.project || typeof data.project !== 'object') throw httpError(404, `Version ${versionId} is damaged: it holds no project`);
     return { ...data, project: normalizeProject(data.project) };
   }
 

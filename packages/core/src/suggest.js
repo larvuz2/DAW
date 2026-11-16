@@ -10,13 +10,22 @@ function editDistance(a, b) {
   return prev[b.length];
 }
 
+const MAX_NAME = 64;
+
+/** A name as an error may repeat it: whatever was sent, at most `max` characters of it come back. */
+export function brief(text, max = 60) {
+  const s = String(text);
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
 /**
  * The candidates closest to `name`, nearest first (at most `max`). A candidate counts when it is within a few edits
  * of the name — or when one contains the other ("cutoff" finds "f1Cutoff"). Nothing close: an empty list.
  */
 export function nearest(name, candidates, max = 3) {
   const wanted = String(name ?? '').trim().toLowerCase();
-  if (!wanted) return [];
+  // (no real name is this long, and comparing a megabyte of "name" letter by letter would stall whoever is waiting)
+  if (!wanted || wanted.length > MAX_NAME) return [];
   const scored = [];
   const seen = new Set();
   for (const c of candidates || []) {

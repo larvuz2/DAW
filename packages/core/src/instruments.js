@@ -1,6 +1,6 @@
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
 import { GGS_PARAMS, GGS_PRESETS, migrateParams as migrateGgsParams } from '@greanteadawy/synth-dsp';
-import { didYouMean } from './suggest.js';
+import { didYouMean, brief } from './suggest.js';
 
 // Instrument catalog. Every channel in the Channel Rack has an instrument:
 //   { kind: 'kick' | 'synth' | ..., preset: 'Punchy', params: {...} }
@@ -809,7 +809,7 @@ export function sanitizeParams(defs, params = {}, { strict = false } = {}) {
     const p = defs.find((d) => d.key === key);
     if (!p) {
       // (a synth with hundreds of parameters: the nearest names say more than the whole list)
-      if (strict) throw new Error(`Unknown parameter "${key}".${didYouMean(key, defs.map((d) => d.key), defs.length > 40 ? 6 : 3)} ${defs.length > 40 ? `There are ${defs.length} parameters` : `Valid: ${defs.map((d) => d.key).join(', ')}`}`);
+      if (strict) throw new Error(`Unknown parameter "${brief(key)}".${didYouMean(key, defs.map((d) => d.key), defs.length > 40 ? 6 : 3)} ${defs.length > 40 ? `There are ${defs.length} parameters` : `Valid: ${defs.map((d) => d.key).join(', ')}`}`);
       continue;
     }
     out[key] = sanitizeValue(p, value, strict);

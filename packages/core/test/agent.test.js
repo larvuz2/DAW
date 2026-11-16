@@ -2,10 +2,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  nearest, didYouMean, nearestNumber, findChannel, findPattern, sanitizeParams, INSTRUMENTS, getEffectDef, makeInstrument,
+  nearest, didYouMean, nearestNumber, brief, createDefaultProject, findChannel, findPattern, sanitizeParams, INSTRUMENTS, getEffectDef, makeInstrument,
   parsePosition, formatPositionText, parseDuration, formatDuration, parseNoteText, formatNoteText, STEP, PPQ,
   createProjectFromTemplate, createEffect, applyOps, prepareOps, diffProjects, diffNotes,
-  audioFingerprint, maskingReport, describeMasking, compareRenders, createLevelMeter, analyzeAudio, BARK_EDGES_HZ, BARK_BANDS, nullTest, toPcm16, SAME_AUDIO_DB
+  audioFingerprint, maskingReport, describeMasking, compareRenders, createLevelMeter, analyzeAudio, spectrumFrames, BARK_EDGES_HZ, BARK_BANDS, nullTest, toPcm16, SAME_AUDIO_DB
 } from '../src/index.js';
 
 test('did you mean: the nearest names, and nothing when nothing is near', () => {
@@ -95,11 +95,10 @@ test('compact note text: chords, runs, velocity, release, pan — and it reads b
   assert.equal(notes[3].velocity, 0.8, 'no velocity: 0.8');
   assert.deepEqual([notes[5].releaseVelocity, notes[5].pan], [0.9, -0.3]);
   assert.ok(Math.abs(notes[6].velocity - 100 / 127) < 1e-9, 'v100 is a MIDI velocity');
-  assert.equal(parseNoteText('1 C4 1/4 v1.5', FOUR)[0].velocity, 1);
   assert.equal(parseNoteText('1 C4 1/4', FOUR, { velocity: 0.5 })[0].velocity, 0.5);
   assert.equal(parseNoteText('1 C4 1/4 p0', FOUR)[0].pan, undefined, 'a centred pan is no pan');
   // sharps are not comments
-  assert.deepEqual(parseNoteText('1 F#3+C#4 1/4 #c; 1.2 G#2 1/8  # ids', FOUR).map((n) => n.key), [54, 61, 44]);
+  assert.deepEqual(parseNoteText('1 F#3+C#4 1/4 #c\n 1.2 G#2 1/8  # ids', FOUR).map((n) => n.key), [54, 61, 44]);
 
   const withIds = notes.map((n, i) => ({ id: `n${i}`, ...n }));
   const text = formatNoteText(withIds, FOUR, { ids: true });
@@ -408,4 +407,81 @@ test('the null test: subtract the earlier render and measure what is left', () =
   assert.equal(nullTest([toPcm16(x)], [x, x], fs).same, true);
   assert.equal(nullTest([new Int16Array(100)], [new Float32Array(100)], fs).same, true);
   assert.equal(nullTest([], [], fs).seconds, 0);
+});
+
+test('review of the agent tools: bounded suggestions, the note-text edge cases, what the diff must say, the null test\'s peak', () => {
+  // a "name" of a megabyte is not compared letter by letter, and comes back short
+  const t0 = Date.now();
+  assert.deepEqual(nearest('f'.repeat(1_000_000), ['f1Cutoff', 'f1Res']), []);
+  assert.throws(() => sanitizeParams(INSTRUMENTS.ggs.params, { ['f'.repeat(1_000_000)]: 1 }, { strict: true }), (e) => e.message.length < 400 && /Unknown parameter "f{20,}…"/.test(e.message));
+  assert.ok(Date.now() - t0 < 1500, `took ${Date.now() - t0} ms`);
+  assert.equal(brief('x'.repeat(100)).length, 60);
+
+  const p = createDefaultProject({ name: 'R' });
+  const seven = { ...p, timeSig: [7, 8] };
+  assert.throws(() => parsePosition('1.4.3', seven), /past the end of the bar/);
+  assert.equal(parsePosition('1.4.2', seven), 3 * PPQ + STEP);
+  // a ";" inside a comment: the end of the comment, or part of it? Asked back — neither a note added nor one lost
+  assert.throws(() => parseNoteText('1 C4 1/4 # was: 1 E4 1/4; 2 G4 1/2', p), /a comment runs to the end of its line/);
+  assert.equal(parseNoteText('1 C4 1/4; 2 G4 1/2 # two lines', p).length, 2);
+  assert.equal(parseNoteText('1 C4 1/4 # was: 1 E4 1/4\n2 G4 1/2', p).length, 2);
+  assert.throws(() => parseNoteText('60 1 4', p), /the pitch "1" would be MIDI note 1/);
+  for (const bad of ['v1.5', 'v0x10', 'v200', 'v1e1']) assert.throws(() => parseNoteText(`1 C4 1/4 ${bad}`, p), /velocity/, bad);
+  assert.equal(parseNoteText('1 C4 1/4 v1', p)[0].velocity, 1);
+  assert.equal(parseNoteText('1 C4 1/4 v64', p)[0].velocity, 64 / 127);
+  assert.equal(parseNoteText('1 C4 1/4 v.5', p)[0].velocity, 0.5);
+
+  // a muted track is said even when the number of tracks changed; the order of a chain even when a knob moved too
+  const fx = (id, type) => ({ type: 'effect/add', index: 1, effect: { id, type } });
+  const a = applyOps(p, prepareOps([fx('fx_a', 'delay'), fx('fx_b', 'reverb')]));
+  const moved = applyOps(a, [
+    { type: 'effect/move', index: 1, effectId: 'fx_b', position: 0 },
+    { type: 'effect/update', index: 1, effectId: 'fx_a', patch: { params: { mix: 0.9 } } },
+    { type: 'track/update', index: 0, patch: { mute: true } }
+  ]);
+  const grown = { ...moved, playlist: { ...moved.playlist, tracks: [...moved.playlist.tracks, { name: 'Track 99', mute: false }] } };
+  const text = diffProjects(a, grown, { ids: false }).lines.join('\n');
+  assert.match(text, /Playlist track 1[^\n]*: muted/);
+  assert.match(text, /Playlist tracks \d+ → \d+/);
+  assert.match(text, /mix [\d.]+ → 0\.9/);
+  assert.match(text, /order now reverb → delay/);
+  // "110 notes removed", "1 bar", and a release velocity of 0.5 is no change from none
+  const pt = a.patterns[0];
+  const ch = a.channels[0];
+  const withNotes = applyOps(a, prepareOps([{ type: 'notes/add', patternId: pt.id, channelId: ch.id, notes: [{ key: 60, start: 0, length: 24, velocity: 0.8 }, { key: 62, start: 24, length: 24, velocity: 0.8 }] }]));
+  assert.match(diffProjects(withNotes, a).summary, /2 notes removed/);
+  const halved = { ...withNotes, patterns: withNotes.patterns.map((x) => ({ ...x, notes: { ...x.notes, [ch.id]: x.notes[ch.id].map((n) => ({ ...n, releaseVelocity: 0.5 })) } })) };
+  assert.equal(diffProjects(withNotes, halved).changed, false);
+
+  // four minutes of music with one 50 ms click at −60 dBFS: not "the same audio", though the average says rounding
+  const fs = 8000;
+  const n = fs * 240;
+  const music = new Float32Array(n);
+  for (let i = 0; i < n; i++) music[i] = 0.25 * Math.sin(i * 0.3) * Math.sin(i * 0.0007);
+  const clicked = Float32Array.from(music);
+  for (let i = 0; i < fs * 0.05; i++) clicked[fs * 100 + i] += 0.001 * Math.sin(i * 2.5);
+  const withClick = nullTest([toPcm16(music)], [clicked], fs);
+  assert.ok(withClick.residualDb < -80 && withClick.peakDb > -70, JSON.stringify(withClick));
+  assert.equal(withClick.same, false);
+  // the mixer's last bit alone (a sample here and there one step of 16 bits off) still is
+  const jitter = Float32Array.from(music);
+  for (let i = 0; i < n; i += 97) jitter[i] += 1 / 32767;
+  assert.equal(nullTest([toPcm16(music)], [jitter], fs).same, true);
+  assert.match(compareRenders({ hash: 'a', mix: { lufs: -14, duration: 240 } }, { hash: 'b', mix: { lufs: -14, duration: 240 }, nullTest: { against: 'a', ...withClick } }).lines.join(' '), /a brief difference/);
+  // a render that came back without numbers is not "the same by every meter"
+  const blind = compareRenders({ hash: 'a', mix: { lufs: -14 } }, { hash: 'b', mix: null });
+  assert.equal(blind.same, false);
+  assert.match(blind.lines.join(' '), /without its analysis/);
+
+  // a long recording is measured at scattered frames, not on a regular grid a hi-hat can fall in step with
+  const short = spectrumFrames(44100 * 300, 4096);
+  assert.equal(short.every, 1, 'five minutes: every frame');
+  assert.deepEqual([short.start(0), short.start(1), short.start(2)], [-2048, 0, 2048]);
+  const long = spectrumFrames(44100 * 3600, 4096);
+  assert.ok(long.every > 1);
+  const starts = Array.from({ length: 200 }, (_, j) => long.start(j));
+  const gaps = new Set(starts.slice(1).map((x, j) => x - starts[j]));
+  assert.ok(gaps.size > 2, 'no single period');
+  assert.ok(starts.every((x, j) => x % 2048 === 0 && x >= (j * long.every - 1) * 2048 && x < ((j + 1) * long.every - 1) * 2048), 'one frame from each stretch of the grid');
+  assert.deepEqual(starts, Array.from({ length: 200 }, (_, j) => spectrumFrames(44100 * 3600, 4096).start(j)), 'the same places every time');
 });

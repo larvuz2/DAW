@@ -199,7 +199,9 @@ export function registerMixTools({ tool, backend, load }) {
     const rendered = result.mode || m;
     const what = { mode: rendered, patternId: rendered === 'pattern' ? patternId : null, loops: rendered === 'pattern' ? loops : null };
     if (compareTo === 'previous') against = [...history].reverse().find((r) => r.mode === what.mode && r.patternId === what.patternId && r.loops === what.loops) || null;
-    const render = await backend.rememberRender(p.id, { ...what, rev: p.rev ?? null, hash: result.hash || null, nullTest: result.nullTest || null, mix: compactAnalysis(result.mix), stems: result.stems || [], limiter: result.limiter || null });
+    // what the tab measured is kept for later comparisons — as plain numbers and short text, and not without end
+    const measured = tidy({ hash: result.hash || null, nullTest: result.nullTest || null, mix: compactAnalysis(result.mix), stems: result.stems || [], limiter: result.limiter || null });
+    const render = await backend.rememberRender(p.id, { ...what, rev: p.rev ?? null, ...measured });
     const comparison = against ? { against: against.id, ...compareRenders(against, render) } : null;
     return ok(formatMixReport(result, p, m, goal, { render, against, comparison, compareTo }), {
       render: { id: render.id }, mix: render.mix, stems: result.stems, limiter: result.limiter || null,
@@ -247,6 +249,19 @@ export function progressNotifier(extra, message) {
   return (progress) => {
     extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, progress: Math.round(progress * 100), total: 100, message } }).catch(() => {});
   };
+}
+
+/**
+ * A copy of what a browser sent that is safe to keep: numbers, booleans, text up to 200 characters, lists up to 64
+ * items and objects up to 64 fields, four levels deep. Anything else becomes null.
+ */
+function tidy(value, depth = 0) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'boolean' || value === null) return value;
+  if (typeof value === 'string') return value.slice(0, 200);
+  if (depth >= 4 || typeof value !== 'object') return null;
+  if (Array.isArray(value)) return value.slice(0, 64).map((v) => tidy(v, depth + 1));
+  return Object.fromEntries(Object.entries(value).slice(0, 64).map(([k, v]) => [k.slice(0, 64), tidy(v, depth + 1)]));
 }
 
 function compactAnalysis(a) {

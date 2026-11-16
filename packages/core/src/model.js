@@ -9,7 +9,7 @@ import { createEffect, EFFECTS } from './effects.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
 import { sanitizeExpression } from './expression.js';
 import { MACRO_COUNT } from '@greanteadawy/synth-dsp';
-import { didYouMean } from './suggest.js';
+import { didYouMean, brief } from './suggest.js';
 
 export const PROJECT_FORMAT = 'greanteadawy-project';
 export const PROJECT_VERSION = 1;
@@ -380,7 +380,7 @@ function lookup(list, ref, what) {
   const found = list.find((x) => x.id === s)
     || list.find((x) => x.name?.toLowerCase() === s.toLowerCase())
     || (/^\d+$/.test(s) ? list[Number(s)] : undefined);
-  if (!found) throw new Error(`${what} "${ref}" not found.${didYouMean(s, list.map((x) => x.name))} Available: ${list.map((x) => `${x.name} (${x.id})`).join(', ') || 'none'}`);
+  if (!found) throw new Error(`${what} "${brief(ref)}" not found.${didYouMean(s, list.map((x) => x.name))} Available: ${list.map((x) => `${x.name} (${x.id})`).join(', ') || 'none'}`);
   return found;
 }
 
