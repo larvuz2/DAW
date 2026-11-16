@@ -60,7 +60,7 @@ Use the URL form `https://your-server/mcp?token=gtd_…`. Treat that URL like a 
 
 ## What Claude can do
 
-94 tools in eleven groups — see the full [MCP reference](MCP.md):
+95 tools in eleven groups — see the full [MCP reference](MCP.md):
 
 - **GGS Synth** ([guide](ggs-synth.md)): `describe_synth` (the reference), `create_synth_patch`, `get_synth_patch`,
   `update_synth_patch`, `set_synth_oscillator` / `_filter` / `_envelope` / `_lfo` / `_modulation` / `_effect`, and

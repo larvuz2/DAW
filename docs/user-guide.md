@@ -93,10 +93,11 @@ cut each other off), step note (root key) and mixer routing. Drop a sample on th
 - Presets worth knowing: *Lo-fi Keys*, *Strings*, *Riser Noise*, *Reverse Swell* (subtractive synth), *Felt Piano* (FM),
   *Sub Drop* (808).
 - **GGS Synth**: a channel with this instrument shows the synth editor here instead of plain knobs — a preset
-  browser (search, categories, ↑ ↓ to audition), tabs for oscillators (waveform + spectrum, a wavetable grid), filters
-  (drag the handle on the response curve: cutoff and resonance), envelopes & LFOs (drag the nodes; round handles bend
-  a slope), the modulation matrix (each route explained in real units), effects and a searchable table of every
-  parameter; four named macros, patch export/import and a touch pad that plays pressure (up/down) and slide
+  browser (search, categories, ↑ ↓ to audition), a source bar (drag a chip onto a knob to modulate it; Alt-drag the
+  knob for the depth; rings and a live dot show the modulation), tabs for oscillators (waveform + spectrum, a
+  wavetable grid), filters (drag the handle on the response curve: cutoff and resonance), modulators (drag the nodes
+  of an envelope, draw an LFO shape, two chaos generators), the modulation matrix (64 routes, each explained in real
+  units), effects and a searchable table of every parameter; eight macros, patch export/import and a touch pad that plays pressure (up/down) and slide
   (left/right) with the pointer. Hover any control to read what it does. See [GGS Synth](ggs-synth.md).
 
 ## Piano roll (F7)

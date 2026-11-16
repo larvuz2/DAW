@@ -126,3 +126,65 @@ A bright source through the formant filter; slide (or an LFO) walks A-E-I-O-U:
 
 Then `set_note_expression` a slide ramp on each note (0 → 0.5 says "ah-ee", 0.75 → 1 "oh-oo"). Cutoff 700 makes the
 voice bigger and darker, 1400 smaller.
+
+## Analog drift (any patch)
+
+Two routes that make a digital patch breathe like hardware — every voice wanders a few cents on its own path, and
+renders still repeat exactly:
+
+```json
+{ "oscillators": [{ "id": "A", "table": "tilt", "position": 0.4, "level": 0.7, "unison": 3, "detune": 14, "spread": 0.8 }],
+  "filters": [{ "id": 1, "type": "ladder12", "cutoff": 1400, "resonance": 0.2, "keyTrack": 0.4 }],
+  "envelopes": [{ "id": 1, "attack": 0.3, "decay": 1.5, "sustain": 0.8, "release": 1.2 }],
+  "chaos": [{ "id": 2, "type": "drift", "rate": 0.3, "character": 0.7, "path": "note" }],
+  "modulation": [{ "source": "chaos2", "target": "pitchFine", "amount": 0.05 }, { "source": "chaos2", "target": "oscADetune", "amount": 0.04 }, { "source": "pressure", "target": "f1Cutoff", "amount": 0.25 }],
+  "effects": { "chorus": { "mix": 0.3 }, "reverb": { "mix": 0.25, "size": 0.6 } } }
+```
+
+`path: "same"` instead makes all notes drift together (a detuned tape machine rather than separate voices).
+
+## A pad that never loops
+
+A Lorenz attractor moves the wavetable and the filter; `path "same"` moves the whole chord as one:
+
+```json
+{ "oscillators": [{ "id": "A", "table": "aurora", "position": 0.4, "level": 0.7, "unison": 3, "detune": 10, "spread": 0.9 }, { "id": "B", "table": "airy", "position": 0.5, "level": 0.35, "octave": 1 }],
+  "filters": [{ "id": 1, "type": "lp12", "cutoff": 2400, "resonance": 0.1, "keyTrack": 0.3 }],
+  "envelopes": [{ "id": 1, "attack": 1.2, "decay": 3, "sustain": 0.85, "release": 3 }],
+  "chaos": [{ "id": 1, "type": "lorenz", "rate": 0.09, "character": 0.35, "path": "same" }],
+  "modulation": [{ "source": "chaos1", "target": "oscAPos", "amount": 0.25 }, { "source": "chaos1", "target": "f1Cutoff", "amount": 0.08 }, { "source": "timbre", "target": "oscBPos", "amount": 0.5 }, { "source": "pressure", "target": "f1Cutoff", "amount": 0.2 }],
+  "effects": { "chorus": { "mix": 0.3 }, "reverb": { "mix": 0.45, "size": 0.85 } } }
+```
+
+## Generative steps (Turing machine)
+
+A looping 8-step pattern on the filter, in time with the song; `character` is how often a step mutates (0 = the loop
+never changes):
+
+```json
+{ "oscillators": [{ "id": "A", "table": "basic", "position": 0.75, "level": 0.8, "phaseRandom": 0 }],
+  "filters": [{ "id": 1, "type": "lp24", "cutoff": 500, "resonance": 0.35, "keyTrack": 0.4 }],
+  "envelopes": [{ "id": 1, "attack": 0.005, "decay": 0.4, "sustain": 0.8, "release": 0.15 }],
+  "chaos": [{ "id": 1, "type": "turing", "sync": "1/16", "steps": 8, "character": 0.1, "path": "same" }],
+  "modulation": [{ "source": "chaos1", "target": "f1Cutoff", "amount": 0.22 }, { "source": "macro5", "target": "f1Cutoff", "amount": 0.3 }] }
+```
+
+Hold long notes or chords under it: the pattern plays inside them. Route `chaos1` → `pitch` 0.5 instead (and
+quantise by ear with small amounts) for self-playing melodies.
+
+## A rhythm you draw (LFO steps)
+
+One bar of sixteen steps on the level — a trance gate — with a second, smoothed shape on the filter:
+
+```json
+{ "oscillators": [{ "id": "A", "table": "sawstack", "position": 0.5, "level": 0.7, "unison": 3, "detune": 12, "spread": 0.9 }],
+  "filters": [{ "id": 1, "type": "lp24", "cutoff": 900, "resonance": 0.25, "keyTrack": 0.3 }],
+  "envelopes": [{ "id": 1, "attack": 0.01, "decay": 0.5, "sustain": 1, "release": 0.4 }],
+  "lfos": [{ "id": 1, "shape": "steps", "sync": "1bar", "trigger": "free", "steps": [1, -1, 1, -1, 1, 1, -1, 1, 1, -1, 1, -1, 1, 1, 1, -1] },
+           { "id": 2, "shape": "steps", "sync": "2bar", "trigger": "free", "smooth": 1, "steps": [-1, -0.3, 0.4, 1, 0.2, -0.5, 0.6, 0] }],
+  "modulation": [{ "source": "lfo1", "target": "level", "amount": 0.5 }, { "source": "lfo2", "target": "f1Cutoff", "amount": 0.2 }],
+  "voice": { "level": 0.5 } }
+```
+
+`steps` is the shape, one cycle of the LFO plays it; `smooth` 0 = steps, 1 = a curve through them. `trigger "free"`
+keeps the pattern on the song's clock for every note.

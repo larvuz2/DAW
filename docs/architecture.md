@@ -97,7 +97,9 @@ Jobs time out, fail fast when the tab closes, and only the owning user's tab can
   pizzicato are **physical models rendered into buffers** (`audio/models.js`, pure JS): `modelPool.js` prewarms every
   note a project plays in background Web Workers (`modelWorker.js`) into an LRU cache (≈ 96 MB), offline renders wait
   for them, and a note that still isn't ready renders on the spot.
-- **GGS Synth** (`audio/ggs-synth/`, engine in `packages/synth-dsp`): one AudioWorklet processor per note. The patch
+- **GGS Synth** (`audio/ggs-synth/`, engine in `packages/synth-dsp`): one AudioWorklet processor per note. (While
+  the synth editor is open on a channel, its voices also post their modulation values back — about thirty small
+  messages a second — for the rings and dots on the knobs; `GgsChannel.live`.) The patch
   travels with the note (`processorOptions`); gate, kill, pitch, pressure, timbre and the macros are AudioParams, so
   nothing depends on message timing and offline renders repeat. Each GGS channel keeps an effects processor and four
   constant sources (the macros). Expression curves are scheduled as AudioParam ramps (`scheduleCurve` in `dsp.js`);

@@ -29,8 +29,9 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
   src/midi.js wav.js (multichannel/extensible + extra chunks) summary.js timeline.js constants.js
 packages/synth-dsp/  @greanteadawy/synth-dsp — the GGS Synth engine: plain JS, NO dependencies, no Node/DOM APIs (it runs in
                       an AudioWorklet and in Node). params.js (flat schema, a description per param, migrateParams),
-                      voice.js, filters.js (21 models + filterResponse), fx.js, wavetables.js (46 tables), presets.js,
-                      patch.js (documents, describeRoute), render.js (headless); scripts/bench.mjs, level-presets.mjs
+                      voice.js, filters.js (21 models + filterResponse), chaos.js (Lorenz/Rössler/drift/Turing sources),
+                      fx.js, wavetables.js (46 tables), presets.js, patch.js (documents, describeRoute, modulationRanges),
+                      render.js (headless), util.js (Arena: a voice's memory in one block); scripts/bench.mjs, level-presets.mjs
 server/src/
   index.js            createServer(): express app, security headers, auth, /api, /mcp, static client, WebSocket hub
   auth/               users.js (scrypt, API tokens gtd_…), sessions.js (cookie gtd_session), http.js, routes.js
@@ -41,7 +42,7 @@ server/src/
   ffmpeg.js           optional ffmpeg detection + safe conversions (MP3/AAC/Ogg/Opus/FLAC/ALAC/AIFF)
   plugins.js zip.js sandbox.js   user plugins: store + worklet harness, hardened zip reader, generator sandbox page
   synth-worker.js     renders + analyses GGS notes in a worker thread (analyze_synth_patch: no browser needed)
-  mcp/                tools.js (server factory), tools/*.js (94 tools; production.js = groove/fills/transitions,
+  mcp/                tools.js (server factory), tools/*.js (95 tools; production.js = groove/fills/transitions,
                       export.js, spatial.js, plugins.js, synth.js = GGS patches, expression.js = per-note curves +
                       evaluate_composition), guide.js (what Claude reads: notation + mixing-by-numbers),
                       prompts.js, http.js, stdio.js
@@ -61,8 +62,9 @@ client/src/
                       recorder.js (MicSession: getUserMedia → AudioWorklet capture, meter, monitor)
   components/         SampleLibrary.jsx (Samples tab: folders, search, select mode), WaveEditor.jsx + PitchView.jsx,
                       Recorder.jsx, SynthEditor.jsx (GGS Synth, inside Channel settings) + synth/ (EnvelopeEditor,
-                      FilterGraph, PresetBrowser, WavetablePicker, ParamTable), ExpressionLane.jsx (the piano roll's
-                      pitch / pressure / slide lane)
+                      FilterGraph, PresetBrowser, WavetablePicker, ParamTable, SourceBar, StepEditor, modulation.js),
+                      ExpressionLane.jsx (the piano roll's pitch / pressure / slide lane); ui/frames.js = the one
+                      animation-frame loop for things that follow the audio thread (live dots, meters)
                       … one file per window (Playlist, ChannelRack, PianoRoll, Mixer, …) + ui/ primitives
 client/public/        recorder-worklet.js (served as /recorder-worklet.js: CSP script-src 'self' allows addModule)
 e2e/                  Playwright specs (real browser + MCP client acting as Claude)
@@ -137,13 +139,18 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
 - **Notes carry a performance**: optional `expression` ({ pitch, pressure, timbre } curves in normalized note time)
   and `releaseVelocity`. Edit them with the `notes/expression` op (patches one curve, keeps the others). Any code
   that creates notes from notes (copy, duplicate, paste, import) must carry `expressionFields(n)` and `pan`.
-- **GGS Synth** (`ggs`): its ~230 flat params live in `packages/synth-dsp/src/params.js` (the catalog imports them);
+- **GGS Synth** (`ggs`): its ~510 flat params (64 matrix slots × 4, 8 macros, 2 chaos, drawn LFO steps) live in
+  `packages/synth-dsp/src/params.js` (the catalog imports them);
   each has a `desc`. A renamed param is mapped in `migrateParams` (the catalog's `migrate` hook runs it on load and on
   ops). Structural changes on a sounding voice fade (`SWAP_KEYS` in `voice.js`) — never swap a table or a filter
   model under a held note without it.
   One AudioWorklet processor per note; the patch travels in `processorOptions`, and gate / kill / pitch / pressure /
   timbre / macros are AudioParams — never make note timing depend on port messages (offline renders must repeat).
-  No allocation or string-keyed lookups in the render path; no `Math.random()` in the engine (seeded per note).
+  No allocation or string-keyed lookups in the render path — and no function call that takes numbers per sample
+  (an un-inlined call boxes them: write the maths out in the loop); a voice's typed arrays over 64 bytes come from
+  its `Arena`. No `Math.random()` in the engine (seeded per note). What the editor shows live (knob rings' dots,
+  source meters) is reported by the voices over their port while a channel is watched (`GgsChannel.setWatch`): audio
+  must never depend on those messages, and offline renders never send them.
   Presets are levelled by measurement (`scripts/level-presets.mjs --write` after changing one). See the `ggs-synth` skill.
 - **Spatial**: an insert with `spatial.enabled` is a 3D object; the `SpatialRig` (not the stereo router) connects it.
   Exports are rendered by the `spatial` job; positions automate `spatialX/Y/Z`. See `docs/spatial.md`.

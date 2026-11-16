@@ -11,11 +11,12 @@ server (pitch, LUFS, spectrum, envelope) with no browser needed. Work in a loop:
 
 ## 1. Know the instrument
 
-`describe_synth` (overview), then the topic you need: `filters`, `wavetables`, `modulation`, `parameters`, `presets`.
+`describe_synth` (overview), then the topic you need: `filters`, `wavetables`, `modulation` (sources, targets, the
+chaos generators), `parameters`, `presets`.
 
 Signal path per note: oscillators A/B/C (46 wavetables + unison + warp + FM) + sub + noise → filter 1 / filter 2
-(21 models) → amp (envelope 1). Per channel: drive → chorus → delay → reverb → gain. Movement: 4 envelopes, 4 LFOs, 4 macros,
-16 modulation routes. Amounts are fractions of the target's range: `f1Cutoff 0.3` = 3 octaves, `oscAPos 0.5` = half
+(21 models) → amp (envelope 1). Per channel: drive → chorus → delay → reverb → gain. Movement: 4 envelopes, 4 LFOs,
+2 chaos generators, 8 macros, 64 modulation routes. Amounts are fractions of the target's range: `f1Cutoff 0.3` = 3 octaves, `oscAPos 0.5` = half
 the table, `pitch 0.5` = 12 semitones, `pitchFine 0.3` = 0.3 semitones.
 
 ## 2. Start close, then shape
@@ -32,6 +33,8 @@ One section per call, only the fields that change:
 | Tone / sweep | `set_synth_filter filter=1 type="lp24" cutoff=… resonance=…` (the reply shows the measured response) |
 | Shape in time | `set_synth_envelope envelope=1 attack=… decay=… sustain=… release=…` (+ `delay`, `hold`, `attackCurve`, `decayCurve`, `releaseCurve`) |
 | Motion | `set_synth_lfo lfo=1 …` + `set_synth_modulation routes=[{source:"lfo1", target:"oscAPos", amount:0.2}]` |
+| A rhythm inside the note | `set_synth_lfo lfo=2 steps=[1,0,0.5,0,1,-1,0.5,0] sync="1bar" trigger="free"` → `level` or `f1Cutoff` |
+| Movement that never loops | `set_synth_chaos chaos=1 type="lorenz" rate=0.1 path="same"` + a route from `chaos1` |
 | Space | `set_synth_effect chorus={mix} delay={mix, sync} reverb={mix, size}` |
 
 Choosing a filter — the model is half the sound:
@@ -49,6 +52,19 @@ Choosing a filter — the model is half the sound:
 
 Envelope curves: negative = fast first (a natural decay; `decayCurve -0.8` is a sharp pluck), 0 = straight, positive
 = slow first (`attackCurve 0.5` is a swell that arrives late). `hold` keeps a pluck's body before it falls.
+
+Chaos — which one when:
+
+| You want | Chaos |
+|----------|-------|
+| Analog life: every voice a few cents off, differently | `drift`, rate 0.2–0.5, path `note` → `pitchFine` 0.04–0.08 (and a little → `oscADetune`) |
+| A pad that keeps moving without an LFO you can hear cycling | `lorenz` or `rossler`, rate 0.05–0.2, path `same` → `oscAPos` 0.2, `f1Cutoff` 0.08 |
+| A generative step pattern in time with the song | `turing`, `sync "1/16"`, path `same`, `steps` 8 or 16, character 0–0.15 (0 locks the loop) → `f1Cutoff` or `pitch` |
+
+Renders repeat exactly whatever chaos you use: a path is fixed by its note.
+
+Macros: presets name and route macros 1–4; **5–8 are free** — route them (`macro5` → …) for the moves this song
+needs and automate them with `add_automation` (param `macro5`).
 
 Rules that save a patch:
 - Envelopes 2–4 and LFOs do **nothing** until routed in the matrix.

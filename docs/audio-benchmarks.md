@@ -18,13 +18,17 @@ virtual machine — treat CPU figures as relative; a recent laptop core is 2–3
 | Repeatability | two renders with the same seeds are **bit-identical** in Node; in the browser two offline renders differ by < 10⁻⁶ (the Web Audio graph may sum voices in a different order) | "renders repeat exactly"; e2e "offline renders repeat" |
 | Reverb level vs size | a steady sound through 100 % reverb comes back within ±6 dB of its input from the smallest room to the largest hall | "effects" |
 | Clean filters | lp12 / lp24 / hp24 are **−3.01 dB at the cutoff** (Butterworth) at zero resonance; the all-pass is flat within 0.01 dB; the morph filter equals lp12 at 0 and hp12 at 1 and keeps its peak level in between | `test/filters.test.js` |
-| Ladder self-oscillation | a sine **within 1 cent of the cutoff** at 110 Hz, 1 kHz and 8 kHz, for all four pole mixes (measured −0.1 cent); none below resonance 0.85 | "ladder" |
+| Ladder self-oscillation | a sine **within 1 cent of the cutoff** at 110 Hz, 1 kHz and 8 kHz, for all four pole mixes (measured −0.1 cent at 48 kHz; −0.85 cent at 12 kHz / 44.1 kHz without oversampling); none below resonance 0.85 | "ladder" |
 | Acid / MS-20 | acid oscillates on pitch (±2 cents) only at full resonance; the MS-20 keeps its pass-band within 0.1 dB at any resonance and oscillates a few cents flat (measured −7.9), like the hardware | "acid", "MS-20" |
-| Comb tuning | the fundamental peak stays **within 1.5 cents** of the cutoff for any damping (the damping filter's phase delay is taken out of the delay line) | "combs" |
+| Comb tuning | the fundamental peak stays **within 1.5 cents** of the cutoff at 220 Hz for any damping (the damping filter's phase delay is taken out of the delay line); a reviewer's sweep found up to 2.3 cents below 4 kHz and about 5 cents at 8 kHz / 48 kHz, where the delay is only six samples long | "combs" |
 | Formant / phaser | formant peaks sit on the published tenor vowels (within 40 cents) and move with cutoff and morph; the phaser has exactly 1, 3 and 6 notches at 2, 6 and 12 stages | "formant", "phaser" |
-| Filter stability | every model stays finite and bounded under full-scale noise with all four controls jumping at random every 32 samples, at 44.1 and 96 kHz; after silence every model's memory reaches exactly zero | "survives abuse", "silence in, silence out" |
+| Filter stability | every model stays finite and bounded under full-scale noise with all four controls jumping at random every 32 samples, at 44.1 and 96 kHz; after silence every model's memory reaches exactly zero, the comb's delay line included | "survives abuse", "silence in, silence out" |
+| Filter allocation | the ladder, acid and MS-20 loops allocate nothing per sample: ≤ 14 garbage collections in 20 s of audio at 96 kHz (55–110 when the loop solver was a function call) | "the analog models do not allocate per sample" |
 | Envelopes | the rendered level follows the formula (`envelopeAt`) through delay, attack, hold, decay, sustain and release within 0.03; patches with the old single curve migrate to the **same shape within 10⁻⁹** | `test/envelope.test.js` |
-| Live structural edits | switching an oscillator, the unison count, a wavetable, a filter model or the routing on a sounding note leaves a curvature **< 0.002** at the edit — it was 0.05–0.15 (a step) before the fades | "live structural edits do not click" |
+| Live structural edits | switching an oscillator, the unison count, a wavetable, a filter model or the routing on a sounding note leaves a curvature **< 0.002** at the edit — it was 0.05–0.15 (a step) before the fades. Editing an oscillator that is another's FM source: < 0.012 (0.24–0.36 before 0.10.0), and nothing is left of it once it is off. An edit elsewhere on the buses does not cut off a ringing comb | "live structural edits do not click", "an oscillator that modulates another", "an edit elsewhere on the buses" |
+| Chaos | every generator stays in −1…1 and uses its range; a path is fixed by its seed and independent of the block size (difference < 10⁻⁶); Lorenz swings and Rössler orbits per second match the rate within 12 %; a locked Turing loop repeats exactly; a tempo-synced pattern heard by a note that starts 37 s late is the one the first note hears, step for step | `test/chaos.test.js` |
+| 64 routes, 8 macros | 64 routes of 1/80 equal one of 0.8 (difference < 10⁻⁶); a route in slot 64 behaves like slot 1 | "64 routes", "eight macros" |
+| Drawn LFO shapes | steps are held exactly; fully smoothed, the largest move per control block is < 0.02 | "a drawn LFO shape" |
 
 ### What oversampling buys
 
@@ -74,6 +78,25 @@ The target "32 notes of 3 oscillators with pitch, pressure and slide moving at o
 at 44.1 and 48 kHz.
 
 Voice stealing keeps a channel inside its `polyphony` (default 16): released notes go first, oldest first.
+
+### Starting a note
+
+A chord lands inside one audio block (2.9 ms at 44.1 kHz), so what a note costs to *start* matters as much as what
+it costs to run. Measured in Node, per note:
+
+| | 0.8.0 | 0.9.0 | 0.10.0 |
+|---|---:|---:|---:|
+| Init patch | 39 µs | 54 µs | **21 µs** |
+| Velvet Pad | 46 µs | 74 µs | **22–32 µs** |
+
+0.10.0 has twice the parameters of 0.9.0 (511: 64 routes, 8 macros, chaos, drawn LFO shapes) and still starts a
+note in less than half the time: a voice takes its typed arrays from one block of memory (seventeen separate
+off-heap allocations cost 35 µs), the init patch is no longer copied from a frozen object (40 µs on V8's slow
+path), and no key strings are built per note. A 16-note chord of Velvet Pad starts in about half a millisecond.
+
+Garbage: a voice boxes a handful of numbers per control block (function arguments), which adds up to a short
+collection about once a second for eight voices — 8 voices × 20 s: 12–32 collections, 3–7 ms in total, the same
+as 0.8.0. Nothing allocates per sample.
 
 ## Loudness policy
 

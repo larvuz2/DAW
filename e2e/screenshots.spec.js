@@ -274,19 +274,44 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   });
   expect(lead).toBeTruthy();
 
-  // the synth editor: oscillators, then the hands-on tabs of the same window (filters, envelopes, matrix)
+  // the synth editor with a note held, so the rings have their live dots and the source bar its meters
   await layout(page, { channelSettings: [10, 10, 1060, 870] });
   await expect(page.locator('.ggs-osc canvas').first()).toBeVisible();
-  await page.screenshot({ path: `${OUT}/ggs-synth.png` });
   const tab = async (name) => { await page.locator('.ggs-tabs button', { hasText: name }).click(); await page.waitForTimeout(250); };
   const clip = { x: 10, y: 50, width: 1060, height: 830 };
+  const edit = (params) => page.evaluate(([id, values]) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id, patch: { instrument: { params: values } } }]), [lead, params]);
+  // a chaos generator and a drawn LFO on top of the preset's own routes
+  await edit({ chaos1Type: 'lorenz', chaos1Rate: 1.5, mod13Src: 'chaos1', mod13Dst: 'oscAPos', mod13Amt: 0.3, mod14Src: 'macro5', mod14Dst: 'f1Res', mod14Amt: 0.4, lfo4Shape: 'steps', lfo4Sync: '1bar', lfo4S2: -0.6, lfo4S5: 0.9, lfo4S7: -0.2, mod15Src: 'lfo4', mod15Dst: 'oscBLevel', mod15Amt: 0.2 });
+  await page.mouse.click(600, 30); // the first click unlocks audio
+  const hold = async () => {
+    const pad = page.locator('.ggs-pad');
+    await pad.scrollIntoViewIfNeeded();
+    const b = await pad.boundingBox();
+    await page.mouse.move(b.x + b.width * 0.62, b.y + b.height * 0.3);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+  };
+  await hold();
+  await page.locator('.channel-settings, .window').first().evaluate(() => {});
+  await page.screenshot({ path: `${OUT}/ggs-synth.png` });
+  // close-up: rings (one per route, coloured by source) and the dot where the control is right now
+  const osc = await page.locator('.ggs-osc').first().boundingBox();
+  const bar = await page.locator('.ggs-sources').boundingBox();
+  await page.screenshot({ path: `${OUT}/ggs-rings.png`, clip: { x: bar.x - 4, y: bar.y - 4, width: Math.min(760, bar.width + 8), height: osc.y + osc.height - bar.y + 12 } });
+  await page.mouse.up();
   // a second filter of another family, so the picture shows what the curves are
-  await page.evaluate((id) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id, patch: { instrument: { params: { f1Type: 'ladder24', f1Res: 0.55, f2On: true, f2Type: 'formant', f2Cutoff: 1000, f2Res: 0.4, f2Morph: 0.25 } } } }]), lead);
+  await edit({ f1Type: 'ladder24', f1Res: 0.55, f2On: true, f2Type: 'formant', f2Cutoff: 1000, f2Res: 0.4, f2Morph: 0.25 });
   await tab('Filters');
+  await hold();
   await page.screenshot({ path: `${OUT}/ggs-filters.png`, clip });
-  await tab('Envelopes');
+  await page.mouse.up();
+  await tab('Modulators');
   await page.screenshot({ path: `${OUT}/ggs-envelopes.png`, clip });
-  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await page.locator('.ggs-lfo').nth(3).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await page.waitForTimeout(200);
+  const chaos = await page.locator('.ggs-chaos').first().boundingBox();
+  const lfo4 = await page.locator('.ggs-lfo').nth(3).boundingBox();
+  await page.screenshot({ path: `${OUT}/ggs-chaos.png`, clip: { x: Math.min(chaos.x, lfo4.x) - 8, y: Math.min(chaos.y, lfo4.y) - 12, width: 1040, height: Math.max(chaos.height, lfo4.height) + 24 } });
   await tab('Matrix');
   await page.screenshot({ path: `${OUT}/ggs-matrix.png`, clip });
   // the preset browser and the wavetable grid
@@ -302,7 +327,6 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await page.locator('.ggs-wt-panel').scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${OUT}/ggs-wavetables.png`, clip });
   await page.keyboard.press('Escape');
-
   // the piano roll: pitch curves over the notes, the pitch lane underneath
   await layout(page, { pianoRoll: [10, 10, 1580, 600] });
   await page.locator('.pr-lane').selectOption('pitch');

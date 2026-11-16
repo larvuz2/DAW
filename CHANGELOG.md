@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.10.0 — GGS Synth: modulation you can see
+
+The second batch from GGS Composer: the modulation system, and the way the editor shows it.
+
+**Rings and live dots on the knobs**
+- A knob that something modulates wears a **ring** for every route — coloured by the family of its source — showing
+  how far that route takes it from where the knob stands.
+- While a note sounds, a **bright dot** shows where the control really is: the voices report their modulation to the
+  editor about thirty times a second (only while it is open; nothing in the audio depends on it).
+- A **source bar** under the header: every source as a chip with a live meter. **Drag a chip onto a knob** to
+  modulate it, **Alt-drag the knob** for the depth, right-click the knob to add, choose, invert or remove a route or
+  to find it in the matrix. Click a chip to see its routes.
+
+**Chaos** — two generators of movement that never quite repeats: **Lorenz** (swings between two centres, flipping
+unpredictably), **Rössler** (a wobbling loop that lurches), **drift** (a random walk that comes home: analog pitch
+drift) and a **Turing machine** (a looping step pattern that mutates). Rate in Hz or tempo-synced, a *character*
+per type, and a *path*: every note its own (voices drift apart like hardware) or the same for all (a chord moves as
+one; a synced Turing pattern then follows the song clock). Renders still repeat exactly — a path is fixed by its
+note. Velvet Pad, Analog Bass and Mono Titan now drift like analog voices; Cinema Atmos and Spectral Motion are
+stirred by attractors.
+
+**64 modulation routes** (were 16) with a filter box, source colours and live meters in the matrix, and **8 macros**
+(were 4), all automatable. Presets name the first four; a macro you route yourself is named after what it moves.
+
+**LFO shapes you draw** — shape *steps*: up to 16 bars drawn with the pointer, hard (a step sequencer) or glided
+(a curve), with Random / Invert / Ramp.
+
+**Faster and steadier**
+- Starting a note costs 20–30 µs instead of 55–90 µs, with twice as many parameters: a 16-note chord no longer
+  spends a third of an audio block being born (see `docs/audio-benchmarks.md`).
+- The ladder, acid and MS-20 filters no longer allocate memory for every sample (found by review: 40–160 garbage
+  collections per 30 s of audio; now none beyond the engine's baseline).
+
+**Fixed** (found by an independent review of 0.9.0)
+- Editing an oscillator that is another one's FM source clicked, and switching it off left its last 16 samples
+  modulating for the rest of the note.
+- An unrelated edit on the buses (the sub's wave, the noise type, the routing) silenced a comb that was still ringing.
+- The comb's delay line never reached zero after a note (denormal numbers).
+- The envelope bend handles could only reach ±0.69 of their ±1 range and jumped on a sideways touch; they now cover
+  the range, and the three curves also have numbers under the graph.
+- Delay and Hold knobs could not leave zero with the arrow keys; Enter in the parameter table sent the value twice;
+  on a phone the tab row and the filter graph stuck out of the editor.
+- Two checks only looked at the first 16 matrix slots (`evaluate_composition`, the `set_note_expression` hint).
+
+**Claude (MCP)** — 95 tools
+- New: `set_synth_chaos` (its reply sketches the path it sets).
+- `set_synth_modulation`: 64 routes, sources `chaos1`/`chaos2` and `macro5`–`macro8`, `macros` up to 8 values.
+  `add_automation`: `macro1`…`macro8`. `set_synth_lfo`: `steps: [...]` and `smooth` for a drawn shape.
+- `set_synth_filter` says "self-oscillates" for a setting that does, instead of a +116 dB "response", and reports
+  nothing for a filter that is off. `update_channel` accepts params from the previous schema. A route to the rate of
+  a free-running LFO says it has no effect. `analyze_synth_patch` explains a silent result when it can.
+
 ## 0.9.0 — GGS Synth: analog-style filters, hands-on editor
 
 The first batch of ideas brought over from GGS Composer (the author's earlier Rust synth), translated into this
@@ -10,11 +62,13 @@ engine — plain JavaScript in `packages/synth-dsp` — and into this interface.
   ladder); **MS-20** low- and high-pass (Sallen-Key with the resonance clipped in the loop); **Formant** (five vowel
   resonances, A-E-I-O-U); **Phaser** (2–12 stages, per note); **Morph** (low-pass → band-pass → high-pass);
   **All-pass**; **Comb −** (inverted feedback: hollow, odd harmonics).
-- The delay-free loops are solved per sample, so the ladder **self-oscillates within 0.1 cent of the cutoff** at any
-  pitch and sample rate. These models saturate, so quality "auto" renders them at 2×.
+- The delay-free loops are solved per sample, so the ladder **self-oscillates within 0.1 cent of the cutoff** at the
+  doubled rate it runs at by default (within a cent up to 12 kHz without oversampling). These models saturate, so
+  quality "auto" renders them at 2×.
 - A new **Morph** control per filter (vowel, stages, damping or shape — it is named after what it does for the model)
   and two new modulation targets, `f1Morph` / `f2Morph`.
-- The **comb** is now the tuned, damped model: its fundamental stays in tune for any damping (within 1.5 cents),
+- The **comb** is now the tuned, damped model: its fundamental stays in tune for any damping (within about 2 cents
+  up to 4 kHz),
   resonance maps to ring time (up to several seconds) and Morph damps it. *Patches that used the comb ring longer and
   brighter than in 0.8.0* — lower the resonance (0.9 → about 0.6) and raise Morph (about 0.35) for the old character.
   The eight other original filter types are unchanged.

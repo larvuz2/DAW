@@ -4,7 +4,7 @@
 
 GreanTeaDawy is an open-source, self-hosted beat-making studio: channel rack and step sequencer, piano roll, playlist,
 mixer with effects, automation, sampler and audio clips, all running in the browser with a Node.js backend. Its
-built-in [MCP](https://modelcontextprotocol.io) server gives Claude 94 music-production tools, so you can say
+built-in [MCP](https://modelcontextprotocol.io) server gives Claude 95 music-production tools, so you can say
 *"make a dark trap beat at 145 BPM and mix it for streaming"* and watch every edit appear live in your studio.
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
@@ -32,10 +32,12 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 94 music-pro
   piano/guitar/bass tone).
 - **GGS Synth** — an original wavetable / FM hybrid synthesizer: 3 wavetable oscillators (46 band-limited tables,
   unison, warp, FM), sub + noise, 2 routable filters with 21 models (clean, ladder, acid, MS-20, formant, phaser,
-  combs), 4 envelopes with delay, hold and a curve per slope, 4 LFOs, 4 macros, a 16-route modulation matrix and
-  built-in drive / chorus / delay / reverb. Its editor is hands-on: drag the nodes of an envelope, the handle on a
-  filter's measured response; browse presets and wavetables by search and sight; read every modulation route in
-  real units. 30 presets levelled by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
+  combs), 4 envelopes with delay, hold and a curve per slope, 4 LFOs (with shapes you draw), 2 chaos generators
+  (Lorenz, Rössler, drift, Turing machine), 8 macros, a 64-route modulation matrix and built-in drive / chorus /
+  delay / reverb. Its editor is hands-on: drag a source onto a knob and it wears a ring; a dot on the ring shows
+  where the control really is while a note sounds. Drag the nodes of an envelope, the handle on a filter's measured
+  response; browse presets and wavetables by search and sight; read every route in real units. 30 presets levelled
+  by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
 - **Per-note expression (MPE-style)** — every note has its own pitch, pressure and slide curve and a release
   velocity: draw them in the piano roll's expression lane, play them in from an MPE controller (or any keyboard),
   have Claude write them. Bend one note of a chord; pitch curves work on every instrument.
@@ -86,7 +88,7 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 94 music-pro
 **Claude integration (MCP)**
 
 - **Streamable HTTP** (`/mcp`) and **stdio** (for Claude Desktop) transports.
-- 94 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
+- 95 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
   lines with 808 slides), melodies, rolls, transforms, arrangement with markers, automation, mixer and effects,
   samples, versions, undo, play/stop, MIDI and stem export.
 - **Sound design & expression** — `create_synth_patch`, `set_synth_oscillator` / `_filter` / `_envelope` / `_lfo` /
@@ -128,7 +130,7 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 94 music-pro
 | [![World collections](docs/screenshots/world.png)](docs/screenshots/world.png) **World collections** — the Indian Fusion template, sitar settings | [![Sign in](docs/screenshots/login.png)](docs/screenshots/login.png) **Sign in** |
 | [![Wave editor](docs/screenshots/wave-editor.png)](docs/screenshots/wave-editor.png) **Wave editor** — select, cut, fade, stretch, pitch shift | [![Pitch correction](docs/screenshots/pitch-correction.png)](docs/screenshots/pitch-correction.png) **Pitch correction** — auto-tune and notes moved by hand |
 | [![Recorder](docs/screenshots/recorder.png)](docs/screenshots/recorder.png) **Recorder** — takes over the song, placed on the playlist | [![About](docs/screenshots/about.png)](docs/screenshots/about.png) **About** — app name and version (ⓘ, top right) |
-| [![GGS Synth](docs/screenshots/ggs-synth.png)](docs/screenshots/ggs-synth.png) **GGS Synth** — wavetable oscillators, spectra, macros, touch pad | [![Expression](docs/screenshots/expression.png)](docs/screenshots/expression.png) **Per-note expression** — pitch curves over the notes, the expression lane |
+| [![GGS Synth](docs/screenshots/ggs-synth.png)](docs/screenshots/ggs-synth.png) **GGS Synth** — wavetable oscillators, modulation rings with live dots, the source bar, eight macros, touch pad | [![Expression](docs/screenshots/expression.png)](docs/screenshots/expression.png) **Per-note expression** — pitch curves over the notes, the expression lane |
 
 ## Quick start
 

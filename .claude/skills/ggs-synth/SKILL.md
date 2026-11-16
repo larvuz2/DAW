@@ -19,6 +19,9 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
 | Worklet processors `ggs-voice`, `ggs-fx` | `client/src/audio/ggs-synth/worklet.js` |
 | Main-thread glue: module loading, `GgsChannel`, `ggsVoice` | `client/src/audio/ggs-synth/index.js` |
 | Filter models, `filterResponse` (measured curve) | `packages/synth-dsp/src/filters.js` |
+| Chaos generators (modulation sources chaos1/2) | `packages/synth-dsp/src/chaos.js` |
+| Modulation in the editor: rings, live dots, source bar, drawn LFO | `client/src/components/ui/Knob.jsx` (`rings`, `live`, `onAltDrag`, `onDropSource`), `ui/frames.js`, `components/synth/{modulation.js,SourceBar.jsx,StepEditor.jsx}` |
+| Live values from the audio thread | `worklet.js` (`watch` → `{type:'mod'}`), `ggs-synth/index.js` (`GgsChannel.setWatch/live`), `engine.watchGgs/ggsLive` |
 | Editor | `client/src/components/SynthEditor.jsx` + `components/synth/` (EnvelopeEditor, FilterGraph, PresetBrowser, WavetablePicker, ParamTable) |
 | Expression model / op | `packages/core/src/expression.js`, `ops.js` (`notes/expression`) |
 | Expression lane | `client/src/components/ExpressionLane.jsx`, `PianoRoll.jsx` |
@@ -32,6 +35,15 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
 - **No allocation and no string-keyed param lookups while rendering.** Everything derived from params is cached as
   numbers in `GgsVoice.configure()`; `control()` and the render loops read fields. (Template-string lookups in the
   control loop cost 3× the whole voice — measured.)
+- **No function call that takes numbers inside a per-sample loop.** When V8 decides not to inline a call it boxes
+  every number passed and returned (measured: 160 garbage collections per 30 s through one filter). Write the
+  maths out in the loop — see the solvers in `filters.js` — and keep the garbage test in `test/filters.test.js`
+  green. Calls per control block are tolerated.
+- **A voice's memory comes from its `Arena`** (`util.js`): any typed array over 64 bytes that a voice (or something
+  it owns) needs is taken as a view — `mem.f64(n)` / `mem.f32(n)` — and counted in `VOICE_BYTES` (`voice.js`).
+  A separate `new Float64Array(20)` costs 2 µs; seventeen of them made a note cost 35 µs more to start.
+  Starting a note must stay cheap: no template strings in `configure()` (use the key tables `OSC_K`, `ENV_K`, …),
+  nothing that walks all ~510 params.
 - **Determinism**: a voice gets everything through its constructor options and its `process()` control inputs.
   Random parts come from the note's `seed`. Never use `Math.random()` or wall-clock time in the engine. In the
   browser nothing may depend on port-message timing: note data travels in `processorOptions` and AudioParams.
@@ -55,8 +67,16 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
   a zod field in the matching `set_synth_*` tool). Changing a default changes existing patches: note it in the
   changelog and re-level presets.
 - **Mod sources/targets** are index-addressed in the voice: keep the contiguous groups contiguous (`env1..4`,
-  `lfo1..4`, `macro1..4`, the seven per-oscillator targets in order, `f1Cutoff/Res/Drive`, `lfo1Rate..4`).
-- **Presets**: every preset routes `pressure`, `timbre` and all four macros (a test enforces it) and has honest
+  `lfo1..4`, `macro1..8`, `chaos1..2`, the seven per-oscillator targets in order, `f1Cutoff/Res/Drive`,
+  `f1Morph/f2Morph`, `lfo1Rate..4`). Never hard-code the number of slots or macros: use `MOD_SLOTS`, `MACRO_COUNT`
+  and `modulationRoutes()` (two checks that looped to 16 silently missed routes once the matrix grew).
+- **Chaos** must stay a function of its seed: only + − × ÷ on the state, the rate merely scans the sequence. A source
+  that all notes share must be a function of absolute time (`Chaos.at`, like "free" LFOs) — never shared state
+  between voices.
+- **Live values**: a new source or target shows up in the editor by itself (the report is `[sources…, targets…]`);
+  a new *kind* of target needs a case in `modTargetSpec` so rings, dots and sentences know its units.
+- **Presets**: every preset routes `pressure`, `timbre` and its four named macros (a test enforces it; macros 5–8
+  are the player's) and has honest
   macro labels (≤ 16 chars). After any change that affects level: `node packages/synth-dsp/scripts/level-presets.mjs --write`.
 - **Expression**: curves are sanitized at the boundary (`sanitizeNote`); new note-creating code paths must carry
   `expressionFields(n)` (and `pan`) or the performance is lost on copy.

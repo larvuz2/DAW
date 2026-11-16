@@ -92,6 +92,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 - Macros (macro1..macro8) are a patch's performance knobs: set them with set_synth_modulation macros, and automate
   them over the song with add_automation (target channel, param macro1). Presets name and route the first four;
   5-8 are free for your own (route them: macro5 → whatever the part needs to move).
+- An LFO can play a shape you write: set_synth_lfo steps [1, 0, 0.5, 0, 1, -1, 0.5, 0] with sync "1bar" is an
+  eighth-note pattern (smooth 0 = steps, 1 = a curve through them) — rhythmic gates on "level", sequenced filter
+  moves, a custom wobble.
 - Chaos (set_synth_chaos, sources chaos1 / chaos2) is movement that never loops: "drift" on pitchFine 0.04-0.08
   with path "note" is analog voice drift (every note a few cents off, differently); "lorenz" or "rossler" slowly on
   a wavetable position or a filter keeps a pad alive without an audible LFO cycle (path "same" moves a chord as

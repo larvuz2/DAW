@@ -25,16 +25,17 @@ noise ─────────────────┘  f1 / f2 / both /  
 | **Sub / Noise** | Sine, triangle, saw or square 0–3 octaves down; white, pink or brown noise with a colour control. Each routed like an oscillator |
 | **Filters 1 & 2** | 21 models (see [Filters](#filters)): clean low-, high- and band-pass at 12 or 24 dB/octave, notch, peak, all-pass and a morphing shape; analog-style **ladder**, **acid** and **MS-20**; **formant**, **phaser** and two tuned **combs**. Cutoff, resonance, drive, key tracking and a *Morph* control whose job depends on the model |
 | **Envelopes 1–4** | Delay, attack, hold, decay, sustain, release, and a curve for each slope (attack, decay, release). Envelope 1 is the amp envelope |
-| **LFOs 1–4** | Sine, triangle, saw, ramp, square, random steps, random glide; rate in Hz or tempo-synced (1/32 … 8 bars); per note or free-running; fade-in; phase |
-| **Macros 1–4** | Four knobs a patch assigns in the matrix. They can be automated over the song |
-| **Matrix** | 16 routes: source → target × amount, optionally × a second source ("via") |
+| **LFOs 1–4** | Sine, triangle, saw, ramp, square, random steps, random glide, or **a shape you draw** (up to 16 steps, hard or glided); rate in Hz or tempo-synced (1/32 … 8 bars); per note or free-running; fade-in; phase |
+| **Chaos 1–2** | Lorenz, Rössler, drift or a Turing-machine pattern: movement that never quite repeats (see [Chaos](#chaos)) |
+| **Macros 1–8** | Eight knobs a patch assigns in the matrix. Presets name and route the first four; 5–8 are free. All can be automated over the song |
+| **Matrix** | 64 routes: source → target × amount, optionally × a second source ("via") |
 | **Effects** | Drive (soft, hard, tube, fold — oversampled), chorus, tempo-synced ping-pong delay, reverb, output gain |
 | **Voice** | Polyphony 1–32, mono, legato, glide, velocity and release-velocity sensitivity, quality |
 
 ### Modulation
 
-Sources: `env1`–`env4`, `lfo1`–`lfo4`, `velocity`, **`pressure`**, **`timbre`** (slide), **`bend`** (the note's pitch
-curve), `key`, `random` (one value per note), `releaseVel`, `macro1`–`macro4`.
+Sources: `env1`–`env4`, `lfo1`–`lfo4`, `chaos1`–`chaos2`, `velocity`, **`pressure`**, **`timbre`** (slide), **`bend`**
+(the note's pitch curve), `key`, `random` (one value per note), `releaseVel`, `macro1`–`macro8`.
 
 Targets: `pitch`, `pitchFine`, `level`, `pan`; per oscillator `oscAPitch`, `oscAPos`, `oscALevel`, `oscAPan`,
 `oscAWarpAmt`, `oscAFm`, `oscADetune` (and B, C); `subLevel`, `noiseLevel`; `f1Cutoff`, `f1Res`, `f1Drive`, `f1Morph` (and f2);
@@ -53,6 +54,28 @@ stands: *"Filter 1 cutoff 850 Hz → 4.49 kHz as pressure goes 0 → 1"*, *"Pitc
 
 [![The modulation matrix](screenshots/ggs-matrix.png)](screenshots/ggs-matrix.png)
 
+### Chaos
+
+Two generators of modulation that never quite repeats, ported from the GGS Composer modulators. *Rate* is in Hz or
+a tempo division; *Character* means something different for each:
+
+| Type | What it does | Rate | Character |
+|------|--------------|------|-----------|
+| `lorenz` | Swings around one of two centres and flips to the other at unpredictable moments | swings per second | long stays on one side … restless switching |
+| `rossler` | A wobbling loop that now and then lurches — an LFO with a mind of its own | orbits per second | nearly periodic … spiky |
+| `drift` | A random walk that always comes home: what an analog oscillator's pitch does | how fast it wanders | jittery … rounded |
+| `turing` | A looping pattern of steps that mutates (a shift register, after the Turing Machine module) | steps per second | the chance a step is replaced: 0 locks the loop |
+
+*Path* decides who shares a path. **note** (default): every note wanders its own way — a little `drift` on
+`pitchFine` is analog voice drift. **same**: every note replays one path from its start, so a chord moves as one and
+a part sounds the same every time; a tempo-synced `turing` pattern on this path follows the song clock, so every
+note hears the same step at the same moment.
+
+A path is fixed by its note (the seed comes from the note's time and key), so **two renders of a song are the same
+audio** even with chaos everywhere. The attractors are integrated with RK4 at a fixed step in their own time and
+read with cubic Hermite interpolation, so the result does not depend on the rate, the sample rate or the block size.
+A chaos generator costs nothing until it is routed.
+
 ### Filters
 
 | Model | Character | Morph |
@@ -69,7 +92,8 @@ stands: *"Filter 1 cutoff 850 Hz → 4.49 kHz as pressure goes 0 → 1"*, *"Pitc
 
 The analog-style models are ports of the GGS Composer filter crate: the delay-free loops are solved per sample
 (Zavalishin's topology-preserving forms, one Halley step around a rational `tanh`), not approximated with a unit
-delay — which is why the self-oscillation is in tune (within 0.1 cent for the ladder) at any cutoff and sample rate.
+delay — which is why the self-oscillation is in tune: within 0.1 cent for the ladder at the doubled rate these
+models run at by default, within a cent up to 12 kHz without oversampling.
 They make harmonics of their own, so quality `auto` renders them at 2×.
 
 The curve in the editor is **measured**: `filterResponse` feeds the real filter an impulse and transforms what comes
@@ -122,10 +146,30 @@ Select a GGS channel and open **Channel settings** (F8).
   of all 46 tables drawn at the start, middle and end of each; search it, or walk it with the arrow keys.
 - **Filters**: the measured response of each filter. **Drag the handle**: left/right is the cutoff, up/down the
   resonance. The menu is grouped (clean, analog, special) and a line under the knobs says what the chosen model is for.
-- **Envelopes & LFOs**: envelopes are shaped by hand — square nodes for the delay, the attack, the hold, decay +
-  sustain and the release; **round handles bend a slope** (press one twice to reset it). Attack and hold share a
-  node while the hold is zero: drag it right to add a hold. Sections that are not routed yet are dashed.
-- **Matrix**: every route with a sentence underneath saying what it does in real units.
+- **Modulators**: envelopes are shaped by hand — square nodes for the delay, the attack, the hold, decay +
+  sustain and the release; **round handles bend a slope** (press one twice to reset it; the numbers under the graph
+  edit the same curves). Attack and hold share a node while the hold is zero: drag it right to add a hold. An LFO set
+  to *steps* shows bars you draw with the pointer (and Random / Invert / Ramp). The two chaos generators show twelve
+  cycles of their path. Sections that are not routed yet are dashed; a thin meter next to each title follows the
+  source while a note sounds.
+- **Matrix**: every route with a sentence underneath saying what it does in real units; a filter box (a source, a
+  target, any word), a colour per family of sources, a live meter per route. 64 slots.
+
+**Modulating from the knobs.** Under the header sits the **source bar**: every source as a chip with a small meter
+that shows what it is doing right now.
+- **Drag a chip onto a knob** to modulate it (or right-click the knob → *Modulate with*). The knob gets a **ring** —
+  one thin arc per route, coloured by its source's family (green envelopes, blue LFOs, pink chaos, yellow the note,
+  purple macros) — showing how far that route can take it from where the knob stands.
+- **Alt-drag the knob** to set the depth of the route (the one you added or chose last; the menu says which).
+- While a note sounds, a **bright dot** on the knob shows where the control really is: the sum of everything the
+  matrix is doing to it, reported by the voice about thirty times a second.
+- Right-click a modulated knob to invert or remove a route, or to see it in the matrix; click a chip to see all
+  the routes of that source.
+
+[![Rings and live dots](screenshots/ggs-rings.png)](screenshots/ggs-rings.png)
+
+The header has **eight macro knobs**. A preset names its macros; a macro you route yourself is named after what it
+moves (“F1 cutoff”, “F1 cutoff +2”), and the ones a patch does not use are dimmed. Their dot follows automation.
 - **Effects**, and **All parameters**: every parameter of the patch in one searchable table — value, range and what it
   does — with a *Changed* filter that shows what makes this patch different from the init patch. The same
   descriptions are the tooltips of every control.
@@ -136,6 +180,8 @@ The header also has the four macros with their names, gain, and **Export / Impor
 |---|---|
 | [![Filters](screenshots/ggs-filters.png)](screenshots/ggs-filters.png) **Filters** — the measured response; drag the handle | [![Envelopes](screenshots/ggs-envelopes.png)](screenshots/ggs-envelopes.png) **Envelopes** — nodes for the times, round handles for the curves |
 | [![Preset browser](screenshots/ggs-presets.png)](screenshots/ggs-presets.png) **Presets** — search, categories, tags | [![Wavetables](screenshots/ggs-wavetables.png)](screenshots/ggs-wavetables.png) **Wavetables** — all 46, drawn |
+
+[![A drawn LFO shape and a chaos generator](screenshots/ggs-chaos.png)](screenshots/ggs-chaos.png)
 
 The **touch pad** at the bottom plays the patch the way an MPE controller would: hold it to sound the step note,
 move up for pressure and right for slide.
@@ -174,10 +220,11 @@ load unchanged: the single curve is converted to the three stage curves that dra
 | `describe_synth` | The reference: overview, every field with its range and what it does, the filter models, wavetables, modulation sources/targets, presets |
 | `create_synth_patch` | A GGS channel from a preset and/or a patch document |
 | `get_synth_patch` / `update_synth_patch` | Read a patch (summary or document) / apply a document |
-| `set_synth_oscillator`, `set_synth_filter`, `set_synth_envelope`, `set_synth_lfo`, `set_synth_modulation`, `set_synth_effect` | Edit one section, strictly validated. `set_synth_filter` replies with the measured response of the setting; every reply lists the modulation routes in real units |
+| `set_synth_oscillator`, `set_synth_filter`, `set_synth_envelope`, `set_synth_lfo`, `set_synth_chaos`, `set_synth_modulation`, `set_synth_effect` | Edit one section, strictly validated. `set_synth_filter` replies with the measured response of the setting; every reply lists the modulation routes in real units |
 | `analyze_synth_patch` | Render a note or chord **on the server** (no browser) and measure pitch, loudness, spectrum, envelope — optionally with pressure / slide / pitch curves and macro values |
 
-Macros are automated with `add_automation` (target `channel`, param `macro1`…`macro4`).
+Macros are automated with `add_automation` (target `channel`, param `macro1`…`macro8`). `set_synth_lfo` takes a
+drawn shape as `steps: [1, 0, 0.5, …]`; `set_synth_chaos` sketches the path it sets in its reply.
 
 ## Engineering notes
 
@@ -195,9 +242,19 @@ Macros are automated with `add_automation` (target `channel`, param `macro1`…`
   on a note's first block, where the tens of milliseconds it takes would be a dropout.
 - The effects rest by **level**, not by a timer: processing stops once nothing has come in and nothing audible has
   come out for longer than one echo, so a long feedback delay is never cut off.
+- **A voice takes its memory in one piece** (`Arena` in `util.js`): a typed array over 64 bytes costs a separate
+  off-heap allocation of about 2 µs, and a voice needs seventeen — one buffer and seventeen views cost a tenth.
+  Starting a note takes 20–30 µs.
+- **No function call with numbers per sample**: a call the engine decides not to inline boxes each number it is
+  given. The loop solvers of the analog filters are therefore written out inside their loops (measured: 160 garbage
+  collections per 30 s of audio before, none after).
+- **What the editor shows live comes from the voices**: while the editor is open on a channel its `ggs-voice`
+  processors post their modulation sources and targets about thirty times a second; the newest note wins. Nothing in
+  the audio depends on those messages, and offline renders never send them.
 - **Structural edits wait for a fade** (`SWAP_KEYS` in `voice.js`): each oscillator is its own unit, everything on
   the buses (filter models, routing, sub and noise) another. `setParams` applies knob moves at once and holds the
-  structural part back until its unit's gate has closed.
+  structural part back until its unit's gate has closed. An oscillator that is another one's FM source fades its
+  modulator signal the same way.
 - Filters live in `packages/synth-dsp/src/filters.js` (`VoiceFilter`): coefficients are computed per control block and
   ramped per sample; the nine original clean types run the same code as before.
 - Measured quality and CPU numbers: [audio-benchmarks.md](audio-benchmarks.md).
