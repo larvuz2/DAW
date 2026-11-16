@@ -239,7 +239,9 @@ drawn shape as `steps: [1, 0, 0.5, …]`; `set_synth_chaos` sketches the path it
 
 - **One AudioWorklet processor per note** (`ggs-voice`). The patch arrives with the note (`processorOptions`); gate,
   kill, pitch, pressure, timbre and the eight macros are AudioParams. Nothing depends on message timing, so realtime
-  playback and offline renders share one deterministic path; two renders of a song are the same audio.
+  playback and offline renders share one deterministic path; two renders of a song are the same audio (in Node to the
+  bit; in a browser to about −110 dB, because its mixer does not add up in the same order twice — see
+  [benchmarks](audio-benchmarks.md)).
 - A per-channel `ggs-fx` processor runs the effects after the voices are summed, and eight constant sources feed
   every voice's macro inputs (that is what automation moves).
 - **The song clock.** A note is told where the song stands on its first frame (`beat` in `processorOptions`: the

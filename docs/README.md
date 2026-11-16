@@ -5,7 +5,7 @@
 | [Getting started](getting-started.md) | Install, first run, create the admin account, make a first beat |
 | [User guide](user-guide.md) | Every part of the studio: channel rack, piano roll, playlist, mixer, automation, samples, versions, settings, shortcuts |
 | [Making music with Claude (MCP)](claude-mcp.md) | Connect Claude Code / Claude Desktop, API tokens, example sessions, what `render_mix` measures |
-| [MCP tool reference](MCP.md) | All 95 tools with their parameters (generated) |
+| [MCP tool reference](MCP.md) | All 97 tools with their parameters (generated) |
 | [GGS Synth](ggs-synth.md) | The wavetable / FM synthesizer: signal path, modulation matrix, wavetables, presets, patch documents, engineering notes |
 | [Per-note expression](expression-engine.md) | Pitch / pressure / slide curves in every note: the model, the piano-roll lane, MPE input and recording, MPE MIDI files |
 | [Audio benchmarks](audio-benchmarks.md) | Measured signal quality (tuning, aliasing, zipper noise, repeatability), CPU per voice and the preset loudness policy |

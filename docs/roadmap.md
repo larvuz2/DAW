@@ -89,8 +89,15 @@ The modulation batch: rings and live dots on the knobs, a source bar to drag fro
 Rössler, drift, Turing machine), 64 routes, 8 macros and LFO shapes you draw — plus the fixes from an independent
 review of 0.9.0 and a voice that starts in a third of the time.
 
-Still to come from that list: agent tools (dry runs, batches, render comparison); harmony and tuning; more effects
-and oscillator engines; wavetables from a harmonics list or a formula.
+## 0.11.0 — what was added
+
+The agent-tools batch: `batch` (several edits as one change, all or nothing), `dryRun` on every editing tool, notes
+written and read as compact text with musical positions and durations, `diff_versions` and the *Changes* view in the
+Versions window, errors that say what to send instead, and renders that are compared with the one before (a null
+test) and checked for masking between stems. Details: [claude-mcp.md](claude-mcp.md).
+
+Still to come from that list: harmony and tuning; more effects and oscillator engines; wavetables from a harmonics
+list or a formula.
 
 Next for the synth and expression:
 - **Chord explorer** in the piano roll (suggestions by key and function, voice-leading, drag chords in) with matching

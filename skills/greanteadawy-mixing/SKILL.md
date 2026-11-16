@@ -20,8 +20,19 @@ render.
 ## 1. First measurement
 
 `render_mix target=<target>` (stems are on by default; `mode=pattern` for a loop). Read, in order: INVALID RENDER
-(broken audio) → clipping/true peak → stem balance → spectrum/low end → target delta and limiter. The report's
-**Hints** list the problems it found; [fixes.md](fixes.md) maps each one to tool calls.
+(broken audio) → clipping/true peak → stem balance → **masking** → spectrum/low end → target delta and limiter. The
+report's **Hints** list the problems it found; [fixes.md](fixes.md) maps each one to tool calls.
+
+**Change one thing, render, read the comparison.** Every render is compared with the previous one: "2.3 LU louder,
+low +4 pts, stems: 808 +3 LU", or "The same audio" when the change made no sound (wrong insert, bypassed effect, a
+route that goes nowhere) — then the edit did nothing, and repeating it harder will not help. Group the moves of one
+idea (a bus, its compressor, its sends) in a `batch`, so one `undo` takes the idea back if the numbers get worse.
+
+**Masking** lists pairs of stems that are strong in the same band at the same moment, how much of the time, and
+which should give way (the one with less of its own sound there). Below ~300 Hz: `add_effect type="pump"
+params={"source":"<the other>"}` on the one that yields, or an `eq` high-pass. Above: an `eq` cut of 2–4 dB at
+the range on the one that yields, another octave or register, or apart in the stereo field. Fix the worst pair, render,
+compare — a pair that is "100% of the time" at a low contested level (below −40 dB) can stay.
 
 ## 2. Balance (the stems)
 

@@ -4,7 +4,7 @@
 
 GreanTeaDawy is an open-source, self-hosted beat-making studio: channel rack and step sequencer, piano roll, playlist,
 mixer with effects, automation, sampler and audio clips, all running in the browser with a Node.js backend. Its
-built-in [MCP](https://modelcontextprotocol.io) server gives Claude 95 music-production tools, so you can say
+built-in [MCP](https://modelcontextprotocol.io) server gives Claude 97 music-production tools, so you can say
 *"make a dark trap beat at 145 BPM and mix it for streaming"* and watch every edit appear live in your studio.
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
@@ -88,9 +88,13 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 95 music-pro
 **Claude integration (MCP)**
 
 - **Streamable HTTP** (`/mcp`) and **stdio** (for Claude Desktop) transports.
-- 95 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
+- 97 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
   lines with 808 slides), melodies, rolls, transforms, arrangement with markers, automation, mixer and effects,
   samples, versions, undo, play/stop, MIDI and stem export.
+- **Built for an agent** — `batch` makes several edits one change (all or nothing, one undo); `dryRun` on every
+  editing tool shows what a call would change without changing it; notes are written and read as compact text
+  (`1.1 D3+A3+F4 1/2 v0.7`); `diff_versions` says what changed since a saved version; a wrong call answers with the
+  valid range and the nearest valid value or name.
 - **Sound design & expression** — `create_synth_patch`, `set_synth_oscillator` / `_filter` / `_envelope` / `_lfo` /
   `_modulation` / `_effect` build a GGS Synth patch section by section; `analyze_synth_patch` renders and measures
   it on the server (no browser needed); `set_note_expression` writes per-note pitch / pressure / slide curves

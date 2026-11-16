@@ -130,7 +130,7 @@ voice bigger and darker, 1400 smaller.
 ## Analog drift (any patch)
 
 Two routes that make a digital patch breathe like hardware — every voice wanders a few cents on its own path, and
-renders still repeat exactly:
+a render is still the same audio every time:
 
 ```json
 { "oscillators": [{ "id": "A", "table": "tilt", "position": 0.4, "level": 0.7, "unison": 3, "detune": 14, "spread": 0.8 }],

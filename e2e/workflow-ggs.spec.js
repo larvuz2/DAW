@@ -690,12 +690,13 @@ test('the editor by hand: one route per Alt-drag, bends that reach every value, 
   };
   await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Velvet Pad' } } }]), channels.Lead);
 
-  // ---- three routes on one knob: an Alt-drag moves the one it says, all the way, as one undo step
+  // ---- several routes on one knob: an Alt-drag moves the one it says, all the way, as one undo step
   await tab('Filters');
   const cutoff = ggs.locator('.ggs-filter').first().locator('.knob').first();
   await expect(cutoff.locator('.knob-ring')).toHaveCount(3);
   const before = await routes();
-  expect(Object.keys(before).sort()).toEqual(['env2', 'macro1', 'pressure']);
+  expect(Object.keys(before).sort()).toEqual(['env2', 'lfo2', 'macro1', 'pressure', 'velocity']);
+  expect(before.macro1).toBe(Math.max(...Object.values(before))); // the deepest: the one an Alt-drag takes
   await expect(cutoff).toHaveAttribute('title', /Alt-drag: depth of Macro 1/);
   const box = await cutoff.locator('svg').boundingBox();
   const altDrag = async (dy, { steps = 12, shift = false } = {}) => {
@@ -712,8 +713,7 @@ test('the editor by hand: one route per Alt-drag, bends that reach every value, 
   // which used to take the drag over on the way (three routes changed, sixteen undo steps)
   await altDrag(48);
   await expect.poll(async () => (await routes()).macro1).toBeCloseTo(before.macro1 - 0.3, 3);
-  expect((await routes()).pressure).toBe(before.pressure);
-  expect((await routes()).env2).toBe(before.env2);
+  expect({ ...(await routes()), macro1: before.macro1 }).toEqual(before); // no other route moved
   await undo();
   await expect.poll(routes).toEqual(before);
   // fine (Shift): 80 px in single pixels is 0.1, nothing lost to rounding on the way
@@ -847,6 +847,9 @@ test('chaos renders the same every time, and macro 8 automates', async () => {
   await claude.call('update_channel', { channel: 'Lead', preset: 'Init', params: { oscAPos: 0, oscARand: 0, f1On: false } });
   await claude.call('set_synth_chaos', { channel: 'Lead', chaos: 1, type: 'lorenz', rate: 6 });
   await claude.call('set_synth_modulation', { channel: 'Lead', mode: 'replace', routes: [{ source: 'chaos1', target: 'pitch', amount: 0.25 }] });
+  // (Claude's edits reach the tab a moment after the calls return: render what was asked for, not what was there)
+  const patch = () => page.evaluate((cid) => { const i = window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument; return [i.preset, i.params.f1On, i.params.chaos1Type, i.params.mod1Src, i.params.mod1Dst]; }, channels.Lead);
+  await expect.poll(patch).toEqual(['Init', false, 'lorenz', 'chaos1', 'pitch']);
   const render = () => page.evaluate(async () => {
     const { store, render } = window.greanteadawy;
     const project = store.getState().project;

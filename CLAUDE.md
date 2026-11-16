@@ -19,7 +19,12 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
   src/expression.js   per-note curves (pitch / pressure / timbre in normalized note time): sanitize, evaluate, flatten,
                       simplify, transform, makeCurve shapes     src/mpe.js  MPE/MIDI controller decoder
   src/evaluate.js     evaluateComposition: a lint of the song as written (evaluate_composition)
-  src/music.js        notes, scales, chords, roman numerals     src/notation.js  step strings ("x---x---")
+  src/music.js        notes, scales, chords, roman numerals
+  src/notation.js     step strings ("x---x---"), positions ("5.3.2"), durations ("1/8t"), compact note text
+                      (parseNoteText / formatNoteText: "1.1 D3+A3+F4 1/2 v0.7") — one grammar for every tool
+  src/diff.js         diffProjects: what changed between two project states, in words (diff_versions, dry runs,
+                      the Versions window)      src/suggest.js  nearest / didYouMean for error messages
+  src/renders.js      audioFingerprint, nullTest (subtract two renders), maskingReport (Bark bands), compareRenders
   src/builders.js     chord/bass/melody/roll generators
   src/templates.js    genre starter projects: build() + the menu order; each genre is src/templates/<id>.js { label, spec }
   src/analysis.js     LUFS/peak/spectrum/tempo/key/pitch + createLevelMeter (streaming, used for render stems)
@@ -42,10 +47,12 @@ server/src/
   ffmpeg.js           optional ffmpeg detection + safe conversions (MP3/AAC/Ogg/Opus/FLAC/ALAC/AIFF)
   plugins.js zip.js sandbox.js   user plugins: store + worklet harness, hardened zip reader, generator sandbox page
   synth-worker.js     renders + analyses GGS notes in a worker thread (analyze_synth_patch: no browser needed)
-  mcp/                tools.js (server factory), tools/*.js (95 tools; production.js = groove/fills/transitions,
-                      export.js, spatial.js, plugins.js, synth.js = GGS patches, expression.js = per-note curves +
-                      evaluate_composition), guide.js (what Claude reads: notation + mixing-by-numbers),
-                      prompts.js, http.js, stdio.js
+  mcp/                tools.js (server factory: every call goes through `call` — validation, dryRun, `batch`),
+                      validate.js (tool input checked here, with errors that say the fix), session.js (a dry run
+                      or a batch: the backend works on a copy and refuses anything but reads and ops),
+                      tools/*.js (97 tools; production.js = groove/fills/transitions, export.js, spatial.js,
+                      plugins.js, synth.js = GGS patches, expression.js = per-note curves + evaluate_composition),
+                      guide.js (what Claude reads: notation + mixing-by-numbers), prompts.js, http.js, stdio.js
 client/src/
   state/store.js      zustand store: auth, project (optimistic ops + undo/redo), UI windows/prefs
   state/sync.js       WebSocket client: outbox, acks/rejects, resync, remote ops, jobs, deleted-project recovery
@@ -108,10 +115,22 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
 - **Auth**: browser = `gtd_session` cookie; scripts/MCP = personal API token `gtd_…` (Bearer or `?token=` for MCP/WS).
   Tokens can't use `/admin/*`, `/me/password` or token management (`auth.requireSession`). Token-less MCP only works
   from this computer when the admin allows it (`isLocalRequest` in `mcp/http.js`).
-- **MCP tools** (`server/src/mcp/tools/*.js`): zod input schemas with `.describe()` on every non-obvious field,
-  annotations from `util.js`, errors thrown as `Error` (the wrapper turns them into `isError` results with a message
-  that tells Claude how to recover), replies that include the ids of created things in `[brackets]`. Validate
-  everything *before* the first `backend.applyOps` so a failed call changes nothing.
+- **MCP tools** (`server/src/mcp/tools/*.js`): zod input schemas with `.describe()` on every non-obvious field
+  (the description is quoted in validation errors), annotations from `util.js`, errors thrown as `Error` (the wrapper
+  turns them into `isError` results with a message that tells Claude how to recover — name the valid values and use
+  `didYouMean`), replies that include the ids of created things in `[brackets]`. Validate everything *before* the
+  first `backend.applyOps` so a failed call changes nothing.
+  A tool that is not read-only and only uses `backend.applyOps` (plus reads) gets `dryRun` and can run inside
+  `batch` without any code of its own: its handler runs in an `EditSession` (AsyncLocalStorage), where `applyOps`
+  works on a copy. A tool that does more (files, playback, browser jobs, versions, samples, other projects) must be
+  listed in `MORE_THAN_EDITS` in `tools.js`; a new backend method must be added to `READS` in `session.js` if it
+  only reads, or it is refused inside sessions. Always use the `backend` from the registration context (never a
+  captured store): that is what makes the session work. Unknown arguments are errors — never rely on them being
+  dropped.
+- **Renders are not bit-exact in a browser**: Chromium sums three or more inputs of a node in an order that differs
+  from run to run (the last bit of the samples changes, about −110 dB). Never compare renders by hash or by exact
+  samples: use `nullTest` (core/renders.js) with a tolerance, as `render_mix` does. In Node (`renderPatch`) renders
+  are bit-identical.
 - **Browser jobs**: work that needs Web Audio or the plugin sandbox (`render`, `analyze-sample`, `sound`,
   `export-stems`, `spatial`, `generator`; `JOB_KINDS` in `api.js`) runs in the user's tab via `hub.requestJob` → WS
   `job` → `client/src/lib/jobs.js` → `POST /api/jobs/:id/result` (stems upload each file to `/api/jobs/:id/files`

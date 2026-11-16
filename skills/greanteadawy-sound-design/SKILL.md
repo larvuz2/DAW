@@ -61,7 +61,7 @@ Chaos — which one when:
 | A pad that keeps moving without an LFO you can hear cycling | `lorenz` or `rossler`, rate 0.05–0.2, path `same` → `oscAPos` 0.2, `f1Cutoff` 0.08 |
 | A generative step pattern in time with the song | `turing`, `sync "1/16"`, path `same`, `steps` 8 or 16, character 0–0.15 (0 locks the loop) → `f1Cutoff` or `pitch` |
 
-Renders repeat exactly whatever chaos you use: a path is fixed by its note.
+A render is the same audio every time, whatever chaos you use: a path is fixed by its note.
 
 Macros: presets name and route macros 1–4; **5–8 are free** — route them (`macro5` → …) for the moves this song
 needs and automate them with `add_automation` (param `macro5`).

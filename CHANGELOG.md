@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.11.0 — Tools built for an agent
+
+The third batch from GGS Composer: what makes working through the MCP tools cheaper, safer and easier to check.
+97 tools (was 95).
+
+**Several edits as one change — `batch`** (new)
+- Up to 100 editing calls run as ONE change: every call succeeds and the project gets a single update (one undo
+  step, one refresh in the studio) — or, if any call fails, nothing is changed and the answer names the call to fix.
+- Later calls see what earlier ones did (create a pattern, fill it by name, place it). The ids a batch reports are
+  the ids in the project.
+
+**Try before you change — `dryRun`** on every tool that edits the project (55 tools) and on `batch`
+- The call is checked and answers with what it would say and what it would change, in words; nothing is touched.
+- Tools that do more than edit the project (rendering, playback, exports, versions, samples, creating or opening
+  projects) have no dry run and cannot be in a batch — they say so instead of half-doing it.
+
+**Notes as text**
+- `add_notes text`: one note or chord per line — `1.1 D3+A3+F4 1/2 v0.7`, `1.3 A4 1/8t`, `> C5 1/8t` (right after
+  the line before). `get_pattern format "text"` prints the same lines with the note ids in a comment: about a third
+  of the size of the table, and it reads back unchanged.
+- Musical positions and durations wherever a note's start and length are given (`add_notes`, `update_notes`,
+  `add_roll`): `"2.3"` = bar 2 beat 3, `"2.3.2"` = one sixteenth later, `"6s"` steps, `"1.5b"` beats; `"1/4"`,
+  `"1/8t"` triplet, `"1/4d"` dotted, `"1/4+1/16"` tied, `"2bar"`. Numbers still mean steps.
+- `write_melody` takes note values as lengths: `C5:1/8 D5:1/8t E5:1/4d`.
+
+**What changed? — `diff_versions`** (new) and **Versions → Changes** in the studio
+- What differs between a saved version and now, or between two versions: tempo and key, each channel's sound
+  (parameter old → new), notes added / removed / changed as note text, clips, markers, automation, mixer and
+  effects. The same music written again (new note ids) is no change.
+- The Versions window shows it per version, and follows your edits while it is open.
+
+**Renders you can compare**
+- Every `render_mix` gets an id (r1, r2 …) and is compared with the previous render of the same song or pattern:
+  what moved in LU, peaks, crest, the bands, width and each stem — or "the same audio" when an edit made no sound.
+- "The same audio" is a **null test**: the tab keeps the last render and subtracts it from the new one. The list
+  asked for a checksum of every render; in a browser that cannot work — Chromium adds up three or more inputs of a
+  node in an order that changes from run to run, so two renders of an untouched project differ in their last bit
+  (measured: −111 to −116 dB relative to the mix) and never hash alike. The null test answers the question the
+  checksum was for, and says how big a change is.
+- **Masking**: with stems, pairs of stems that are strong in the same Bark band at the same moment, how much of
+  the time, and which one should give way.
+- The spectral balance of an analysis is now measured on a fixed grid of half-overlapping frames. It used to be
+  laid out from the first sample above −60 dB, so the same mix 6 dB quieter landed its frames elsewhere and showed
+  another balance (seen in a real render: "sub −8 points" for a fader move). Numbers of `render_mix`,
+  `analyze_sound` and sample analysis move slightly (a point or two on transient-heavy material).
+
+**Errors that say the fix**
+- Tool input is checked by the server itself: a wrong call answers with the argument, what was sent, what is valid
+  and the nearest valid value or name — `notes[0].velocity is 300: the maximum is 127 — nearest valid value: 127`,
+  `mode is "sng": it must be one of "song", "pattern". Did you mean "song"?`.
+- **Unknown arguments are errors now.** They used to be dropped silently: a mistyped `lenght` quietly became the
+  default length. A client that sent stray arguments must stop sending them.
+- Channels, patterns, presets, instruments, effects, parameters, versions and tools that are not found suggest the
+  nearest name; a parameter out of range says the nearest valid value.
+
+**Fixed in the synth editor** (found by an independent review of the 0.10.0 editor fixes)
+- Alt-drag on a knob with several routes changed several of them (each frame picked "the deepest" anew) and left a
+  dozen undo steps: it now keeps to one route for the whole drag, counts from where the depth stood (fine drags no
+  longer lose their remainder), and is one undo step. A route remembered for a knob is forgotten when another
+  preset puts something else in its slot.
+- Envelope bends: every value up to ±1 can be reached by hand (the last pixel used to jump from ±0.72 to ±1 — keep
+  dragging past the end of the slope); a double press still resets when the second press wobbles; a quick drag
+  followed by a click no longer resets what was just set; only the left button edits (right and middle clicks
+  changed the curve, and the filter graph); a cancelled touch does nothing; a second finger does not take a drag
+  over; bends on different handles are separate undo steps; the arrow keys move a handle the way it is drawn.
+- Filter graph: a press on the handle that does not move changes nothing (it used to round the cutoff and add an
+  undo step); on a narrow phone the editor's columns shrink instead of scrolling sideways.
+- Parameter table: arrow keys step by a hundredth of the range (a 0…1 parameter used to jump to its end), and the
+  wheel scrolls the table instead of changing a focused number.
+- Number fields take a decimal comma ("0,5").
+
 ## 0.10.1 — GGS Synth: what a second review found
 
 An independent review of the 0.10.0 modulation code. Everything it found is fixed here, each with a test that fails

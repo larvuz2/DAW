@@ -29,8 +29,18 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 - Notes: names like C4, F#3, Bb2 (C4 = MIDI 60 = middle C) or MIDI numbers. Velocity 0..1 (1 = full) or MIDI 2..127.
 - Drum step strings: x = hit, X = accent, o = ghost, 1-9 = velocity 10-90%, - or . = rest. Spaces and | are ignored.
   e.g. kick "x---x---x---x---", snare "----x-------x---", hats "x-x-x-x-x-x-x-x-". Strings longer than the pattern extend it.
-- Melody strings: "C5:2 D5:2 Eb5:4 -:2 G5:6" (note:lengthInSteps, "-" = rest, "!" suffix = accent, "~" suffix = slide
-  into the next note on mono instruments with glide).
+- **Note text** — the cheap way to write and read notes (add_notes text, get_pattern format "text"): one note or
+  chord per line (or separated by ";"): <start> <pitch[+pitch…]> <duration> [v<velocity>] [r<release velocity>] [p<pan>]
+  e.g. "1.1 D3+A3+F4 1/2 v0.7; 1.3 A4 1/8t; > C5 1/8t; > E5 1/8t; 2 A2 1bar".
+  Start: bar, bar.beat or bar.beat.sixteenth, all counted from 1 inside the pattern ("1" = its first bar, "2.3" = bar 2
+  beat 3, "2.3.2" = one sixteenth later; a fourth number adds ticks, 24 to a sixteenth), or steps with an s ("6s"),
+  or beats with a b ("1.5b"). ">" starts right after the line before (runs, triplets), "=" together with it.
+  Duration: 1/4, 1/8, 1/16, 1/8t (triplet), 1/4d (dotted), 1/4+1/16 (tied), 2bar, 1.5b (beats), 3s (steps).
+  get_pattern format "text" prints the same lines with the note ids in a comment — send them back as they are.
+  The same positions and durations work wherever a note's start and length are given (add_notes notes, update_notes,
+  add_roll): a number is steps, text is musical ("start": "2.3", "length": "1/8t").
+- Melody strings: "C5:2 D5:2 Eb5:4 -:2 G5:6" (note:length — steps, or a note value: "C5:1/8 D5:1/8t E5:1/4d" — "-" =
+  rest, "!" suffix = accent, "~" suffix = slide into the next note on mono instruments with glide).
 - Chords: symbols (Am7, F, Cmaj9, G7sus4, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°). music_theory lists diatonic chords.
 - Drum instruments play at their natural pitch at note C4 (60); other notes pitch them up/down.
 - 808, bass guitar and synths with mono=true glide (slide) when notes overlap (bass lines: the "~" suffix makes a slide).
@@ -99,7 +109,7 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   with path "note" is analog voice drift (every note a few cents off, differently); "lorenz" or "rossler" slowly on
   a wavetable position or a filter keeps a pad alive without an audible LFO cycle (path "same" moves a chord as
   one); "turing" tempo-synced on a filter or pitch is a generative step pattern (character 0 locks the loop).
-  Renders still repeat exactly — a path is fixed by its note.
+  A render is still the same audio every time — a path is fixed by its note.
 - evaluate_composition checks the song as written (keys, dynamics, voices, expression that nothing hears, unplaced
   patterns) — run it before render_mix.
 
@@ -125,6 +135,15 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   stereo width (and low-end width), loudness per section and per-channel stems (with each bass stem's low note).
   Pass target (streaming, apple-music, club, hip-hop, edm, lo-fi, broadcast, podcast) or targetLufs: the report says
   exactly how many dB to move the master limiter's input gain.
+- Every render has an id (r1, r2 …) and is compared with the previous render of the same thing — so the loop is:
+  render, change ONE thing, render again, read "Compared with render rN". It says either that the audio is the same
+  (the earlier render was subtracted and nothing but rounding is left: your change is not heard — a muted channel, a
+  route that goes nowhere, an effect that is bypassed), or what moved: LU, peaks, crest, the bands, width, each stem,
+  and the null test's residual (−6 dB = a big change, −40 dB = a subtle one). compareTo "r3" compares with an older
+  render (meters only), "none" skips it.
+- With stems the report also lists MASKING: pairs of stems that are strong in the same band at the same moment, how
+  much of the time, and which one should give way (the one that has less of its sound there) — duck it with a pump
+  (source = the other), cut it there with an eq, or move it to another octave. Fix the worst pair, render, compare.
 - analyze_sound renders ONE note of a channel and measures it: pitch (+cents), the low-end note, loudness, spectrum,
   attack and decay times. Use it to tune the 808/kick to the key, keep kick and 808 fundamentals apart (≥ 2 semitones,
   or sidechain), and check an 808 tail doesn't run into the next hit.
@@ -209,6 +228,19 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 
 ## Safety nets
 - save_version before big changes; restore_version to go back. undo reverts your own last change.
+- **batch** runs several editing tools as ONE change: all of them, or — if one fails — none, with the failing call
+  named. One undo takes the whole batch back, and the studio updates once. Later calls see earlier ones (create a
+  pattern in call 1, fill it by name in call 2). Use it for anything that belongs together: a section (pattern +
+  notes + clips), a sound with its effects and sends, a round of mix moves. Rendering, playback, exports, versions and
+  samples cannot be in a batch.
+- **dryRun: true** on any editing tool (and on batch) checks the call and reports what it would answer and what it
+  would change — in the words of diff_versions — without changing anything. Use it before destructive or wide edits
+  (remove_channel, clear_notes, transform_notes on a whole pattern, arrange_song over an existing song).
+- **diff_versions** says what changed since the last saved version (or between two versions): notes as note text,
+  parameters old → new, clips, effects. save_version, work, diff_versions = a review of your own round of changes;
+  diff_versions from: <version> shows what restore_version would bring back.
+- A wrong call changes nothing and says how to fix it: the argument, what was sent, the valid range and the nearest
+  valid value or name ("Did you mean …?"). Unknown arguments are errors, not ignored: fix the name and send again.
 
 ## Ranges & rewriting
 - Bar ranges are inclusive: copy_bars / remove_clips fromBar 9, toBar 16 = the 8 bars 9–16.
@@ -221,15 +253,17 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 2. add_channel for each sound (kick, snare/clap, hats, 808/bass, chords, lead, pads, fx; or the user's samples).
    Hats: put open & closed hats in the same chokeGroup.
 3. create_pattern per part ("Drums", "Drums Fill", "808", "Chords", "Melody"...), then write_drums / add_chords /
-   add_bassline / write_melody / add_notes / add_roll. Add variation: ghost notes, velocity, fills, call-and-response.
+   add_bassline / write_melody / add_notes (as note text) / add_roll. Add variation: ghost notes, velocity, fills,
+   call-and-response. A part with its pattern, notes and clips is one batch.
 4. Feel: apply_groove for the genre; analyze_sound to tune the 808/kick to the key; set_note_expression on leads,
    pads and bass slides (GGS Synth) so lines breathe.
 5. arrange_song into sections (intro, verse, pre, hook, bridge, outro) with energy changes between them; add_fill on
    section ends and add_transition into hooks/drops; automation for filter sweeps.
 6. Mix by the numbers above: levels, high-passes, sidechain (pump source=Kick), shared reverb/delay sends, master limiter.
 7. evaluate_composition (notes, voices, expression) → fix; then render_mix target=<genre/platform> (with stems) →
-   read the numbers → fix → repeat until the report is clean.
-8. save_version, play, and explain what you made. export_stems / render_mix save=true when the user wants files.
+   read the numbers and the masking → fix one thing → render again and read the comparison → repeat until clean.
+8. save_version, play, and explain what you made (diff_versions lists it). export_stems / render_mix save=true when
+   the user wants files.
 `;
 
 export const INSTRUCTIONS = `GreanTeaDawy lets you produce music in a browser DAW (FL Studio-like: channel rack, patterns, piano roll, playlist, mixer, automation).
@@ -245,5 +279,9 @@ list_plugins shows the user's own instrument/effect/generator plugins (use them 
 The GGS Synth (create_synth_patch, set_synth_*, analyze_synth_patch; describe_synth is its reference) is the instrument for original
 sound design, and every note can carry its own pitch / pressure / slide curves (set_note_expression) — use both to make parts expressive.
 evaluate_composition checks the notes before you listen.
+Write notes as note text (add_notes text: "1.1 D3+A3+F4 1/2; 1.3 A4 1/8t") and read them the same way (get_pattern format "text").
+Group edits that belong together in one batch (one change, one undo, all or nothing); dryRun: true tries any edit without making it.
+render_mix compares every render with the one before (the same audio or what moved) and reports masking between stems;
+diff_versions says what changed since a saved version. A wrong call changes nothing and says what to send instead.
 save_version before risky changes.
 After building something, call play so the user can hear it, and describe what you made.`;

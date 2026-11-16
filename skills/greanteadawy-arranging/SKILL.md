@@ -66,3 +66,6 @@ GreanTeaDawy patterns are the building blocks and the playlist is the timeline.
 - Every section start has a marker (`set_markers` to rename/add); `get_project` shows the playlist by track.
 - No accidental silence: clips shorter than their section, muted tracks (`update_track`), patterns placed past the end.
 - `save_version` before rearranging; `copy_bars` repeats sections (bar ranges are inclusive: 9–16 = 8 bars).
+- Rearranging an existing song: try it with `dryRun: true` first (the answer lists the clips that would be added,
+  moved and removed), do it as one `batch`, and afterwards `diff_versions` shows what the round changed since the
+  version you saved.

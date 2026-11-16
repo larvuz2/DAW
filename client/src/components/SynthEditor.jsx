@@ -179,7 +179,7 @@ function TouchPad({ channel }) {
 export function SynthEditor({ channel }) {
   const [tab, setTab] = useState('osc');
   const [matrixFilter, setMatrixFilter] = useState('');
-  const [active, setActive] = useState({}); // target → the slot whose depth Alt-drag changes there
+  const [active, setActive] = useState({}); // target → { slot, source }: the route whose depth Alt-drag changes there
   const st = useStore.getState();
   const p = channel.instrument.params;
   const info = GGS_PRESET_INFO[channel.instrument.preset] || GGS_PRESET_INFO.Init;
@@ -238,15 +238,20 @@ export function SynthEditor({ channel }) {
   };
 
   // ---- modulating from the knobs: drop a source on a knob or right-click it; Alt-drag sets the depth
-  /** The route Alt-drag changes on a knob: the one last added or chosen there, else the deepest. */
+  /**
+   * The route Alt-drag changes on a knob: the one last added or chosen there, else the deepest. A choice is a slot
+   * and what was in it: after another preset is loaded the same slot holds another route, and the choice is void.
+   */
   const activeRoute = (target) => {
     const here = routes.filter((r) => r.target === target);
-    return here.find((r) => r.slot === active[target]) || here.sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount))[0] || null;
+    const chosen = active[target];
+    return here.find((r) => r.slot === chosen?.slot && r.source === chosen.source) || here.sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount))[0] || null;
   };
+  const choose = (target, slot, source) => setActive((m) => (m[target]?.slot === slot && m[target].source === source ? m : { ...m, [target]: { slot, source } }));
   const modulate = (source, target) => {
     const same = routes.find((r) => r.source === source && r.target === target && !r.via);
     const slot = same ? same.slot : addRoute(source, target, 0.25);
-    if (slot) setActive((m) => ({ ...m, [target]: slot }));
+    if (slot) choose(target, slot, source);
   };
   /**
    * Alt-drag on a knob. The route is chosen once, when the drag begins, and stays the knob's route afterwards —
@@ -260,7 +265,7 @@ export function SynthEditor({ channel }) {
       const r = activeRoute(target);
       if (!r) return;
       altDrag.current = { target, slot: r.slot, from: latest.current[`mod${r.slot}Amt`] ?? r.amount, travel: 0 };
-      setActive((m) => (m[target] === r.slot ? m : { ...m, [target]: r.slot }));
+      choose(target, r.slot, r.source);
     }
     const g = altDrag.current;
     const down = travel < g.travel;
@@ -285,7 +290,7 @@ export function SynthEditor({ channel }) {
       ...here.map((r) => ({
         label: `${sourceName(r.source)}${r.via ? ` × ${modSourceLabel(r.via)}` : ''}  ${r.amount > 0 ? '+' : ''}${r.amount.toFixed(2)}`,
         submenu: [
-          { label: 'Alt-drag sets this depth', checked: chosen?.slot === r.slot, onClick: () => setActive((m) => ({ ...m, [key]: r.slot })) },
+          { label: 'Alt-drag sets this depth', checked: chosen?.slot === r.slot, onClick: () => choose(key, r.slot, r.source) },
           { label: 'Invert', onClick: () => set(`mod${r.slot}Amt`, -r.amount) },
           { label: 'Remove', danger: true, onClick: () => removeRoute(r.slot) }
         ]

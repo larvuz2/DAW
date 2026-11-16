@@ -35,10 +35,25 @@ tool('humanize_groove', {
 });
 ```
 
+## What every tool gets for free
+
+- **Validation** (`mcp/validate.js`): the input schema is checked by us, strictly — unknown arguments and unknown
+  fields of nested objects are errors — and a failure is reported in words: path, value, valid range, nearest valid
+  value, and the field's `.describe()` text. So describe fields the way you would want to be corrected.
+- **`dryRun` and `batch`** (`mcp/session.js`): a tool that is not read-only and reaches the studio only through
+  `backend.applyOps` (plus reads) can be tried without changing anything and can run inside a batch. You write
+  nothing for it — but: use the `backend` and `load` from the registration context for *everything*; a tool that
+  does more than edit the project (files, playback, `requestJob`, versions, samples, other projects) must be added
+  to `MORE_THAN_EDITS` in `tools.js` (a test checks the list against the tool annotations); a new read-only backend
+  method must be added to `READS` in `session.js`, or it is refused inside sessions.
+- **Positions and durations**: take `positionArg` / `durationArg` (util.js) for a note's start and length and turn
+  them into ticks with `positionTicks` / `durationTicks` — numbers are steps, text is musical ("2.3", "1/8t").
+
 ## Rules
 
 - **Units**: steps (16ths, 0-based) inside patterns, bars/tracks 1-based, bar ranges inclusive. Say so in `.describe()`.
-- **Errors**: `throw new Error('…how to fix…')`. The wrapper turns it into an `isError` result. Mention valid values.
+- **Errors**: `throw new Error('…how to fix…')`. The wrapper turns it into an `isError` result. Mention valid values
+  and the nearest one: `didYouMean(name, candidates)` from core for names, the limit for numbers.
 - **Replies**: short, factual, include created ids in `[brackets]`, the resulting state (e.g. new length) and any
   warnings (clamped values, tempo mismatch). Use the second `ok(text, data)` argument for structured data.
 - **Long work** (browser jobs): pass `onProgress: progressNotifier(extra, '…')` to `backend.requestJob` (see `mix.js`).

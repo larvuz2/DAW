@@ -56,6 +56,11 @@ user's open studio. This skill is the producer's workflow on top of the tools. T
 ## Rules of thumb
 
 - Work in steps (16ths) inside patterns, 1-based bars in the playlist; ids come back in [brackets].
+- Write melodies, chords and bass parts as **note text** — `add_notes text="1.1 D3+A3+F4 1/2 v0.7; 1.3 A4 1/8; > C5 1/8"`
+  (bar.beat[.sixteenth] from 1, `>` = right after the line before, durations `1/4`, `1/8t` triplet, `1/4d` dotted,
+  `2bar`) — and read them back with `get_pattern format="text"`: a third of the size of the JSON form.
+- Build a part in one **`batch`**: `create_pattern` + its notes + `place_pattern` either all happen or none do, the
+  studio updates once, and one `undo` takes it back. Add `dryRun: true` to see what a wide edit would change first.
 - Validate with your ears' substitute: `get_pattern` to read back what you wrote, `render_mix` to hear it as numbers.
   Never claim something sounds good without a render.
 - One idea per pattern; variations as copies (`duplicate_pattern`, `add_fill`), not by rewriting the original.

@@ -60,7 +60,11 @@ Use the URL form `https://your-server/mcp?token=gtd_…`. Treat that URL like a 
 
 ## What Claude can do
 
-95 tools in eleven groups — see the full [MCP reference](MCP.md):
+97 tools in eleven groups — see the full [MCP reference](MCP.md):
+
+- **Working safely and cheaply** (see [below](#how-claude-works-dry-runs-batches-notes-as-text)): `batch` (several
+  edits as one change: all or nothing, one undo), `dryRun` on every editing tool, `diff_versions` (what changed since
+  a saved version, in words), notes written and read as compact text, and errors that say what to send instead.
 
 - **GGS Synth** ([guide](ggs-synth.md)): `describe_synth` (the reference), `create_synth_patch`, `get_synth_patch`,
   `update_synth_patch`, `set_synth_oscillator` / `_filter` / `_envelope` / `_lfo` / `_modulation` / `_effect`, and
@@ -128,6 +132,47 @@ Hints:
 `podcast`) or `targetLufs` a number; the report then says exactly how far to move the master limiter's input gain.
 Hints also flag a limiter that's squashing, a wide low end, missing dynamics between sections and stems whose low
 peaks collide (kick vs 808 masking).
+
+### Before and after: every render is compared with the last
+
+Each render gets an id (`r1`, `r2`, …) and the report ends with how it differs from the previous render of the same
+song or pattern — so "render, change one thing, render again" tells Claude what the change did:
+
+```
+Compared with render r2 (40 s ago, project revision 5 → 6) — this render is:
+- 2.3 LU louder (-16.2 → -13.9 LUFS)
+- peaks 1.1 dB higher (true peak -2.6 → -1.5 dBTP)
+- spectrum: low +4.1 pts (31 → 35.1%)
+- stems: "808" +3.1 LU
+- null test: a clear change — what is left after subtracting the earlier render is at -14.2 dB relative to the mix …
+```
+
+or, when the edit made no sound (a muted channel, a route that goes nowhere, a bypassed effect):
+
+```
+- The same audio: subtracting the earlier render leaves -115.6 dB relative to the mix — the last bit of a browser's mixer …
+```
+
+"The same audio" comes from a **null test**, not from a checksum: your tab keeps the last render (as 16-bit, about
+10 MB a minute, nothing longer than six minutes), subtracts it from the new one and measures what is left. A checksum
+cannot do this job in a browser: Chromium adds up three or more sources in an order that changes from run to run, so
+two renders of an untouched project differ in the last bit of their samples — about −110 dB, far below anything
+audible, but enough to change any hash. `compareTo: "r3"` compares with an older render (meters only — its samples are
+gone), `"none"` skips the comparison. The log holds the last twelve renders per project and lives in the server's
+memory.
+
+### Masking: which parts fight for the same band
+
+With stems, the report also lists pairs of stems that are **strong in the same band at the same moment**:
+
+```
+Masking — stems that are strong in the same band at the same moment (worst first):
+  "Kick" × "808"  20 Hz–100 Hz  82% of the time, contested energy -19.5 dB — that range is 40% of "808" and 90% of the other: duck "808" under "Kick" (a pump effect on "808" with source "Kick"), or high-pass / cut "808" below 100 Hz
+```
+
+Each stem is measured in the 24 critical bands of the Bark scale twice a second during the render. A stem is *strong*
+in a band when that band is above −50 dBFS and within 12 dB of its own loudest band at that moment; a pair collides
+where both are. The stem that should give way is the one with less of its own sound in the contested range.
 
 | Metric | Meaning | Typical targets |
 |--------|---------|-----------------|
@@ -227,6 +272,42 @@ at bar 9"* becomes `edit_sample` (`trim_silence`, `pitch_correct` key A scale mi
 Edits run in your browser and are saved as a **new** sample unless you ask Claude to replace the original — then the
 reply lists every project that changed.
 
+## How Claude works: dry runs, batches, notes as text
+
+- **`batch`** — up to 100 editing calls as one change. Either all of them apply (one update in your studio, one undo
+  step that takes all of it back) or, if any call fails, nothing does and the answer names the call to fix. Later
+  calls see what earlier ones did, so "create the pattern, fill it, place it" is one batch.
+- **`dryRun: true`** on any editing tool, and on `batch`: the call is checked against a working copy and answers
+  with what it would say and what it would change — nothing is touched. Tools that do more than edit the project
+  (rendering, playback, exports, versions, the sample library, creating or opening projects) have no dry run and
+  cannot be in a batch; they say so.
+- **Notes as text** — `add_notes text` and `get_pattern format "text"` use one line per note or chord:
+
+  ```
+  1.1 D3+A3+F4 1/2 v0.7     # bar 1 beat 1, a chord, a half note, velocity 0.7
+  1.3 A4 1/8t               # bar 1 beat 3, a triplet eighth
+  > C5 1/8t                 # right after the line before
+  2 A2 1bar p-0.3           # bar 2, one bar long, panned left
+  ```
+
+  Positions are `bar`, `bar.beat` or `bar.beat.sixteenth` (counted from 1, as the toolbar shows them), `6s` for
+  steps or `1.5b` for beats; durations are note values (`1/4`, `1/8t` triplet, `1/4d` dotted, `1/4+1/16` tied),
+  `2bar`, `1.5b` or `3s`. About a third of the size of the same notes as JSON, and it reads back unchanged.
+- **`diff_versions`** — what changed between a saved version and now (or between two versions), in words: tempo and
+  key, each channel's sound (parameter old → new), notes added / removed / changed as note text, clips, markers,
+  automation, mixer and effects. The studio shows the same under *Versions → Changes*.
+- **Errors that say the fix** — a wrong call changes nothing and answers with the argument, what was sent, what is
+  valid and the nearest valid value or name:
+
+  ```
+  Invalid arguments for add_notes:
+  - unknown argument "patern". Did you mean "pattern"? The arguments are: projectId, pattern, channel, text, notes, unit, replace, dryRun
+  - notes[0].velocity is 300: the maximum is 127 — nearest valid value: 127 (0..1 (1 = full), or MIDI 2..127)
+  Nothing was changed.
+  ```
+
+  Unknown arguments used to be dropped silently (a mistyped `lenght` became the default length); now they are named.
+
 ## Tips for good results
 
 - Keep the studio open (and click once to enable audio) so Claude can render, analyse and play.
@@ -235,7 +316,8 @@ reply lists every project that changed.
 - Name the feel and the delivery: *"dilla-style swing, mix for Spotify"* maps straight onto `apply_groove` and
   `render_mix target=streaming`.
 - Your edits and Claude's interleave safely; Ctrl+Z in the studio undoes Claude's changes too, and Claude's `undo`
-  tool reverts its own last changes.
+  tool reverts its own last changes (a whole `batch` is one of them).
+- For a risky change, ask Claude to **try it first** ("dry run") and to tell you what would change.
 - Watch the *Claude* tab in the browser for a log of every change.
 
 ## Troubleshooting
