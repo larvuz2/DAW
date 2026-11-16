@@ -38,13 +38,16 @@ function mpeEvents(list, pitchOffset) {
       const c = ((last + k - 1) % 15) + 1;
       if (free[c] <= n.start) { ch = c; break; }
     }
-    if (!ch) ch = free.slice(1).reduce((best, t, i) => (t < free[best] ? i + 1 : best), 1);
+    // more than 15 notes at once: this one shares the channel that frees first — and goes without its curves,
+    // which would otherwise bend the note it shares with
+    const overflow = !ch;
+    if (overflow) ch = free.slice(1).reduce((best, t, i) => (t < free[best] ? i + 1 : best), 1);
     last = ch;
     const end = n.start + n.length;
     free[ch] = end;
     const span = n.fullLength ?? n.length; // a note cut by a clip end still plays its curves at their own pace
     const key = Math.max(0, Math.min(127, n.key + pitchOffset));
-    for (const dim of EXPRESSION_DIMS) {
+    for (const dim of overflow ? [] : EXPRESSION_DIMS) {
       const curve = n.expression?.[dim];
       // the starting value before the note-on (how MPE controllers send it), then every change while it sounds
       events.push({ tick: n.start, order: 1.5, bytes: encode[dim](ch, curve ? curveValueAt(curve, 0) : 0) });
@@ -52,9 +55,11 @@ function mpeEvents(list, pitchOffset) {
       const ticks = new Set(flattenCurve(curve).map((pt) => Math.round(n.start + pt.t * span)));
       for (let t = n.start + MPE_STEP; t < end; t += MPE_STEP) ticks.add(t);
       let prev = encode[dim](ch, curveValueAt(curve, 0)).join();
-      for (const t of [...ticks].filter((x) => x > n.start && x < end).sort((a, b) => a - b)) {
+      // … up to and including where the note ends (written just before its note-off)
+      ticks.add(end);
+      for (const t of [...ticks].filter((x) => x > n.start && x <= end).sort((a, b) => a - b)) {
         const bytes = encode[dim](ch, curveValueAt(curve, (t - n.start) / span));
-        if (bytes.join() !== prev) { events.push({ tick: t, order: 3, bytes }); prev = bytes.join(); }
+        if (bytes.join() !== prev) { events.push({ tick: t, order: t === end ? 0.9 : 3, bytes }); prev = bytes.join(); }
       }
     }
     events.push({ tick: n.start, order: 2, bytes: [0x90 | ch, key, Math.max(1, Math.min(127, Math.round(n.velocity * 127)))] });
@@ -197,7 +202,12 @@ export function parseMidi(input) {
       for (const dim of EXPRESSION_DIMS) {
         const scale = dim === 'pitch' ? range : 1;
         const pts = [{ t: 0, v: on.ctl[dim] * scale }];
-        for (const e of ctl[ch].log) if (e.dim === dim && e.tick > on.start && e.tick <= endTick) pts.push({ t: (e.tick - on.start) / span, v: e.v * scale });
+        const log = ctl[ch].log;
+        // only what moved since this note began (on.log): not the whole track again for every note
+        for (let i = on.log; i < log.length; i++) {
+          const e = log[i];
+          if (e.dim === dim && e.tick > on.start && e.tick <= endTick) pts.push({ t: (e.tick - on.start) / span, v: e.v * scale });
+        }
         if (pts.every((pt) => pt.v === 0)) continue;
         // controller steps are a staircase of the gesture: keep its shape, drop the stairs
         const curve = sanitizeCurve(dim, simplifyCurve(pts, dim === 'pitch' ? 0.02 : 0.012));
@@ -229,7 +239,7 @@ export function parseMidi(input) {
         const k = `${ch}:${key}`;
         if (hi === 0x90 && vel > 0) {
           if (!open.has(k)) open.set(k, []);
-          open.get(k).push({ start: tick, vel, ctl: { pitch: ctl[ch].pitch, pressure: ctl[ch].pressure, timbre: ctl[ch].timbre } });
+          open.get(k).push({ start: tick, vel, log: ctl[ch].log.length, ctl: { pitch: ctl[ch].pitch, pressure: ctl[ch].pressure, timbre: ctl[ch].timbre } });
         } else {
           const stack = open.get(k);
           const on = stack?.shift();

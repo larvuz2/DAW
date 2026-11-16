@@ -86,6 +86,8 @@ function osc(ctx, type, freq, t) {
   const o = ctx.createOscillator();
   o.type = type;
   o.frequency.setValueAtTime(freq, t);
+  // sub-audio = a modulator (vibrato, tremolo): per-note pitch curves and live bends leave it alone
+  if (freq <= 20) o.isLfo = true;
   return o;
 }
 
@@ -517,7 +519,7 @@ function bendVoice(v, curve, t, seconds) {
   for (const src of v.sources) {
     const d = src.detune;
     if (!d || typeof d.setValueAtTime !== 'function') continue;
-    if (src.frequency && src.frequency.value < 20) continue; // an LFO, not a tone
+    if (src.isLfo || (src.frequency && src.frequency.value < 20)) continue; // a modulator, not a tone
     // the curve replaces whatever the voice had planned for its pitch (a scoop into the note, say)
     d.cancelScheduledValues(t);
     scheduleCurve(d, curve, t, seconds, 100, src.pitchBase ?? d.value);

@@ -394,3 +394,16 @@ export function wavetableSpectrum(id, position = 0, count = 64) {
   for (let i = 0; i < count; i++) out[i] /= max;
   return out;
 }
+
+/**
+ * Build the wavetables a patch uses (and the sub oscillator's) ahead of its first note. Building one takes tens of
+ * milliseconds — far longer than an audio block — so it must not happen when a note starts: the channel's effects
+ * processor calls this when it is created and when the patch changes.
+ */
+export function prewarmTables(params) {
+  getWavetable('basic');
+  for (const x of ['A', 'B', 'C']) {
+    const id = params?.[`osc${x}Table`];
+    if (typeof id === 'string' && DEFS[id]) getWavetable(id);
+  }
+}

@@ -20,7 +20,7 @@ export const PATCH_FIELDS = {
   lfo: { shape: 'Shape', rate: 'Rate', sync: 'Sync', trigger: 'Trig', fade: 'Fade', phase: 'Phase' },
   voice: {
     level: 'level', velocity: 'velSens', releaseVelocity: 'relVelSens', polyphony: 'polyphony', mono: 'mono', legato: 'legato',
-    glide: 'glide', bendRange: 'bendRange', quality: 'quality', gain: 'gain'
+    glide: 'glide', quality: 'quality', gain: 'gain'
   },
   drive: { amount: 'driveAmt', type: 'driveType' },
   chorus: { mix: 'chorusMix', rate: 'chorusRate', depth: 'chorusDepth' },

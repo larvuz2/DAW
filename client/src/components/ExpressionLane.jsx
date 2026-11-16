@@ -101,13 +101,14 @@ export function ExpressionLane({ dim, tool, range, notes, selected, ppt, width, 
       const a = Math.max(0, (t0 - n.start) / n.length);
       const b = Math.min(1, (t1 - n.start) / n.length);
       if (b < 0 || a > 1) continue;
-      const old = flattenCurve(n.expression?.[dim] || []);
+      const old = n.expression?.[dim] || [];
       // a note without a curve starts from rest, so drawing its second half makes a ramp, not a jump
       const kept = old.length ? old.filter((p) => p.t < a - 1e-4 || p.t > b + 1e-4) : a > 0.02 ? [{ t: 0, v: 0 }] : [];
       const drawn = sorted.filter((s) => s.tick >= n.start && s.tick <= n.start + n.length).map((s) => ({ t: (s.tick - n.start) / n.length, v: s.v }));
       if (!drawn.length) continue;
-      const pts = [...kept, ...drawn].sort((p, q) => p.t - q.t);
-      map.set(n.id, sanitizeCurve(dim, simplifyCurve(pts, (hi - lo) * 0.012)));
+      // only the stroke is thinned (to about a pixel of the lane): the curve outside it keeps every point it had
+      const stroke = simplifyCurve(drawn, ((hi - lo) / H) * 0.8);
+      map.set(n.id, sanitizeCurve(dim, [...kept, ...stroke].sort((p, q) => p.t - q.t)));
     }
     return map;
   };

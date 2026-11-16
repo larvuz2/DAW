@@ -505,7 +505,7 @@ export class AudioEngine {
     if (dim !== 'pitch') return;
     for (const src of voice.sources) {
       const d = src.detune;
-      if (!d || typeof d.setTargetAtTime !== 'function' || (src.frequency && src.frequency.value < 20)) continue;
+      if (!d || typeof d.setTargetAtTime !== 'function' || src.isLfo || (src.frequency && src.frequency.value < 20)) continue;
       src.liveBase ??= src.pitchBase ?? d.value;
       d.setTargetAtTime(src.liveBase + value * 100, now, 0.006);
     }

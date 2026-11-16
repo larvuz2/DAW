@@ -5,7 +5,7 @@
 //              Nothing depends on message timing, so an offline render is sample-identical every time.
 //   ggs-fx     the channel's drive / chorus / delay / reverb / output gain, after its voices are summed.
 // Messages are only used for edits made while a note sounds (a knob turned in the editor) and tempo changes.
-import { GgsVoice, GgsFx } from '@greanteadawy/synth-dsp/engine';
+import { GgsVoice, GgsFx, prewarmTables } from '@greanteadawy/synth-dsp/engine';
 
 const param = (name, defaultValue, minValue, maxValue, automationRate) => ({ name, defaultValue, minValue, maxValue, automationRate });
 
@@ -17,6 +17,8 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
       param('pitch', 0, -96, 96, 'a-rate'),
       param('pressure', 0, 0, 1, 'a-rate'),
       param('timbre', 0, 0, 1, 'a-rate'),
+      // how the note is let go (read on the block where the gate falls: set both at the same time)
+      param('release', 0.5, 0, 1, 'k-rate'),
       param('macro1', 0, 0, 1, 'k-rate'),
       param('macro2', 0, 0, 1, 'k-rate'),
       param('macro3', 0, 0, 1, 'k-rate'),
@@ -29,7 +31,6 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
     const o = options.processorOptions || {};
     this.o = o;
     this.startFrame = Math.round((o.start || 0) * sampleRate);
-    this.releaseVelocity = o.releaseVelocity ?? 0.5;
     this.voice = null;
     this.off = false;
     this.done = false;
@@ -44,7 +45,7 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
       } else if (m?.type === 'tempo') {
         this.o.bpm = m.bpm;
         this.voice?.setTempo(m.bpm);
-      } else if (m?.type === 'release') this.releaseVelocity = m.velocity;
+      }
     };
   }
 
@@ -91,7 +92,7 @@ class GgsVoiceProcessor extends AudioWorkletProcessor {
     }
     if (offAt >= 0) {
       if (offAt > from) voice.process(L, R, from, offAt - from, ctl);
-      voice.noteOff(this.releaseVelocity);
+      voice.noteOff(parameters.release[0]);
       this.off = true;
       ctl.time = currentTime + offAt / sampleRate;
       voice.process(L, R, offAt, n - offAt, ctl);
@@ -108,9 +109,12 @@ class GgsFxProcessor extends AudioWorkletProcessor {
     const o = options.processorOptions || {};
     this.fx = new GgsFx({ sampleRate, params: o.params, bpm: o.bpm || 120 });
     this.closed = false;
+    // the channel's wavetables are built here, when the channel appears or its patch changes — not on a note's
+    // first block, where tens of milliseconds of table building would be heard as a dropout
+    prewarmTables(o.params);
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m?.type === 'params') this.fx.setParams(m.values);
+      if (m?.type === 'params') { this.fx.setParams(m.values); prewarmTables(m.values); }
       else if (m?.type === 'tempo') this.fx.setTempo(m.bpm);
       else if (m?.type === 'close') this.closed = true;
     };

@@ -14,15 +14,15 @@ function onMessage(e) {
       const ch = st.selectedChannelId;
       if (!ch) continue;
       held.set(ev.id, { key: ev.key, channel: ch });
-      st.liveNoteOn(ev.key, ev.velocity, ch, { pitch: ev.pitch, pressure: ev.pressure, timbre: ev.timbre });
+      st.liveNoteOn(ev.key, ev.velocity, ch, { pitch: ev.pitch, pressure: ev.pressure, timbre: ev.timbre }, ev.id);
     } else {
       const h = held.get(ev.id);
       if (!h) continue;
       if (ev.type === 'off') {
         held.delete(ev.id);
-        st.liveNoteOff(h.key, h.channel, ev.releaseVelocity);
+        st.liveNoteOff(h.key, h.channel, ev.releaseVelocity, ev.id);
       } else {
-        st.liveNoteExpression(h.key, ev.dim, ev.value, h.channel);
+        st.liveNoteExpression(h.key, ev.dim, ev.value, h.channel, ev.id);
       }
     }
   }

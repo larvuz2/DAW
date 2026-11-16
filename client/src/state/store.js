@@ -5,6 +5,7 @@ import { sync } from './sync.js';
 import { ensureEngine, getEngine, onEngineReady } from '../audio/index.js';
 import { noteSampleRevs } from '../audio/engine.js';
 import { setPluginRegistry, preparePlugins, pluginsUsed } from '../audio/plugins.js';
+import { prepareGgs, usesGgs, ggsReady } from '../audio/ggs-synth/index.js';
 import { APP_NAME } from '../lib/version.js';
 
 let playSeq = 0; // the latest play()/stop(): a play waiting for plugins only starts if nothing came after it
@@ -509,9 +510,9 @@ export const useStore = create((set, get) => ({
     // plugin modules/samples load once per audio context: wait for them (briefly) so the first notes aren't dropped.
     // A stop (or another play) during the wait cancels this one.
     const seq = ++playSeq;
-    if (pluginsUsed(get().project).length) {
+    if (pluginsUsed(get().project).length || (usesGgs(get().project) && !ggsReady(eng.ctx))) {
       set({ starting: true });
-      await Promise.race([preparePlugins(eng.ctx, get().project), new Promise((r) => setTimeout(r, 3000))]);
+      await Promise.race([Promise.all([preparePlugins(eng.ctx, get().project), prepareGgs(eng.ctx, get().project)]), new Promise((r) => setTimeout(r, 3000))]);
       if (seq !== playSeq) return;
       set({ starting: false });
       eng.setProject(get().project);
@@ -578,12 +579,15 @@ export const useStore = create((set, get) => ({
   // ---------------------------------------------------------------- live notes & recording
   heldNotes: new Map(),
 
-  /** expr: { pitch, pressure, timbre } the note starts with (an MPE controller sends them before the note-on). */
-  liveNoteOn(key, velocity = 0.8, channelId = null, expr = null) {
+  /**
+   * expr: { pitch, pressure, timbre } the note starts with (an MPE controller sends them before the note-on).
+   * tag: tells apart two held notes of the same key (MPE: the same pitch on two MIDI channels).
+   */
+  liveNoteOn(key, velocity = 0.8, channelId = null, expr = null, tag = '') {
     const s = get();
     const cid = channelId || s.selectedChannelId;
     if (!cid || !s.project) return;
-    const id = `${cid}:${key}`;
+    const id = `${cid}:${key}${tag && `:${tag}`}`;
     if (s.heldNotes.has(id)) return;
     // register synchronously so a quick key-up before audio is unlocked can't leave a stuck note
     const h = { voice: null, recTick: null, key, velocity, channelId: cid, t0: 0, released: false, now: { pitch: 0, pressure: 0, timbre: 0, ...(expr || {}) }, take: null };
@@ -605,9 +609,9 @@ export const useStore = create((set, get) => ({
   },
 
   /** A held note's pitch (semitones), pressure or timbre (0..1) moved: MPE bend, aftertouch, slide, mod wheel. */
-  liveNoteExpression(key, dim, value, channelId = null) {
+  liveNoteExpression(key, dim, value, channelId = null, tag = '') {
     const s = get();
-    const h = s.heldNotes.get(`${channelId || s.selectedChannelId}:${key}`);
+    const h = s.heldNotes.get(`${channelId || s.selectedChannelId}:${key}${tag && `:${tag}`}`);
     if (!h || h.now[dim] === value) return;
     h.now[dim] = value;
     const eng = getEngine();
@@ -621,10 +625,10 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  liveNoteOff(key, channelId = null, releaseVelocity = null) {
+  liveNoteOff(key, channelId = null, releaseVelocity = null, tag = '') {
     const s = get();
     const cid = channelId || s.selectedChannelId;
-    const id = `${cid}:${key}`;
+    const id = `${cid}:${key}${tag && `:${tag}`}`;
     const h = s.heldNotes.get(id);
     if (!h) return;
     h.released = true;

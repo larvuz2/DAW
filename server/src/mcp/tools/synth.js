@@ -144,7 +144,7 @@ export function registerSynthTools({ tool, backend, load }) {
 
   tool('update_synth_patch', {
     title: 'Apply a patch document',
-    description: 'Apply a whole or partial patch document to a GGS Synth channel in one edit: any of oscillators, sub, noise, filters, filterRouting, envelopes, lfos, macros, modulation (replaces ALL routes), voice { level, velocity, releaseVelocity, polyphony, mono, legato, glide, bendRange, quality, gain }, effects. Also loads a preset first when preset is given. Everything is validated before anything changes.',
+    description: 'Apply a whole or partial patch document to a GGS Synth channel in one edit: any of oscillators, sub, noise, filters, filterRouting, envelopes, lfos, macros, modulation (replaces ALL routes), voice { level, velocity, releaseVelocity, polyphony, mono, legato, glide, quality, gain }, effects. Also loads a preset first when preset is given. Everything is validated before anything changes.',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
       preset: z.enum(Object.keys(GGS_PRESETS)).optional().describe('Load this preset first (resets the patch)'),
@@ -358,8 +358,23 @@ export function registerSynthTools({ tool, backend, load }) {
   });
 }
 
-/** Render + analyse in a worker thread (see ../../synth-worker.js). */
-function renderInWorker(data, timeoutMs = 60000) {
+let renderQueue = Promise.resolve();
+let waiting = 0;
+const MAX_WAITING = 6;
+
+/**
+ * Render + analyse in a worker thread (see ../../synth-worker.js). One render at a time for the whole server — a
+ * heavy patch takes seconds of CPU, and parallel calls must not turn into a thread each — with a short queue.
+ */
+function renderInWorker(data) {
+  if (waiting >= MAX_WAITING) return Promise.reject(new Error('The synth renderer is busy (several analyses are queued): try again in a moment'));
+  waiting++;
+  const run = renderQueue.catch(() => {}).then(() => runWorker(data)).finally(() => { waiting--; });
+  renderQueue = run;
+  return run;
+}
+
+function runWorker(data, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('../../synth-worker.js', import.meta.url), { workerData: data });
     const timer = setTimeout(() => { worker.terminate(); reject(new Error('The render took too long: fewer notes, a shorter render or quality "eco"')); }, timeoutMs);

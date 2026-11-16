@@ -135,7 +135,7 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
 - **Notes carry a performance**: optional `expression` ({ pitch, pressure, timbre } curves in normalized note time)
   and `releaseVelocity`. Edit them with the `notes/expression` op (patches one curve, keeps the others). Any code
   that creates notes from notes (copy, duplicate, paste, import) must carry `expressionFields(n)` and `pan`.
-- **GGS Synth** (`ggs`): its ~214 flat params live in `packages/synth-dsp/src/params.js` (the catalog imports them).
+- **GGS Synth** (`ggs`): its ~210 flat params live in `packages/synth-dsp/src/params.js` (the catalog imports them).
   One AudioWorklet processor per note; the patch travels in `processorOptions`, and gate / kill / pitch / pressure /
   timbre / macros are AudioParams — never make note timing depend on port messages (offline renders must repeat).
   No allocation or string-keyed lookups in the render path; no `Math.random()` in the engine (seeded per note).

@@ -17,6 +17,11 @@ export const EXPRESSION_UNITS = { pitch: 'st', pressure: '', timbre: '' };
 export const CURVE_TYPES = ['linear', 'smooth', 'hold'];
 /** Per curve: plenty for a hand-drawn gesture (freehand input is simplified to fit), bounded for the server. */
 export const MAX_EXPRESSION_POINTS = 64;
+/**
+ * The most points of an incoming curve that are looked at: longer input is thinned evenly first. Simplifying is
+ * quadratic on adversarial input (a zig-zag), and curves arrive from the network — this bounds the work per curve.
+ */
+export const MAX_INPUT_POINTS = 512;
 
 const r4 = (x) => Math.round(x * 10000) / 10000;
 const finite = (x) => typeof x === 'number' && Number.isFinite(x);
@@ -28,6 +33,10 @@ const finite = (x) => typeof x === 'number' && Number.isFinite(x);
 export function sanitizeCurve(dim, points) {
   const range = EXPRESSION_RANGE[dim];
   if (!range || !Array.isArray(points) || !points.length) return null;
+  if (points.length > MAX_INPUT_POINTS) {
+    const step = (points.length - 1) / (MAX_INPUT_POINTS - 1);
+    points = Array.from({ length: MAX_INPUT_POINTS }, (_, i) => points[Math.round(i * step)]);
+  }
   const out = [];
   for (const p of points) {
     if (!p || typeof p !== 'object') continue;
@@ -130,8 +139,9 @@ export function simplifyCurve(points, tolerance = 0.01, maxPoints = MAX_EXPRESSI
   };
   let tol = Math.max(0, tolerance);
   let out = run(tol);
-  for (let guard = 0; out.length > maxPoints && guard < 40; guard++) {
-    tol = tol > 0 ? tol * 1.6 : 0.0005;
+  // a few doublings reach any useful tolerance; what still doesn't fit is thinned evenly below
+  for (let guard = 0; out.length > maxPoints && guard < 12; guard++) {
+    tol = tol > 0 ? tol * 2 : 0.001;
     out = run(tol);
   }
   if (out.length > maxPoints) {
@@ -164,20 +174,41 @@ export function transformCurve(dim, points, { scale = 1, offset = 0, invert = fa
   if (reverse) {
     // a segment's shape belongs to its first point: after mirroring, to the point that now comes first
     pts = [];
-    for (let j = points.length - 1; j >= 0; j--) {
+    const last = points.length - 1;
+    for (let j = last; j >= 0; j--) {
       const p = points[j];
       const owner = points[j - 1]; // owns the segment that now follows p
       const q = { t: 1 - p.t, v: p.v };
-      pts.push(q);
-      if (owner?.c === 'smooth') q.c = 'smooth';
-      else if (owner?.c === 'hold') pts.push({ t: q.t, v: owner.v }); // a mirrored hold jumps first, then stays
+      if (owner?.c === 'hold') {
+        // a mirrored hold jumps first, then stays. When what arrives at p is itself a hold (or nothing), p's own
+        // value is never heard: one point is enough — a mirrored pulse train keeps its point count
+        if (j !== last && p.c !== 'hold') pts.push(q);
+        pts.push({ t: q.t, v: owner.v, c: 'hold' });
+      } else {
+        if (owner?.c === 'smooth') q.c = 'smooth';
+        pts.push(q);
+      }
     }
   }
   const mid = dim === 'pitch' ? 0 : 0.5;
   for (const p of pts) {
     if (invert) p.v = 2 * mid - p.v;
     p.v = p.v * scale + offset;
-    p.t = p.t * timeScale + timeOffset;
+  }
+  if (timeScale !== 1 || timeOffset !== 0) {
+    // re-time on the flattened curve, then cut it at the note's edges: points pushed outside the note must not
+    // pile up at 0 or 1 (the release would hear the wrong value)
+    const moved = flattenCurve(pts).map((p) => ({ t: p.t * timeScale + timeOffset, v: p.v }));
+    const at = (t) => {
+      if (t <= moved[0].t) return moved[0].v;
+      for (let i = 1; i < moved.length; i++) {
+        if (t < moved[i].t) { const a = moved[i - 1]; const b = moved[i]; return a.v + (b.v - a.v) * ((t - a.t) / (b.t - a.t || 1)); }
+      }
+      return moved[moved.length - 1].v;
+    };
+    pts = [{ t: Math.max(0, Math.min(1, moved[0].t)), v: at(Math.max(0, moved[0].t)) }, ...moved.filter((p) => p.t > 0 && p.t < 1)];
+    const end = moved[moved.length - 1].t;
+    pts.push({ t: Math.max(0, Math.min(1, end)), v: at(Math.min(1, end)) });
   }
   if (smooth > 0) {
     // resample, then a moving average whose width grows with `smooth` (up to a quarter of the note)

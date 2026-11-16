@@ -133,6 +133,10 @@ Macros are automated with `add_automation` (target `channel`, param `macro1`…`
   warp, filter drive, comb — runs at 2× with a polyphase half-band decimator; a plain patch, which cannot alias,
   runs at 1×. `high` forces 2×, `eco` never oversamples.
 - Random parts of a note (unison phases, noise, random LFOs) are seeded from the note's time and key: renders repeat.
+- A channel's wavetables are built by its effects processor when the channel appears or its patch changes — never
+  on a note's first block, where the tens of milliseconds it takes would be a dropout.
+- The effects rest by **level**, not by a timer: processing stops once nothing has come in and nothing audible has
+  come out for longer than one echo, so a long feedback delay is never cut off.
 - Measured quality and CPU numbers: [audio-benchmarks.md](audio-benchmarks.md).
 
 To change the engine see `.claude/skills/ggs-synth/SKILL.md`.

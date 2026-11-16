@@ -56,8 +56,13 @@ export function selectNotes(list, { noteIds, note, fromStep, toStep, all }, what
   return hit;
 }
 
-/** A curve argument → a sanitized curve for one note (null = remove). Validates values strictly. */
-export function buildCurve(dim, spec, noteSeconds) {
+const MAX_WAVES = (MAX_EXPRESSION_POINTS - 4) / 2;
+
+/**
+ * A curve argument → a sanitized curve for one note (null = remove). Validates values strictly. `warnings` (a Set)
+ * collects things the caller should be told about.
+ */
+export function buildCurve(dim, spec, noteSeconds, warnings = null) {
   if (spec === null) return null;
   const [lo, hi] = EXPRESSION_RANGE[dim];
   const inRange = (v, what) => {
@@ -76,14 +81,16 @@ export function buildCurve(dim, spec, noteSeconds) {
   if (spec.rateHz && (spec.shape === 'vibrato' || spec.shape === 'pulse')) {
     const active = spec.shape === 'vibrato' ? 1 - (spec.delay ?? 0.25) : 1;
     o.cycles = Math.max(0.5, spec.rateHz * noteSeconds * active);
+    // a curve holds 64 points = 30 waves: on a longer note the waves would be stretched, so say it
+    if (o.cycles > MAX_WAVES) warnings?.add(`A curve holds at most ${MAX_WAVES} waves, so ${spec.rateHz} Hz ${spec.shape} is slower than asked on notes longer than ${Math.round((MAX_WAVES / spec.rateHz / active) * 10) / 10} s. For a steady vibrato on long notes use the patch instead: an LFO routed to pitchFine (via pressure, to play its depth).`);
   }
   return makeCurve(dim, spec.shape, o);
 }
 
 /** { pitch?, pressure?, timbre? } curve arguments → the `expression` patch of a notes/expression op for one note. */
-export function buildExpression(curves, noteSeconds) {
+export function buildExpression(curves, noteSeconds, warnings = null) {
   const out = {};
-  for (const dim of EXPRESSION_DIMS) if (curves[dim] !== undefined) out[dim] = buildCurve(dim, curves[dim], noteSeconds);
+  for (const dim of EXPRESSION_DIMS) if (curves[dim] !== undefined) out[dim] = buildCurve(dim, curves[dim], noteSeconds, warnings);
   return out;
 }
 
@@ -139,9 +146,10 @@ export function registerExpressionTools({ tool, backend, load }) {
     const dims = EXPRESSION_DIMS.filter((d) => a[d] !== undefined);
     if (!dims.length && a.releaseVelocity === undefined) throw new Error('Nothing to set: give pitch, pressure, timbre and/or releaseVelocity');
     const notes = selectNotes(pt.notes[ch.id] || [], a);
+    const warnings = new Set();
     const updates = notes.map((n) => ({
       id: n.id,
-      ...(dims.length ? { expression: buildExpression(a, ticksToSeconds(n.length, p.bpm)) } : {}),
+      ...(dims.length ? { expression: buildExpression(a, ticksToSeconds(n.length, p.bpm), warnings) } : {}),
       ...(a.releaseVelocity !== undefined ? { releaseVelocity: a.releaseVelocity } : {})
     }));
     const after = await backend.applyOps(p.id, [{ type: 'notes/expression', patternId: pt.id, channelId: ch.id, notes: updates }]);
@@ -150,7 +158,7 @@ export function registerExpressionTools({ tool, backend, load }) {
       const now = list.find((x) => x.id === n.id);
       return `  ${noteName(n.key)} @ step ${steps(n.start)} [${n.id}]: ${describeExpression(now) || 'no expression'}`;
     });
-    const hints = audibilityNotes(after.channels.find((c) => c.id === ch.id), dims.filter((d) => a[d] !== null));
+    const hints = [...audibilityNotes(after.channels.find((c) => c.id === ch.id), dims.filter((d) => a[d] !== null)), ...warnings];
     return ok(`Shaped ${notes.length} note(s) of "${ch.name}" in "${pt.name}":\n${shown.join('\n')}${notes.length > 6 ? `\n  … +${notes.length - 6} more` : ''}${hints.length ? `\n${hints.join('\n')}` : ''}`);
   });
 

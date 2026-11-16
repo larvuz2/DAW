@@ -184,7 +184,6 @@ export const GGS_PARAMS = [
   bool('mono', 'Mono', false, { section: 'voice', group: 'Voice' }),
   bool('legato', 'Legato', false, { section: 'voice', group: 'Voice' }),
   n('glide', 'Glide', 0, 2, 0, { unit: 's', section: 'voice', group: 'Voice' }),
-  n('bendRange', 'Bend range', 1, 96, 48, { step: 1, unit: 'st', section: 'voice', group: 'Voice' }),
   sel('quality', 'Quality', QUALITIES, 'auto', { section: 'voice', group: 'Voice' }),
   n('gain', 'Gain', 0, 2, 0.55, { section: 'voice', group: 'Voice' }),
   n('driveAmt', 'Amount', 0, 1, 0, { section: 'fx', group: 'Drive' }),

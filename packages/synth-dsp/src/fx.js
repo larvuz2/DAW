@@ -66,6 +66,7 @@ export class GgsFx {
     this.lineOut = new Float64Array(8);
     this.revPhase = 0;
     this.silent = 1e15; // frames of silent input so far (starts at rest: nothing has played yet)
+    this.quiet = 0; // frames of silent OUTPUT so far
     this.idle = true;
     this.p = completeParams(params);
     this.configure();
@@ -102,9 +103,12 @@ export class GgsFx {
     this.revDamp = 1 - Math.exp((-TAU * (12000 * Math.pow(1500 / 12000, p.reverbDamp))) / fs);
     this.revLen = REV_LINES.map((ms) => Math.round((ms / 1000) * fs * this.revScale));
     this.diffLen = REV_DIFFUSERS.map((ms) => Math.round((ms / 1000) * fs));
-    // how long the effects keep ringing after the input stops: past that, processing can rest
+    // roughly how long the effects ring after the input stops (the headless renderer sizes its output with it)
     const delayTail = this.delayOn ? Math.min(20, (seconds * Math.log(0.001)) / Math.log(Math.max(0.05, p.delayFb))) : 0;
     this.tail = Math.ceil((0.1 + delayTail + (this.reverbOn ? t60 * 1.3 : 0)) * fs);
+    // processing rests once nothing has come in AND nothing audible has come out for longer than one echo: by the
+    // output's level, not by a timer — a long feedback delay is never cut off while it can still be heard
+    this.hold = Math.ceil((0.3 + (this.delayOn ? seconds : 0)) * fs);
   }
 
   /** Process `n` frames from in to out (the same arrays may be passed for both). */
@@ -119,16 +123,11 @@ export class GgsFx {
       const a = Math.abs(inL[o + i]) + Math.abs(inR[o + i]);
       if (a > peak) peak = a;
     }
-    if (peak < 1e-9) {
-      this.silent += n;
-      if (this.silent > this.tail) {
-        if (!this.idle) this.rest();
-        for (let i = 0; i < n; i++) outL[o + i] = outR[o + i] = 0;
-        return;
-      }
-    } else {
-      this.silent = 0;
-      this.idle = false;
+    if (peak < 1e-9) this.silent += n;
+    else { this.silent = 0; this.idle = false; }
+    if (this.idle) {
+      for (let i = 0; i < n; i++) outL[o + i] = outR[o + i] = 0;
+      return;
     }
     if (outL !== inL) for (let i = 0; i < n; i++) { outL[o + i] = inL[o + i]; outR[o + i] = inR[o + i]; }
 
@@ -137,7 +136,15 @@ export class GgsFx {
     if (this.delayOn) this.doDelay(outL, outR, o, n);
     if (this.reverbOn) this.doReverb(outL, outR, o, n);
     const g = p.gain;
-    for (let i = 0; i < n; i++) { outL[o + i] *= g; outR[o + i] *= g; }
+    let out = 0;
+    for (let i = 0; i < n; i++) {
+      const a = Math.abs(outL[o + i]) + Math.abs(outR[o + i]);
+      if (a > out) out = a;
+      outL[o + i] *= g;
+      outR[o + i] *= g;
+    }
+    this.quiet = out < 2e-6 ? this.quiet + n : 0; // -114 dBFS
+    if (this.silent > this.hold && this.quiet > this.hold) this.rest();
   }
 
   /** Clear every tail (called once when the effects fall silent, so nothing stale sounds on the next note). */

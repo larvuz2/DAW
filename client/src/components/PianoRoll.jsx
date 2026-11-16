@@ -384,7 +384,8 @@ export function PianoRoll() {
   const curveLane = CURVE_LANES.includes(lane);
   const laneH = curveLane ? EXPR_H : VEL_H;
   // the pitch lane widens by itself when a curve goes beyond the chosen range
-  const widest = lane === 'pitch' ? Math.max(0, ...notes.flatMap((n) => (n.expression?.pitch || []).map((pt) => Math.abs(pt.v)))) : 0;
+  let widest = 0;
+  if (lane === 'pitch') for (const n of notes) for (const pt of n.expression?.pitch || []) if (Math.abs(pt.v) > widest) widest = Math.abs(pt.v);
   const range = PITCH_RANGES.find((r) => r >= Math.max(pitchRange, widest)) || 48;
 
   // ---------------------------------------------------------------- render

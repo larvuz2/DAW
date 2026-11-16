@@ -284,6 +284,16 @@ test('evaluate_composition flags what will not sound as written', async () => {
   assert.equal(clean.counts.issue, 0);
 });
 
+test('a vibrato too long for one curve says so instead of silently slowing down', async () => {
+  await call('create_pattern', { name: 'Long', bars: 8 });
+  await call('add_notes', { pattern: 'Long', channel: 'Lead', notes: [{ note: 'C4', start: 0, length: 120 }, { note: 'E4', start: 0, length: 8 }] });
+  // 120 steps at 120 BPM = 15 s: 6 Hz would need 67 waves, a curve holds 30
+  const out = await call('set_note_expression', { pattern: 'Long', channel: 'Lead', all: true, pitch: { shape: 'vibrato', rateHz: 6, depth: 0.3 } });
+  assert.match(out, /Shaped 2 note\(s\)/);
+  assert.match(out, /at most 30 waves, so 6 Hz vibrato is slower than asked on notes longer than 6\.7 s[\s\S]*LFO routed to pitchFine/);
+  assert.doesNotMatch(await call('set_note_expression', { pattern: 'Long', channel: 'Lead', note: 'E4', pitch: { shape: 'vibrato', rateHz: 6, depth: 0.3 } }), /slower than asked/);
+});
+
 test('the sound-design skill teaches recipes the tools accept', async () => {
   const fs = await import('node:fs');
   const text = fs.readFileSync(new URL('../../skills/greanteadawy-sound-design/recipes.md', import.meta.url), 'utf8');

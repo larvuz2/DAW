@@ -313,7 +313,7 @@ test('MIDI: expression leaves as MPE and comes back as curves; plain tracks are 
   assert.deepEqual(lead.notes.map((n) => [n.key, n.start, n.length]), [[60, 0, 384], [64, 0, 384], [67, 0, 192], [72, 384, 192]]);
   assert.equal(new Set(lead.notes.filter((n) => n.start === 0).map((n) => n.channel)).size, 3, 'simultaneous notes sit on different MIDI channels');
   // each note has its own curves back, close to what was written
-  for (const t of [0, 0.25, 0.5, 0.75, 1]) assert.ok(Math.abs(at(by[60].expression.pitch, t) - at(bend, t)) < 0.06, `bend at ${t}`);
+  for (const t of [0, 0.25, 0.5, 0.75, 1]) assert.ok(Math.abs(at(by[60].expression.pitch, t) - at(bend, t)) < 0.03, `bend at ${t}`);
   assert.equal(by[60].expression.pressure, undefined);
   for (const t of [0, 0.25, 0.5, 0.75, 0.95]) assert.ok(Math.abs(at(by[64].expression.pressure, t) - at(press, t)) < 0.04, `pressure at ${t}`);
   assert.ok(Math.abs(at(by[64].expression.timbre, 0.5) - 0.25) < 0.01);
@@ -331,4 +331,48 @@ test('MIDI: expression leaves as MPE and comes back as curves; plain tracks are 
   const plain = parseMidi(projectToMidi(p, { mode: 'pattern', mpe: false })).tracks.find((t) => t.name === 'Lead');
   assert.ok(plain.notes.every((n) => !n.expression));
   assert.equal(new Set(plain.notes.map((n) => n.channel)).size, 1);
+});
+
+test('review fixes: huge curves are bounded quickly; reversed pulses, re-timed curves and overflowing MPE chords stay right', async () => {
+  const { projectToMidi, parseMidi, createEmptyProject, createChannel, createPattern, applyOps: apply } = await import('../src/index.js');
+  // a 60,000-point zig-zag (what a hostile client could send) costs milliseconds, not minutes
+  const zigzag = Array.from({ length: 60000 }, (_, i) => ({ t: i / 59999, v: i % 2 }));
+  let t0 = performance.now();
+  const kept = sanitizeCurve('pressure', zigzag);
+  assert.ok(performance.now() - t0 < 400, `sanitizeCurve took ${Math.round(performance.now() - t0)} ms`);
+  assert.ok(kept.length <= MAX_EXPRESSION_POINTS);
+  const { p, ch, pat } = projectWithNote();
+  t0 = performance.now();
+  apply(p, [{ type: 'notes/expression', patternId: pat, channelId: ch, notes: [{ id: 'n1', expression: { pitch: zigzag, pressure: zigzag, timbre: zigzag } }] }]);
+  assert.ok(performance.now() - t0 < 1200, `the op took ${Math.round(performance.now() - t0)} ms`);
+  // a reversed pulse train is its mirror image at every point count the shape can make
+  for (const cycles of [4, 20, 31]) {
+    const pulse = makeCurve('pressure', 'pulse', { cycles });
+    const rev = transformCurve('pressure', pulse, { reverse: true });
+    assert.ok(rev.length <= MAX_EXPRESSION_POINTS);
+    let worst = 0;
+    // sampled between the steps: exactly on a step a hold and its mirror differ by definition (one jumps at the point)
+    for (let i = 0; i < 997; i++) { const t = (i + 0.37) / 997; worst = Math.max(worst, Math.abs(curveValueAt(rev, t) - curveValueAt(pulse, 1 - t))); }
+    assert.ok(worst < 1e-9, `${cycles} cycles reversed: error ${worst}`);
+  }
+  // a curve shifted late is cut at the note end: the release hears where the curve was, not a pile-up
+  const shifted = transformCurve('pitch', [{ t: 0, v: 0 }, { t: 0.5, v: 2 }, { t: 1, v: 0 }], { timeOffset: 0.5 });
+  assert.equal(curveValueAt(shifted, 0.25), 0);
+  near(curveValueAt(shifted, 0.75), 1);
+  near(curveValueAt(shifted, 1), 2);
+  const early = transformCurve('pitch', [{ t: 0, v: 0 }, { t: 0.5, v: 2 }, { t: 1, v: 0 }], { timeOffset: -0.25, timeScale: 0.5 });
+  near(curveValueAt(early, 0), 2);
+  near(curveValueAt(early, 0.125), 1);
+  assert.equal(curveValueAt(early, 0.6), 0);
+  // 20 expressive notes at once: the 15 that get a channel of their own keep their curves, the rest go plain
+  const proj = createEmptyProject({ bpm: 120 });
+  proj.channels = [createChannel({ id: 'c', name: 'Cluster', kind: 'ggs' })];
+  proj.patterns = [createPattern({ id: 'a', length: 384, notes: { c: Array.from({ length: 20 }, (_, i) => ({ id: `n${i}`, key: 40 + i, start: 0, length: 192, velocity: 0.8, expression: { pitch: [{ t: 0, v: 0 }, { t: 1, v: (i % 5) + 1 }] } })) } })];
+  const back = parseMidi(projectToMidi(proj, { mode: 'pattern' })).tracks[0].notes;
+  assert.equal(back.length, 20);
+  // (the five overflow notes share a channel on the way back in: MPE has no room for a 16th independent note)
+  for (const n of back.filter((x) => x.key < 55)) {
+    assert.ok(Math.abs(curveValueAt(n.expression.pitch, 1) - (((n.key - 40) % 5) + 1)) < 0.02, `note ${n.key} came back with a wrong curve`);
+  }
+  assert.equal(new Set(back.filter((x) => x.key < 55).map((x) => x.channel)).size, 15);
 });

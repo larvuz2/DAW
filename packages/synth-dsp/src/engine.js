@@ -2,3 +2,4 @@
 // whole package, so presets, patch documents and the headless renderer stay out of it.
 export { GgsVoice } from './voice.js';
 export { GgsFx } from './fx.js';
+export { prewarmTables } from './wavetables.js';

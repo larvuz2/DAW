@@ -362,3 +362,38 @@ test('damaged or partial params never break a voice', () => {
   }
   assert.ok(MOD_SOURCES.length === 20 && MOD_TARGETS.includes('f1Cutoff') && MOD_TARGETS.includes('oscCDetune'));
 });
+
+test('review fixes: silent noise still modulates, long echoes are not cut, tables can be built ahead', async () => {
+  const { prewarmTables } = await import('../src/engine.js');
+  // noise as an FM source with its level at zero: the oscillator is modulated (it used to be bit-identical to FM off)
+  const run = (params) => voiceOnly({ oscAPos: 0, ...params }, [{ key: 60, duration: 0.3, seed: 5 }], { seconds: 0.4 }).channels[0];
+  const clean = run({});
+  const noisy = run({ oscAFmFrom: 'noise', oscAFm: 0.5, noiseLevel: 0 });
+  let diff = 0;
+  for (let i = 0; i < clean.length; i++) diff = Math.max(diff, Math.abs(clean[i] - noisy[i]));
+  assert.ok(diff > 0.05, `noise FM changes the sound (${diff})`);
+  assert.equal(new GgsVoice({ sampleRate: 48000, params: { oscAFmFrom: 'noise', oscAFm: 0.5 } }).os, 2);
+  // a long feedback delay rings until it is inaudible: 25 s after the input stopped it is still being processed
+  const fs = 24000;
+  const fx = new GgsFx({ sampleRate: fs, params: { delayMix: 1, delaySync: 'free', delayTime: 500, delayFb: 0.95, delayPing: false, gain: 1 }, bpm: 120 });
+  const a = new Float32Array(fs);
+  const b = new Float32Array(fs);
+  for (let i = 0; i < 2000; i++) a[i] = b[i] = Math.sin(i * 0.2) * 0.5;
+  fx.process(a, b, a, b, fs);
+  let peak = 0;
+  for (let s = 0; s < 25; s++) {
+    a.fill(0); b.fill(0);
+    fx.process(a, b, a, b, fs);
+    peak = 0;
+    for (let i = 0; i < fs; i++) peak = Math.max(peak, Math.abs(a[i]));
+  }
+  assert.equal(fx.idle, false);
+  assert.ok(peak > 0.01, `the echo is still there after 25 s (${peak})`);
+  // … and it does come to rest, by itself, once it has faded (-114 dBFS: about 250 more echoes)
+  for (let s = 0; s < 200 && !fx.idle; s++) { a.fill(0); b.fill(0); fx.process(a, b, a, b, fs); }
+  assert.equal(fx.idle, true);
+  // the channel builds its tables before the first note (and shrugs at junk)
+  prewarmTables({ oscATable: 'sync', oscBTable: 'nope', oscCTable: 7 });
+  prewarmTables(null);
+  assert.ok(getWavetable('sync').spectra.length > 1);
+});

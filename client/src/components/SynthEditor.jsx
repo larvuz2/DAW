@@ -157,6 +157,7 @@ function LfoView({ shape, phase }) {
 function TouchPad({ channel }) {
   const ref = useRef(null);
   const held = useRef(null);
+  const pressed = useRef(false); // set and cleared synchronously: audio may unlock only after the pointer is up again
   const [dot, setDot] = useState(null);
   const where = (e) => {
     const r = ref.current.getBoundingClientRect();
@@ -176,8 +177,9 @@ function TouchPad({ channel }) {
     e.currentTarget.setPointerCapture(e.pointerId);
     const p = where(e);
     setDot(p);
+    pressed.current = true;
     const eng = await useStore.getState().unlockAudio();
-    if (!eng || held.current) return;
+    if (!eng || held.current || !pressed.current) return;
     const v = eng.noteOn(channel.id, channel.rootKey, 0.8);
     if (!v) return;
     held.current = v;
@@ -185,6 +187,7 @@ function TouchPad({ channel }) {
     v.expr?.pressure.setValueAtTime(p.y, eng.ctx.currentTime);
   };
   const up = () => {
+    pressed.current = false;
     const v = held.current;
     held.current = null;
     setDot(null);
@@ -370,7 +373,7 @@ export function SynthEditor({ channel }) {
             <legend>Voice</legend>
             <div className="param-row">
               {C('level', { title: 'Level before the envelope. Set it low and route pressure to "level" for a sound that swells with touch' })}{C('velSens')}{C('relVelSens')}
-              {C('polyphony')}{C('mono')}{C('legato')}{C('glide')}{C('bendRange')}{C('quality', { title: 'auto: 2× oversampling only where the patch can alias · high: always · eco: never' })}
+              {C('polyphony')}{C('mono')}{C('legato')}{C('glide')}{C('quality', { title: 'auto: 2× oversampling only where the patch can alias · high: always · eco: never' })}
             </div>
           </fieldset>
         </div>

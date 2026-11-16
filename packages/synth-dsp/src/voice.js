@@ -264,6 +264,7 @@ export class GgsVoice {
     this.subDest = SOURCE_DESTS.indexOf(p.subDest);
     this.noiseDest = SOURCE_DESTS.indexOf(p.noiseDest);
     this.subNeedMono = this.oscs.some((q) => q.on && q.fmFrom === 'sub');
+    this.noiseNeedMono = this.oscs.some((q) => q.on && q.fmFrom === 'noise');
     this.velGain = 1 - p.velSens + p.velSens * this.vel * this.vel;
   }
 
@@ -456,7 +457,8 @@ export class GgsVoice {
   renderBlock(m) {
     B1L.fill(0, 0, m); B1R.fill(0, 0, m); B2L.fill(0, 0, m); B2R.fill(0, 0, m); DL.fill(0, 0, m); DR.fill(0, 0, m);
     if (this.sub.levelTo > 0 || this.sub.level > 0 || this.subNeedMono) this.renderSub(m);
-    if (this.noise.levelTo > 0 || this.noise.level > 0) this.renderNoise(m);
+    // (a source used as an FM modulator is rendered even at level 0: it is heard through the oscillator it bends)
+    if (this.noise.levelTo > 0 || this.noise.level > 0 || this.noiseNeedMono) this.renderNoise(m);
     for (const o of this.order) this.renderOsc(o, m);
 
     OL.fill(0, 0, m); OR.fill(0, 0, m);

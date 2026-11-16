@@ -31,6 +31,7 @@ export function prepareGgs(ctx, project) {
 }
 
 const DEFAULTS = ggsDefaults();
+const TABLE_KEYS = ['oscATable', 'oscBTable', 'oscCTable'];
 const compactCache = new WeakMap();
 /**
  * Only what differs from the init patch: a note carries its patch to the audio thread, and ~20 values copy faster
@@ -104,7 +105,8 @@ export class GgsChannel {
       const key = `macro${i + 1}`;
       if (key in d && !automated?.(key)) src.offset.setTargetAtTime(d[key], this.ctx.currentTime, 0.01);
     });
-    if (this.fx && FX_KEYS.some((k) => k in d)) this.fx.port.postMessage({ type: 'params', values: d });
+    // the effects processor also builds a newly chosen wavetable before any voice needs it
+    if (this.fx && (FX_KEYS.some((k) => k in d) || TABLE_KEYS.some((k) => k in d))) this.fx.port.postMessage({ type: 'params', values: d });
     for (const node of this.voices) node.port.postMessage({ type: 'params', values: d });
   }
 
@@ -138,13 +140,13 @@ export class GgsChannel {
 export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, rig, seed }) {
   if (!ggsReady(ctx)) { loadGgsModule(ctx); return t; }
   const params = instrument.params;
-  const releaseVelocity = expr?.releaseVelocity ?? 0.5;
+  let releaseVelocity = expr?.releaseVelocity ?? 0.5;
   let node;
   try {
     node = new AudioWorkletNode(ctx, 'ggs-voice', {
       numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
       processorOptions: {
-        params: compact(params), key, velocity: velRaw, start: t, bpm: rig?.bpm || 120, releaseVelocity,
+        params: compact(params), key, velocity: velRaw, start: t, bpm: rig?.bpm || 120,
         // the same note at the same time always gets the same "random" parts: renders repeat exactly
         seed: seed ?? hash32(Math.round(t * ctx.sampleRate) ^ Math.imul(key + 1, 0x85ebca6b)),
         glideFrom: glideFrom || 0, legato: !!glideFrom
@@ -158,7 +160,16 @@ export function ggsVoice(v, ctx, instrument, { t, velRaw, key, glideFrom, expr, 
   const gate = P.get('gate');
   const kill = P.get('kill');
   v.freq = 440 * Math.pow(2, (key - 69) / 12);
-  v.expr = { pitch: P.get('pitch'), pressure: P.get('pressure'), timbre: P.get('timbre'), setReleaseVelocity: (velocity) => node.port.postMessage({ type: 'release', velocity }) };
+  const release = P.get('release');
+  release.setValueAtTime(releaseVelocity, Math.max(t, ctx.currentTime));
+  v.expr = {
+    pitch: P.get('pitch'), pressure: P.get('pressure'), timbre: P.get('timbre'),
+    // a live note learns its release velocity when the key is let go: it also decides how long the tail may ring
+    setReleaseVelocity(velocity) {
+      releaseVelocity = velocity;
+      release.setValueAtTime(velocity, ctx.currentTime);
+    }
+  };
   const e = expr?.expression;
   if (e) {
     const seconds = Math.max(0.001, expr.seconds);
