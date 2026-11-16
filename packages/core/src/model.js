@@ -14,6 +14,13 @@ export const PROJECT_VERSION = 1;
 
 export const MAX_NUDGE_MS = 50;
 
+export const CHANNEL_AUTOMATION_PARAMS = ['volume', 'pan', 'filterCutoff', 'filterRes', 'pitch'];
+export const MACRO_PARAMS = ['macro1', 'macro2', 'macro3', 'macro4'];
+/** What can be automated on a channel: the strip's own controls, plus the four macros of a GGS Synth. */
+export function channelAutomationParams(channel) {
+  return channel?.instrument?.kind === 'ggs' ? [...CHANNEL_AUTOMATION_PARAMS, ...MACRO_PARAMS] : CHANNEL_AUTOMATION_PARAMS;
+}
+
 export function createChannel(opts = {}) {
   const kind = opts.kind || opts.instrument?.kind || 'kick';
   const def = INSTRUMENTS[kind];
@@ -308,7 +315,7 @@ export function normalizeKey(k) {
 function validAutomationTarget(p, t) {
   if (!t || typeof t !== 'object') return false;
   if (t.type === 'master') return ['volume', 'pan'].includes(t.param);
-  if (t.type === 'channel') return p.channels.some((c) => c.id === t.id) && ['volume', 'pan', 'filterCutoff', 'filterRes', 'pitch'].includes(t.param);
+  if (t.type === 'channel') return channelAutomationParams(p.channels.find((c) => c.id === t.id)).includes(t.param) && p.channels.some((c) => c.id === t.id);
   if (t.type === 'mixer') {
     return Number.isInteger(t.index) && t.index >= 0 && t.index < p.mixer.length && (['volume', 'pan'].includes(t.param) || (t.index > 0 && !!SPATIAL_PARAMS[t.param]));
   }

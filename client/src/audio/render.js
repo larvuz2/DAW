@@ -3,6 +3,7 @@ import { patternLength, songLength, ticksPerBar, PPQ, encodeWav, createLevelMete
 import { AudioEngine } from './engine.js';
 import { LIMITER_HEADROOM } from './effects.js';
 import { preparePlugins } from './plugins.js';
+import { prepareGgs } from './ggs-synth/index.js';
 
 const TAP_SIZE = 32768; // AnalyserNode history (max fftSize) — must exceed one chunk
 
@@ -39,7 +40,7 @@ export async function renderProject(project, opts = {}) {
   const eng = new AudioEngine(ctx, { realtime: false, spatial: sp });
   eng.samples = samples;
   eng.setProject(project);
-  await Promise.all([eng.loadNeededSamples(project), eng.prewarmModels(project), preparePlugins(ctx, project)]);
+  await Promise.all([eng.loadNeededSamples(project), eng.prewarmModels(project), preparePlugins(ctx, project), prepareGgs(ctx, project)]);
   const transport = eng.transport;
   const playMode = songMode ? 'song' : 'pattern';
   const chunked = typeof ctx.suspend === 'function';

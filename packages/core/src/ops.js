@@ -7,7 +7,7 @@ import { INSTRUMENTS, makeInstrument, sanitizeParams } from './instruments.js';
 import { EFFECTS, createEffect } from './effects.js';
 import {
   createChannel, createPattern, createClip, createTrack, createMixerInsert, createAutomation, createMarker,
-  normalizeProject, sanitizeNote, normalizeKey, audioClipFields, MAX_NUDGE_MS, MAX_MARKERS
+  normalizeProject, sanitizeNote, normalizeKey, audioClipFields, MAX_NUDGE_MS, MAX_MARKERS, channelAutomationParams, MACRO_PARAMS
 } from './model.js';
 import { SCALES } from './music.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
@@ -195,8 +195,8 @@ function sanitizeTarget(d, t) {
   req(t && typeof t === 'object', 'Automation target required');
   const type = t.type;
   if (type === 'channel') {
-    chan(d, t.id);
-    req(['volume', 'pan', 'filterCutoff', 'filterRes', 'pitch'].includes(t.param), 'Channel automation param must be volume, pan, pitch, filterCutoff or filterRes');
+    const c = chan(d, t.id);
+    req(channelAutomationParams(c).includes(t.param), `Channel automation param must be volume, pan, pitch, filterCutoff or filterRes${c.instrument.kind === 'ggs' ? ', or macro1..macro4' : ' (macro1..macro4 only on a GGS Synth channel)'}`);
     return { type, id: t.id, param: t.param };
   }
   if (type === 'mixer') {
@@ -279,7 +279,16 @@ export function applyOp(d, op) {
       return;
     }
     case 'channel/update': {
-      patchChannel(d, chan(d, op.id), op.patch || {});
+      const c = chan(d, op.id);
+      patchChannel(d, c, op.patch || {});
+      if (c.instrument.kind !== 'ggs') {
+        // macros only exist on a GGS Synth: their automation goes with it (like an effect's when it is removed)
+        const autoIds = d.automations.filter((a) => a.target.type === 'channel' && a.target.id === c.id && MACRO_PARAMS.includes(a.target.param)).map((a) => a.id);
+        if (autoIds.length) {
+          d.automations = d.automations.filter((a) => !autoIds.includes(a.id));
+          d.playlist.clips = d.playlist.clips.filter((clip) => !(clip.kind === 'automation' && autoIds.includes(clip.refId)));
+        }
+      }
       return;
     }
     case 'channel/remove': {

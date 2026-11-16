@@ -1,9 +1,10 @@
 // Synthesized instruments. Every function schedules one note ("voice") on a Web Audio graph.
 import { midiToFreq, instrumentDefaults, INSTRUMENTS } from '@greanteadawy/core';
-import { noiseSource, shaperCurve, adsr, percEnv, timbre, FLAT_Q } from './dsp.js';
+import { noiseSource, shaperCurve, adsr, percEnv, timbre, FLAT_Q, scheduleCurve } from './dsp.js';
 import { BAND } from './band.js';
 import { WORLD } from './world.js';
 import { pluginVoice } from './plugins.js';
+import { ggsVoice } from './ggs-synth/index.js';
 
 /** A playing note. Owns its sources; supports note-off (release) and fast kill (choke / stop). */
 export class Voice {
@@ -509,8 +510,24 @@ function sampler(v, ctx, p, { t, vel, velRaw, key, buffer }) {
 }
 
 /**
+ * A note's pitch curve on a voice made of Web Audio sources: every oscillator and sample player of the voice
+ * follows it through its detune (so every instrument bends per note; pressure and slide need the GGS Synth).
+ */
+function bendVoice(v, curve, t, seconds) {
+  for (const src of v.sources) {
+    const d = src.detune;
+    if (!d || typeof d.setValueAtTime !== 'function') continue;
+    if (src.frequency && src.frequency.value < 20) continue; // an LFO, not a tone
+    // the curve replaces whatever the voice had planned for its pitch (a scoop into the note, say)
+    d.cancelScheduledValues(t);
+    scheduleCurve(d, curve, t, seconds, 100, src.pitchBase ?? d.value);
+  }
+}
+
+/**
  * Start a note. Returns a Voice (already connected to `dest`) or null.
- * opts: { time, duration (s, or null for live notes), key, velocity, glideFrom, buffer }
+ * opts: { time, duration (s, or null for live notes), key, velocity, glideFrom, buffer,
+ *         expr: { expression, seconds, releaseVelocity } — the note's performance, rig — the channel's GgsChannel }
  */
 const fullParams = new WeakMap();
 /** Params merged over the instrument defaults (defends against partial/old project data). */
@@ -532,7 +549,7 @@ export function playNote(ctx, dest, instrument, opts) {
   const velRaw = Number.isFinite(opts.velocity) ? Math.max(0, Math.min(1, opts.velocity)) : 0.8;
   // a velocity-0 note is silent; building it would also mean exponential ramps to 0, which Web Audio refuses
   if (velRaw <= 0) return null;
-  const p = kind === 'plugin' ? instrument.params : withDefaults(kind, instrument.params);
+  const p = kind === 'plugin' || kind === 'ggs' ? instrument.params : withDefaults(kind, instrument.params);
   const t = opts.time;
   const v = new Voice(ctx, dest, t);
   const key = opts.key;
@@ -547,6 +564,9 @@ export function playNote(ctx, dest, instrument, opts) {
     else if (BAND[kind]) natural = BAND[kind](v, ctx, p, args);
     else if (WORLD[kind]) natural = WORLD[kind](v, ctx, p, args);
     else if (kind === 'plugin') natural = pluginVoice(v, ctx, instrument, args);
+    else if (kind === 'ggs') natural = ggsVoice(v, ctx, instrument, { ...args, expr: opts.expr, rig: opts.rig });
+    const bend = opts.expr?.expression?.pitch;
+    if (bend && kind !== 'ggs') bendVoice(v, bend, t, Math.max(0.001, opts.expr.seconds));
   } catch (err) {
     // one note the Web Audio API refuses must not break the transport (the scheduler would retry the same range on
     // every tick and stack the other notes): drop it, release what it built, say so once per instrument

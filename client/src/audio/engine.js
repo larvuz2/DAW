@@ -13,6 +13,7 @@ import { SpatialRig } from './spatial.js';
 import { preparePlugins, pluginParamDefs, pluginEntry } from './plugins.js';
 import { createEffectNode } from './effects.js';
 import { setParam, denormalize } from './dsp.js';
+import { GgsChannel, loadGgsModule, usesGgs } from './ggs-synth/index.js';
 
 const LOOKAHEAD = 0.12; // seconds
 const INTERVAL = 25; // ms
@@ -96,6 +97,7 @@ export class AudioEngine {
     this.syncChannels();
     this.loadNeededSamples(project);
     preparePlugins(this.ctx, project);
+    if (usesGgs(project)) loadGgsModule(this.ctx);
     if (this.realtime) {
       // physical-model notes (piano, guitar, bass) render in background workers shortly after an edit settles
       clearTimeout(this.prewarmTimer);
@@ -121,6 +123,7 @@ export class AudioEngine {
     this.bpm = bpm;
     this.transport.onTempoChange();
     for (const ins of this.inserts) for (const fx of ins.fx) fx.node.onTempo?.();
+    for (const s of this.strips.values()) s.ggs?.setTempo(bpm);
   }
 
   syncMixer(prev) {
@@ -297,6 +300,14 @@ export class AudioEngine {
         this.strips.set(c.id, s);
       }
       if (s.channel === c && s.anySolo === anySolo) continue;
+      // a GGS Synth channel keeps its effects and macro sources between notes (see ggs-synth/index.js)
+      if (c.instrument.kind === 'ggs') {
+        if (!s.ggs) s.ggs = new GgsChannel(ctx, s.input, c.instrument.params, this.bpm);
+        else s.ggs.update(c.instrument.params, (key) => this.automated.has(`channel:${c.id}:${key}`));
+      } else if (s.ggs) {
+        s.ggs.dispose();
+        s.ggs = null;
+      }
       s.channel = c;
       s.anySolo = anySolo;
       s.audible = !c.mute && (!anySolo || c.solo);
@@ -315,6 +326,7 @@ export class AudioEngine {
     for (const [id, s] of this.strips) {
       if (!ids.has(id)) {
         try { s.pan.disconnect(); } catch { /* ignore */ }
+        s.ggs?.dispose();
         this.strips.delete(id);
       }
     }
@@ -380,8 +392,12 @@ export class AudioEngine {
 
   // ------------------------------------------------------------------ notes
 
-  /** Schedule a note on a channel. duration in seconds (null = held until noteOff). */
-  triggerNote(channelId, key, velocity, time, duration, { pan = 0, force = false, pitch: autoPitch = 0 } = {}) {
+  /**
+   * Schedule a note on a channel. duration in seconds (null = held until noteOff).
+   * opts.expression / releaseVelocity: the note's performance (core/expression.js); exprSeconds: the length its
+   * curves are spread over (the note's own length, even when a clip end cuts the note short).
+   */
+  triggerNote(channelId, key, velocity, time, duration, { pan = 0, force = false, pitch: autoPitch = 0, expression = null, exprSeconds = null, releaseVelocity = null } = {}) {
     const ch = getChannel(this.project, channelId);
     const strip = this.strips.get(channelId);
     if (!ch || !strip) return null;
@@ -404,8 +420,8 @@ export class AudioEngine {
     }
     // plugin instruments: at most `polyphony` voices per channel (each DSP voice is its own worklet processor) —
     // the oldest sounding one is cut, so dense parts or slow-to-finish plugins can't pile up CPU
-    if (ch.instrument.kind === 'plugin') {
-      const poly = pluginEntry(ch.instrument.plugin)?.manifest.polyphony || 16;
+    if (ch.instrument.kind === 'plugin' || ch.instrument.kind === 'ggs') {
+      const poly = ch.instrument.kind === 'ggs' ? Math.round(p.polyphony) || 16 : pluginEntry(ch.instrument.plugin)?.manifest.polyphony || 16;
       const sounding = [...this.voices].filter((v) => v.channelId === channelId && !v.done && v.killedAt === null && v.start <= time + 0.0005 && v.end > time);
       // released notes (only their tail is left — and offline renders schedule ahead, so some already ended) go
       // first, oldest first; held notes only when that isn't enough
@@ -413,16 +429,19 @@ export class AudioEngine {
       sounding.sort((a, b) => (released(b) - released(a)) || a.start - b.start);
       for (let i = 0; i <= sounding.length - poly; i++) sounding[i].kill(time);
     }
-    let dest = strip.input;
+    // GGS voices play into the channel's own effects, everything else straight into the strip
+    const bus = strip.ggs ? strip.ggs.input : strip.input;
+    let dest = bus;
     if (pan) {
       dest = this.ctx.createStereoPanner();
       dest.pan.value = pan;
-      dest.connect(strip.input);
+      dest.connect(bus);
     }
     const buffer = ch.instrument.kind === 'sampler' ? this.samples.get(p.sampleId) : null;
-    const v = playNote(this.ctx, dest, ch.instrument, { time, duration, key: k, velocity, glideFrom, buffer });
+    const expr = expression || releaseVelocity !== null ? { expression, seconds: exprSeconds ?? duration ?? 1, releaseVelocity: releaseVelocity ?? 0.5 } : null;
+    const v = playNote(this.ctx, dest, ch.instrument, { time, duration, key: k, velocity, glideFrom, buffer, expr, rig: strip.ggs });
     if (!v) {
-      if (dest !== strip.input) { try { dest.disconnect(); } catch { /* ignore */ } } // the note's panner, unused
+      if (dest !== bus) { try { dest.disconnect(); } catch { /* ignore */ } } // the note's panner, unused
       return null;
     }
     v.chokeGroup = ch.chokeGroup;
@@ -431,7 +450,7 @@ export class AudioEngine {
     this.voices.add(v);
     v.onDone = () => {
       this.voices.delete(v);
-      if (dest !== strip.input) { try { dest.disconnect(); } catch { /* ignore */ } }
+      if (dest !== bus) { try { dest.disconnect(); } catch { /* ignore */ } }
     };
     if (p.mono) this.monoLast.set(channelId, v);
     return v;
@@ -643,6 +662,11 @@ export class AudioEngine {
         case 'filterCutoff': return { key: `channel:${target.id}:filterCutoff`, params: [s.filter.frequency], map: (v) => Math.min(nyq, 20 * Math.pow(1000, v)), rest: () => Math.min(nyq, c.filterCutoff) };
         case 'filterRes': return { key: `channel:${target.id}:filterRes`, params: [s.filter.Q], map: (v) => 0.1 * Math.pow(200, v), rest: () => c.filterRes };
         case 'pitch': return null; // applied per note in Transport.scheduleRange
+        case 'macro1': case 'macro2': case 'macro3': case 'macro4': {
+          // a GGS Synth macro: the constant source that feeds every voice's macro input
+          const src = s.ggs?.macros[Number(target.param.slice(5)) - 1];
+          return src ? { key: `channel:${target.id}:${target.param}`, params: [src.offset], map: (v) => v, rest: () => c.instrument.params[target.param] ?? 0 } : null;
+        }
         default: return null;
       }
     }
@@ -718,7 +742,7 @@ export class AudioEngine {
     if (!this.automated.size) return;
     this.automated.clear();
     // re-apply static values
-    for (const s of this.strips.values()) s.channel = null;
+    for (const s of this.strips.values()) { s.channel = null; s.ggs?.resetMacros(); }
     this.soloSig = null;
     for (const ins of this.inserts) {
       ins.anySolo = null;
@@ -956,7 +980,10 @@ export class Transport {
           pitch = Math.round(automationValueAt(automation, n.start - clip.start + clip.offset) * 48 - 24);
         }
       }
-      eng.triggerNote(n.channelId, n.key, n.velocity, Math.max(time, now), n.length / this.anchor.rate, { pan: n.pan, pitch });
+      eng.triggerNote(n.channelId, n.key, n.velocity, Math.max(time, now), n.length / this.anchor.rate, {
+        pan: n.pan, pitch, expression: n.expression || null, releaseVelocity: n.releaseVelocity ?? null,
+        exprSeconds: (n.fullLength ?? n.length) / this.anchor.rate
+      });
     }
     if (eng.metronome && this.engine.realtime) {
       const firstBeat = Math.ceil(from / PPQ) * PPQ;

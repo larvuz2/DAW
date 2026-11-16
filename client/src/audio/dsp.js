@@ -1,4 +1,5 @@
 // Small Web Audio helpers shared by instruments and effects.
+import { flattenCurve } from '@greanteadawy/core';
 
 const noiseCache = new WeakMap();
 
@@ -242,4 +243,22 @@ export function phasedSine(ctx, phase) {
     m.set(q, w);
   }
   return w;
+}
+
+/**
+ * Schedule a note's expression curve (see core/expression.js) on an AudioParam: straight segments become exact
+ * linear ramps. value = offset + curve × scale; `seconds` is the note's length (curve time 0..1).
+ */
+export function scheduleCurve(param, curve, t, seconds, scale = 1, offset = 0) {
+  const flat = flattenCurve(curve);
+  if (!flat.length) return;
+  param.setValueAtTime(offset + flat[0].v * scale, t);
+  let last = t;
+  for (const pt of flat) {
+    const time = t + pt.t * seconds;
+    // two points at one time are a jump; so is anything at the time the first point already set
+    if (time <= last + 1e-6) param.setValueAtTime(offset + pt.v * scale, Math.max(time, last));
+    else param.linearRampToValueAtTime(offset + pt.v * scale, time);
+    last = Math.max(time, last);
+  }
 }

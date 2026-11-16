@@ -6,7 +6,8 @@
   "type": "module",
   "main": "src/index.js",
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./engine": "./src/engine.js"
   },
   "scripts": {
     "test": "node --test --test-timeout=120000 test/*.test.js",

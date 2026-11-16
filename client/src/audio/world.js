@@ -226,6 +226,7 @@ function harmonium(v, ctx, p, { t, velRaw, key }) {
     // a reed "speaks" from slightly flat
     o.detune.setValueAtTime(cents - 8, t);
     o.detune.setTargetAtTime(cents, t, 0.012);
+    o.pitchBase = cents; // where a per-note pitch curve starts from (see bendVoice)
     o.connect(gainNode(ctx, lvl * scale)).connect(mix);
     o.start(t);
   }

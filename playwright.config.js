@@ -15,7 +15,8 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     viewport: { width: 1440, height: 900 },
-    launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
+    // E2E_CHROMIUM: run the tests in a Chromium that is already installed (instead of `npx playwright install`)
+    launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'], ...(process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {}) },
     trace: 'retain-on-failure'
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } }],

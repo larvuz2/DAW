@@ -8,6 +8,7 @@
 import { analyzeAudio, envelopeTimes, encodeWav, ticksPerBar, PPQ, STEP, songNotesInRange, songLength, INSTRUMENTS } from '@greanteadawy/core';
 import { renderProject } from '../audio/render.js';
 import { preparePlugins } from '../audio/plugins.js';
+import { prepareGgs } from '../audio/ggs-synth/index.js';
 import { AudioEngine, sampleFileUrl, sampleRev } from '../audio/engine.js';
 import { getEngine } from '../audio/index.js';
 import { api } from '../state/api.js';
@@ -172,7 +173,7 @@ async function soundJob(job) {
   eng.samples = getEngine()?.samples || new Map();
   eng.setProject(solo);
   // the same preparation as a full render: samples, physical-model notes, plugin modules/samples in this context
-  await Promise.all([eng.loadNeededSamples(solo), eng.prewarmModels(solo), preparePlugins(ctx, solo)]);
+  await Promise.all([eng.loadNeededSamples(solo), eng.prewarmModels(solo), preparePlugins(ctx, solo), prepareGgs(ctx, solo)]);
   const melodic = INSTRUMENTS[ch.instrument.kind]?.melodic;
   const key = job.key ?? (melodic ? ch.rootKey : 60);
   const noteSeconds = ((job.lengthSteps ?? (melodic ? 8 : 1)) * STEP / PPQ) * (60 / project.bpm);
