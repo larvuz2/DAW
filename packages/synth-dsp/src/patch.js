@@ -2,7 +2,7 @@
 // instrument); for people, files and agents the same patch reads better as a document with oscillators, filters,
 // envelopes, LFOs and a list of modulation routes. These two functions convert between the forms, and
 // PATCH_FIELDS — readable field name → param key suffix — is the one mapping both they and the MCP tools use.
-import { GGS_PARAMS, OSC_IDS, ENV_COUNT, LFO_COUNT, MACRO_COUNT, CHAOS_COUNT, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, ggsDefaults, ggsParamDef, migrateParams } from './params.js';
+import { GGS_PARAMS, OSC_IDS, ENV_COUNT, LFO_COUNT, LFO_STEPS, MACRO_COUNT, CHAOS_COUNT, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, ggsDefaults, ggsParamDef, migrateParams } from './params.js';
 import { FILTER_INFO } from './filters.js';
 
 export const PATCH_FORMAT = 'ggs-synth-patch';
@@ -21,7 +21,8 @@ export const PATCH_FIELDS = {
     delay: 'Delay', attack: 'A', hold: 'Hold', decay: 'D', sustain: 'S', release: 'R',
     attackCurve: 'ACurve', decayCurve: 'DCurve', releaseCurve: 'RCurve'
   },
-  lfo: { shape: 'Shape', rate: 'Rate', sync: 'Sync', trigger: 'Trig', fade: 'Fade', phase: 'Phase' },
+  // (an LFO also takes `steps`: the list of heights of the drawn shape — see sectionToParams)
+  lfo: { shape: 'Shape', rate: 'Rate', sync: 'Sync', trigger: 'Trig', fade: 'Fade', phase: 'Phase', smooth: 'Smooth' },
   chaos: { type: 'Type', rate: 'Rate', sync: 'Sync', character: 'Char', steps: 'Steps', path: 'Path' },
   voice: {
     level: 'level', velocity: 'velSens', releaseVelocity: 'relVelSens', polyphony: 'polyphony', mono: 'mono', legato: 'legato',
@@ -51,6 +52,13 @@ export function sectionToParams(section, id, fields) {
   const out = {};
   for (const [field, value] of Object.entries(fields || {})) {
     if (value === undefined) continue;
+    if (section === 'lfo' && field === 'steps') {
+      // the drawn shape as a list: its length is the step count
+      if (!Array.isArray(value) || value.length < 2 || value.length > LFO_STEPS) throw new Error(`An LFO's steps must be a list of 2 to ${LFO_STEPS} values from -1 to 1`);
+      out[`lfo${id}Steps`] = value.length;
+      value.forEach((v, k) => { out[`lfo${id}S${k + 1}`] = v; });
+      continue;
+    }
     out[sectionKey(section, id, field)] = value;
   }
   return out;
@@ -60,6 +68,15 @@ export function sectionToParams(section, id, fields) {
 export function paramsToSection(params, section, id) {
   const out = {};
   for (const field of Object.keys(PATCH_FIELDS[section])) out[field] = params[sectionKey(section, id, field)];
+  if (section === 'lfo') {
+    // the drawn shape is part of the LFO while it is in use — or once something has been drawn, so that a shape is
+    // not lost by trying another one before saving
+    const count = params[`lfo${id}Steps`];
+    const steps = Array.from({ length: count }, (_, k) => params[`lfo${id}S${k + 1}`]);
+    const drawn = count !== ggsParamDef(`lfo${id}Steps`).default || steps.some((v, k) => v !== ggsParamDef(`lfo${id}S${k + 1}`).default);
+    if (out.shape === 'steps' || drawn) out.steps = steps;
+    else if (!out.smooth) delete out.smooth;
+  }
   return out;
 }
 
@@ -145,7 +162,9 @@ export function modTargetSpec(target, params) {
   const lfo = /^lfo([1-4])Rate$/.exec(target);
   if (lfo) {
     const synced = p[`lfo${lfo[1]}Sync`] !== 'off';
-    return { label: `LFO ${lfo[1]} rate`, kind: 'oct', scale: 4, base: synced ? 1 : p[`lfo${lfo[1]}Rate`], min: 0, max: Infinity, unit: synced ? '×' : 'Hz' };
+    // a free-running LFO is tied to the clock (so that every note hears the same LFO): its speed cannot be bent
+    const inert = p[`lfo${lfo[1]}Trig`] === 'free' ? `LFO ${lfo[1]} is free-running (trigger "free"), and a free LFO keeps to the clock — set its trigger to "note" to modulate its rate` : undefined;
+    return { label: `LFO ${lfo[1]} rate`, kind: 'oct', scale: 4, base: synced ? 1 : p[`lfo${lfo[1]}Rate`], min: 0, max: Infinity, unit: synced ? '×' : 'Hz', inert };
   }
   switch (target) {
     case 'pitch': return { label: 'Pitch', kind: 'semi', scale: 24, base: 0 };
@@ -192,6 +211,7 @@ export function routeValue(spec, amount, x) {
 export function describeRoute(params, route) {
   const spec = modTargetSpec(route.target, params);
   if (!spec || !route.amount || !SOURCE_LABELS[route.source]) return '';
+  if (spec.inert) return `${spec.label}: no effect — ${spec.inert}`;
   const bipolar = BIPOLAR_SOURCES.has(route.source);
   const from = routeValue(spec, route.amount, bipolar ? -1 : 0);
   const to = routeValue(spec, route.amount, 1);
@@ -294,6 +314,7 @@ export function patchToParams(patch) {
       const implied = section === 'filter' && Object.keys(fields).length && !('on' in fields) ? { on: true } : {};
       if (section === 'envelope' && 'curve' in fields) {
         // a patch file saved before the envelopes had a curve per stage
+        if (typeof fields.curve !== 'number' || !(fields.curve >= -1 && fields.curve <= 1)) throw new Error(`Envelope ${id}: "curve" must be a number from -1 to 1 (got ${JSON.stringify(fields.curve)}) — or use attackCurve / decayCurve / releaseCurve`);
         Object.assign(out, migrateParams({ [`env${id}Curve`]: fields.curve }));
         delete fields.curve;
       }
@@ -334,7 +355,7 @@ export function describeSynth() {
     filter: section('filter', 1),
     filterRouting: field('filterRoute'),
     envelope: section('envelope', 2),
-    lfo: section('lfo', 1),
+    lfo: { ...section('lfo', 1), steps: `a list of 2..${LFO_STEPS} values, each -1..1 — the drawn shape, used by shape "steps" (its length is the number of steps per cycle)` },
     chaos: section('chaos', 1),
     voice: section('voice'),
     effects: { drive: section('drive'), chorus: section('chorus'), delay: section('delay'), reverb: section('reverb') },

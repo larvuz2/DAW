@@ -18,7 +18,9 @@ export const SOURCE_DESTS = ['f1', 'f2', 'both', 'direct'];
 export const FILTER_ROUTES = ['serial', 'parallel'];
 export const SUB_WAVES = ['sine', 'triangle', 'saw', 'square'];
 export const NOISE_TYPES = ['white', 'pink', 'brown'];
-export const LFO_SHAPES = ['sine', 'triangle', 'saw', 'ramp', 'square', 'sh', 'smooth'];
+export const LFO_SHAPES = ['sine', 'triangle', 'saw', 'ramp', 'square', 'sh', 'smooth', 'steps'];
+/** The most steps a drawn LFO shape (shape "steps") can have. */
+export const LFO_STEPS = 16;
 export const LFO_SYNC = ['off', '8bar', '4bar', '2bar', '1bar', '1/2', '1/4', '1/8', '1/16', '1/32', '1/2t', '1/4t', '1/8t', '1/16t', '1/4d', '1/8d', '1/16d'];
 export const LFO_TRIGGERS = ['note', 'free'];
 export const DRIVE_TYPES = ['soft', 'hard', 'tube', 'fold'];
@@ -42,6 +44,20 @@ export function syncBeats(div) {
   if (m[2] === 'd') beats *= 1.5;
   if (m[2] === 't') beats *= 2 / 3;
   return beats;
+}
+
+/**
+ * A drawn LFO shape (shape "steps") at phase x = 0..1: each of the `count` steps is held, and glides into the next
+ * over the last `smooth` of its length (0 = a step sequencer, 1 = a curve through the steps).
+ */
+export function stepShape(steps, count, smooth, x) {
+  const sx = x * count;
+  const k = Math.min(count - 1, sx | 0);
+  const v = steps[k];
+  const glide = sx - k - (1 - smooth);
+  if (glide <= 0) return v;
+  const u = glide / smooth;
+  return v + (steps[(k + 1) % count] - v) * u * u * (3 - 2 * u);
 }
 
 /**
@@ -211,12 +227,16 @@ function lfoParams(i) {
   const s = { section: 'lfo', group: `LFO ${i}` };
   const d = (desc) => ({ ...s, desc });
   return [
-    sel(`lfo${i}Shape`, 'Shape', LFO_SHAPES, 'sine', d('Waveform of the LFO: sine, triangle, saw (falling), ramp (rising), square, sh (a new random step each cycle) or smooth (random, glided).')),
+    sel(`lfo${i}Shape`, 'Shape', LFO_SHAPES, 'sine', d('Waveform of the LFO: sine, triangle, saw (falling), ramp (rising), square, sh (a new random step each cycle), smooth (random, glided) or steps (a shape you draw: up to 16 steps per cycle, hard or glided).')),
     n(`lfo${i}Rate`, 'Rate', 0.01, 50, i === 1 ? 5 : 1, { unit: 'Hz', curve: 'log', ...d('Speed in cycles per second (used when Sync is off).') }),
     sel(`lfo${i}Sync`, 'Sync', LFO_SYNC, 'off', d('Locks the speed to the tempo: one cycle per bar, per quarter note, dotted (d) or triplet (t) values. Off = use Rate.')),
     sel(`lfo${i}Trig`, 'Trigger', LFO_TRIGGERS, 'note', d('note = every note starts its own LFO from Phase; free = one LFO tied to the song clock that all notes share (chords move together).')),
     n(`lfo${i}Fade`, 'Fade in', 0, 5, 0, { unit: 's', ...d('Time for the LFO to grow from nothing to full depth after the note starts — delayed vibrato.') }),
-    n(`lfo${i}Phase`, 'Phase', 0, 1, 0, d('Where in its cycle the LFO starts.'))
+    n(`lfo${i}Phase`, 'Phase', 0, 1, 0, d('Where in its cycle the LFO starts.')),
+    n(`lfo${i}Steps`, 'Steps', 2, LFO_STEPS, 8, { step: 1, ...d('Shape "steps": how many steps the drawn shape has. One cycle of the LFO plays them all, so with Sync "1bar" and 16 steps each step is a sixteenth.') }),
+    n(`lfo${i}Smooth`, 'Smooth', 0, 1, 0, d('Shape "steps": 0 = hard steps (a step sequencer), 1 = every step glides into the next (a drawn curve).')),
+    // (a falling staircase until something else is drawn)
+    ...range(LFO_STEPS).map((k) => n(`lfo${i}S${k}`, `Step ${k}`, -1, 1, Math.round((1 - (2 * ((k - 1) % 8)) / 7) * 100) / 100, d(`Shape "steps": the height of step ${k}, -1..1. Draw the steps in the LFO panel.`)))
   ];
 }
 
@@ -229,7 +249,7 @@ function chaosParams(i) {
     sel(`chaos${i}Sync`, 'Sync', LFO_SYNC, 'off', d('Locks the speed to the tempo: the length of one swing, orbit or step as a note value. Off = use Rate.')),
     n(`chaos${i}Char`, 'Character', 0, 1, 0.5, d('What kind of chaos: lorenz 0 = long stays on one side, 1 = restless · rossler 0 = nearly periodic, 1 = spiky · drift 0 = jittery, 1 = smooth · turing = the chance that a step mutates (0 locks the loop).')),
     n(`chaos${i}Steps`, 'Steps', 2, 32, 16, { step: 1, ...d('Turing only: the length of the looping pattern in steps.') }),
-    sel(`chaos${i}Path`, 'Path', CHAOS_PATHS, 'note', d('note = every note gets its own path (voices drift apart, like analog hardware); same = every note replays the same path from its start (notes of a chord move together, and a part sounds the same every time).'))
+    sel(`chaos${i}Path`, 'Path', CHAOS_PATHS, 'note', d('note = every note gets its own path (voices drift apart, like analog hardware); same = every note replays the same path from its start (notes of a chord move together, and a part sounds the same every time). A tempo-synced turing pattern on "same" follows the song clock instead: every note hears the same step at the same moment.'))
   ];
 }
 

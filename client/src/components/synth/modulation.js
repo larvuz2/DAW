@@ -32,7 +32,7 @@ export function liveTarget(values, target, params) {
  */
 export function ringsOf(routes, target, params) {
   const spec = modTargetSpec(target, params);
-  if (!spec) return [];
+  if (!spec || spec.inert) return []; // (a route that cannot do anything draws no ring)
   return routes.filter((r) => r.target === target).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).map((r) => {
     const both = BIPOLAR_SOURCES.has(r.source) || (r.via && BIPOLAR_SOURCES.has(r.via));
     const a = routeValue(spec, r.amount, both ? -1 : 0).value;

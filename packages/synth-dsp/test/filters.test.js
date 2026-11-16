@@ -249,6 +249,53 @@ test('silence in, silence out — and the memory really reaches zero (no denorma
     assert.equal(last, 0, `${type} falls completely silent`);
     for (const v of f.s) assert.equal(v, 0, `${type} state is flushed`);
   }
+  // the comb's delay line too (32-bit floats: left alone, an echo decays into denormals and never ends)
+  for (const [cutoff, res, morph] of [[261.63, 0.86, 0.35], [8000, 0.6, 0], [55, 0.5, 1]]) {
+    const f = new VoiceFilter(FS);
+    f.setType('comb');
+    f.set(cutoff, res, 0, morph);
+    const L = new Float32Array(64), R = new Float32Array(64);
+    for (let b = 0; b < (120 * FS) / 64; b++) {
+      L.fill(0); R.fill(0); // (the filter works in place: what came out must not go back in)
+      if (b === 0) L[0] = R[0] = 1;
+      f.process(L, R, 64);
+    }
+    assert.ok(f.line[0].every((v) => v === 0) && f.line[1].every((v) => v === 0), `comb at ${cutoff} Hz, resonance ${res}: the line is empty after two minutes of silence`);
+    assert.equal(L[63], 0);
+  }
+});
+
+test('the analog models do not allocate per sample (a function call per sample would box its numbers)', async () => {
+  const { PerformanceObserver } = await import('node:perf_hooks');
+  let collections = 0;
+  const obs = new PerformanceObserver((list) => { collections += list.getEntries().length; });
+  obs.observe({ entryTypes: ['gc'] });
+  const pause = () => new Promise((r) => setTimeout(r, 20));
+  const L = new Float32Array(32), R = new Float32Array(32);
+  const run = async (type) => {
+    const f = new VoiceFilter(96000);
+    f.setType(type);
+    const blocks = (n) => {
+      let x = 0.1;
+      for (let b = 0; b < n; b++) {
+        for (let i = 0; i < 32; i++) { x = (x * 1.7 + 0.31) % 1; L[i] = x - 0.5; R[i] = 0.5 - x; }
+        f.set(300 + (b % 400) * 9, 0.6, b % 2 ? 0.4 : 0, 0.4);
+        f.process(L, R, 32);
+      }
+    };
+    blocks(4000); // let the JIT settle
+    await pause();
+    collections = 0;
+    blocks(60000); // 20 s of audio at 96 kHz
+    await pause();
+    return collections;
+  };
+  for (const type of ['ladder24', 'ladderBp', 'acid', 'ms20Lp', 'ms20Hp']) {
+    const n = await run(type);
+    // with the solver as a function this was 55 … 110 collections for the same run; a few remain from the test itself
+    assert.ok(n <= 14, `${type}: ${n} garbage collections in 20 s of audio`);
+  }
+  obs.disconnect();
 });
 
 test('in a voice: every type renders, repeats exactly, follows key tracking, and analog types are oversampled', () => {

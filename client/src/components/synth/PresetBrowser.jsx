@@ -1,7 +1,7 @@
 // The preset library as a browser: categories, a search box that also looks at descriptions, macro names and tags,
 // and arrow keys that load as they move — so you can audition with one hand on a keyboard.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, ggsDefaults, FILTER_INFO, OSC_IDS } from '@greanteadawy/synth-dsp';
+import { GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, ggsDefaults, FILTER_INFO, OSC_IDS, modulationRoutes } from '@greanteadawy/synth-dsp';
 
 const DEFAULTS = ggsDefaults();
 const CATEGORY_LABEL = Object.fromEntries(GGS_PRESET_CATEGORIES);
@@ -21,6 +21,7 @@ function tagsOf(name) {
   if (oscs.some((x) => p[`osc${x}Unison`] >= 3)) tags.add('unison');
   if (p.mono) tags.add(p.glide > 0 ? 'mono glide' : 'mono');
   if ([1, 2, 3, 4].some((i) => p[`lfo${i}Sync`] !== 'off')) tags.add('tempo-synced');
+  if (modulationRoutes(p).some((r) => /^chaos/.test(r.source) || /^chaos/.test(r.via || ''))) tags.add('chaos');
   if (p.delayMix > 0) tags.add('delay');
   if (p.reverbMix > 0.25) tags.add('reverb');
   return [...tags];

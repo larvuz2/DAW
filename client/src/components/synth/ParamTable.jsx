@@ -25,7 +25,7 @@ function NumberCell({ def, value, onSet }) {
     <input type="number" className="ggs-ptable-num" aria-label={`${def.group} ${def.label}`} min={def.min} max={def.max} step={def.step || 'any'}
       value={text ?? String(Math.round(value * 10000) / 10000)} title={formatValue(value, { unit: def.unit, step: def.step })}
       onChange={(e) => setText(e.target.value)} onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') { commit(); e.currentTarget.blur(); } else if (e.key === 'Escape') setText(null); e.stopPropagation(); }} />
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); /* leaving the field commits, once */ else if (e.key === 'Escape') setText(null); e.stopPropagation(); }} />
   );
 }
 
@@ -37,8 +37,11 @@ export function ParamTable({ params, onSet }) {
   const rows = useMemo(() => ROWS.filter((r) => {
     if (!words.every((w) => r.text.includes(w))) return false;
     if (changed && same(value(r.def.key), r.def.default)) return false;
-    // the 16 matrix slots are four rows each: empty ones only show when searched for
+    // the 64 matrix slots are four rows each: empty ones only show when searched for
     if (r.slot && !words.length && (value(`mod${r.slot}Src`) === 'none' || value(`mod${r.slot}Dst`) === 'none')) return false;
+    // likewise the sixteen steps of each LFO's drawn shape, unless that LFO uses it
+    const step = !words.length && /^lfo(\d)S(\d+)$/.exec(r.def.key);
+    if (step && (value(`lfo${step[1]}Shape`) !== 'steps' || Number(step[2]) > value(`lfo${step[1]}Steps`))) return false;
     return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [query, changed, params]);

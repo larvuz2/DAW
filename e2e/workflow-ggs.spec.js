@@ -425,6 +425,27 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   await expect.poll(() => param('env1DCurve')).toBeGreaterThan(-0.3);
   await env.locator('[data-node="decayCurve"]').dblclick();
   await expect.poll(() => param('env1DCurve')).toBe(-0.5);
+  // the whole range is reachable by hand: pulled far down, the decay bend ends at −1 (fast first); a sideways
+  // wobble of the handle does not rewrite it, and the number next to the graph edits the same curve
+  await dragNode('decayCurve', 0, 220);
+  await expect.poll(() => param('env1DCurve')).toBe(-1);
+  await page.waitForTimeout(400); // (sooner, a second press without bending is the double press that resets)
+  await dragNode('decayCurve', 3, 0);
+  expect(await param('env1DCurve')).toBe(-1);
+  const curveNumber = env.locator('.ggs-envedit-read .dragnum').nth(1);
+  await expect(curveNumber).toHaveText('-1.00');
+  await curveNumber.focus();
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowUp');
+  await expect.poll(() => param('env1DCurve')).toBeCloseTo(-0.95, 5);
+  await env.locator('[data-node="decayCurve"]').dblclick();
+  await expect.poll(() => param('env1DCurve')).toBe(-0.5);
+  // a knob for a time that starts at zero leaves zero with the arrow keys
+  const delay = env.locator('.knob', { hasText: 'Delay' });
+  await delay.focus();
+  for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowUp');
+  await expect.poll(() => param('env1Delay')).toBeGreaterThan(0.004);
+  await page.keyboard.press('Delete');
+  await expect.poll(() => param('env1Delay')).toBe(0);
   await env.locator('[data-node="release"]').focus();
   const r0 = await param('env1R');
   await page.keyboard.press('ArrowRight');
@@ -596,6 +617,42 @@ test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for t
   await expect(chaos2.locator('.knob-label', { hasText: 'Steps' })).toHaveCount(1);
   await expect(chaos2.locator('.knob-label', { hasText: 'Mutation' })).toHaveCount(1);
   await expect(chaos2.locator('.cs-desc')).toContainText('shift register');
+
+  // ---- an LFO shape drawn by hand: bars you drag, a count, smoothing, and helpers
+  const lfo = ggs.locator('.ggs-lfo').first();
+  await expect(lfo.locator('.ggs-steps')).toHaveCount(0);
+  await lfo.locator('select').first().selectOption('steps');
+  const bars = lfo.locator('.ggs-steps rect.bar');
+  await expect(bars).toHaveCount(8);
+  const params = async () => (await instrument()).params;
+  expect((await params()).lfo1S1).toBe(1);
+  const sb = await lfo.locator('.ggs-steps').boundingBox();
+  // one stroke from the top of the first bar to the bottom of the fourth draws four steps
+  await page.mouse.move(sb.x + sb.width * (0.5 / 8), sb.y + sb.height * 0.25);
+  await page.mouse.down();
+  await page.mouse.move(sb.x + sb.width * (3.5 / 8), sb.y + sb.height * 0.75, { steps: 12 });
+  await page.mouse.up();
+  const drawn = await params();
+  // (each bar keeps the height the stroke had when it left it)
+  expect(drawn.lfo1S1).toBeGreaterThan(0.3);
+  expect(drawn.lfo1S1).toBeLessThanOrEqual(0.5);
+  expect(drawn.lfo1S4).toBeCloseTo(-0.5, 1);
+  expect(drawn.lfo1S2).toBeLessThan(drawn.lfo1S1);
+  expect(drawn.lfo1S3).toBeLessThan(drawn.lfo1S2);
+  expect(drawn.lfo1S5).toBeCloseTo(-0.14, 2); // the bars the stroke did not reach keep their height
+  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await expect.poll(async () => (await params()).lfo1S4).toBeCloseTo(0.14, 2); // the stroke was one step back
+  await lfo.locator('.ggs-steps-tools button', { hasText: 'Invert' }).click();
+  await expect.poll(async () => (await params()).lfo1S1).toBe(-1);
+  await bars.nth(0).focus();
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(async () => (await params()).lfo1S1).toBe(-0.95);
+  // more steps: the count knob adds bars
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Steps: 16, lfo1Smooth: 0.5 } } } }]), channels.Lead);
+  await expect(bars).toHaveCount(16);
+  await expect(lfo.locator('.knob-label', { hasText: 'Smooth' })).toHaveCount(1);
+  await lfo.locator('select').first().selectOption('sine');
+  await expect(lfo.locator('.ggs-steps')).toHaveCount(0);
 
   // ---- the matrix: a chip opens it filtered to that source; 64 slots
   await ggs.locator('.ggs-src[data-source="chaos1"]').click();

@@ -5,7 +5,7 @@ import { Chaos, CHAOS_TYPES, CHAOS_INFO, chaosPreview } from '../src/chaos.js';
 import { GgsVoice } from '../src/voice.js';
 import { renderPatch } from '../src/render.js';
 import { ggsDefaults, MOD_SLOTS, MACRO_COUNT, MOD_SOURCES, GGS_PARAMS } from '../src/params.js';
-import { routesToParams, modulationRoutes, modulationRanges, macroLabel, macroUsed, describeRoute, paramsToPatch, patchToParams, summarizePatch } from '../src/patch.js';
+import { routesToParams, modulationRoutes, modulationRanges, macroLabel, macroUsed, describeRoute, paramsToPatch, patchToParams, summarizePatch, sectionToParams } from '../src/patch.js';
 
 const T = Object.fromEntries(CHAOS_TYPES.map((t, i) => [t, i]));
 /** `seconds` of a generator sampled every `dt`. */
@@ -147,13 +147,91 @@ test('in a voice: free until routed, its own path per note or the same for all, 
     const v = new GgsVoice({ sampleRate: 48000, params: turing, key: 60, velocity: 0.8, seed: 1, bpm });
     const out = [];
     const L = new Float32Array(128), R = new Float32Array(128);
-    for (let b = 0; b < 1500; b++) { v.process(L, R, 0, 128, { pitch: 0, pressure: 0, timbre: 0, time: 0 }); out.push(v.src[MOD_SOURCES.indexOf('chaos1')]); }
+    for (let b = 0; b < 1500; b++) { v.process(L, R, 0, 128, { pitch: 0, pressure: 0, timbre: 0, time: (b * 128) / 48000 }); out.push(v.src[MOD_SOURCES.indexOf('chaos1')]); }
     return out;
   };
   const slow = levels(120);
   const fast = levels(240);
   const firstChange = (x) => x.findIndex((v, i) => i > 0 && v !== x[i - 1]);
   assert.ok(Math.abs(firstChange(slow) / firstChange(fast) - 2) < 0.1, 'a sixteenth at 240 bpm is half as long as at 120');
+});
+
+test('a tempo-synced turing pattern on the shared path follows the clock: late notes are in step', () => {
+  const p = { ...SINE, chaos1Type: 'turing', chaos1Sync: '1/16', chaos1Char: 0.3, chaos1Steps: 8, chaos1Path: 'same', mod1Src: 'chaos1', mod1Dst: 'level', mod1Amt: 0.5, level: 0.5 };
+  const at = MOD_SOURCES.indexOf('chaos1');
+  // the pattern as two voices hear it: one from the start of the song, one that begins 37.4 s later
+  const trace = (startTime, blocks, seed) => {
+    const v = new GgsVoice({ sampleRate: 48000, params: p, key: 60, velocity: 0.8, seed, bpm: 120 });
+    const L = new Float32Array(128), R = new Float32Array(128);
+    const out = [];
+    for (let b = 0; b < blocks; b++) { v.process(L, R, 0, 128, { pitch: 0, pressure: 0, timbre: 0, time: startTime + (b * 128) / 48000 }); out.push(v.src[at]); }
+    return out;
+  };
+  const late = 37.4;
+  const lateBlocks = Math.round((late * 48000) / 128);
+  const early = trace(0, lateBlocks + 600, 1);
+  const joined = trace((lateBlocks * 128) / 48000, 600, 99);
+  for (let b = 0; b < 600; b++) assert.equal(joined[b], early[lateBlocks + b], `block ${b}: the late note hears the step the early one hears`);
+  assert.ok(new Set(joined).size >= 3, 'and the pattern is moving');
+  // the steps sit on the sixteenth grid of the clock (a sixteenth at 120 bpm = 0.125 s = 46.875 blocks)
+  const changes = [];
+  for (let b = 1; b < 3000; b++) if (early[b] !== early[b - 1]) changes.push(b);
+  assert.ok(changes.length > 20);
+  for (const b of changes) { const grid = ((b + 1) * 128) / 48000 / 0.125; assert.ok(Math.abs(grid - Math.round(grid)) < 0.03, `a step at block ${b} is on the grid`); }
+  // not synced, or path "note": each note has its own clock again
+  const own = { ...p, chaos1Path: 'note' };
+  const a = new GgsVoice({ sampleRate: 48000, params: own, key: 60, velocity: 0.8, seed: 1, bpm: 120 });
+  assert.equal(a.chaosc[0].locked, false);
+  assert.equal(new GgsVoice({ sampleRate: 48000, params: { ...p, chaos1Sync: 'off' }, key: 60, velocity: 0.8, seed: 1 }).chaosc[0].locked, false);
+  assert.equal(new GgsVoice({ sampleRate: 48000, params: { ...p, chaos1Type: 'lorenz' }, key: 60, velocity: 0.8, seed: 1 }).chaosc[0].locked, false);
+});
+
+test('a drawn LFO shape: steps are held in order, glide when smoothed, and travel in documents', () => {
+  const at = MOD_SOURCES.indexOf('lfo1');
+  const steps = [1, -1, 0.5, 0];
+  const base = { ...SINE, ...sectionToParams('lfo', 1, { shape: 'steps', steps, rate: 2 }), mod1Src: 'lfo1', mod1Dst: 'level', mod1Amt: 0.1 };
+  assert.equal(base.lfo1Steps, 4);
+  // one value per control block for one second (2 Hz: two cycles of four steps, an eighth of a second each)
+  const trace = (params, opts = {}) => {
+    const v = new GgsVoice({ sampleRate: 48000, params, key: 60, velocity: 0.8, seed: 1, bpm: 120 });
+    const L = new Float32Array(16), R = new Float32Array(16);
+    const out = [];
+    for (let b = 0; b < 3000; b++) { v.process(L, R, 0, 16, { pitch: 0, pressure: 0, timbre: 0, time: (opts.from || 0) + (b * 16) / 48000 }); out.push(v.src[at]); }
+    return out;
+  };
+  const hard = trace(base);
+  const valueAt = (x, seconds) => x[Math.round((seconds * 48000) / 16) - 1];
+  for (let k = 0; k < 8; k++) assert.equal(valueAt(hard, (k + 0.5) / 8), steps[k % 4], `step ${k % 4 + 1} is held in the middle of its eighth`);
+  assert.equal(new Set(hard).size, 4, 'hard steps: only the drawn values ever appear');
+  // smooth 1: every step glides to the next over its whole length (half-way there in the middle)
+  const smooth = trace({ ...base, lfo1Smooth: 1 });
+  for (let k = 0; k < 4; k++) assert.ok(Math.abs(valueAt(smooth, (k + 0.5) / 8) - (steps[k] + steps[(k + 1) % 4]) / 2) < 0.02, `glide between step ${k + 1} and the next`);
+  let jump = 0;
+  for (let i = 1; i < smooth.length; i++) jump = Math.max(jump, Math.abs(smooth[i] - smooth[i - 1]));
+  assert.ok(jump < 0.02, `no steps left when fully smoothed (largest move per block ${jump.toFixed(4)})`);
+  // half smooth: held for the first half of a step, then gliding
+  const half = trace({ ...base, lfo1Smooth: 0.5 });
+  assert.equal(valueAt(half, 0.25 / 8), 1);
+  assert.ok(valueAt(half, 0.9 / 8) < 0.5);
+  // tempo-synced and free: every note hears the same step at the same time
+  const free = { ...base, lfo1Sync: '1bar', lfo1Trig: 'free' };
+  assert.equal(trace(free, { from: 1 })[10], 0.5, 'a note that starts a second in is on the third step');
+  assert.equal(trace(free, { from: 1.5 })[10], 0, 'and one that starts at 1.5 s on the fourth');
+  assert.equal(valueAt(trace(free), 0.25), 1, 'a bar at 120 bpm is 2 s: the first of four steps lasts half a second');
+  assert.equal(valueAt(trace(free, { from: 0.5 }), 0.25), -1, 'half a second in, the second step');
+  // sixteen steps, and only as many as the count says
+  const sixteen = { ...SINE, ...sectionToParams('lfo', 1, { steps: Array.from({ length: 16 }, (_, k) => (k % 2 ? -0.5 : 0.5)), rate: 1 }), lfo1Shape: 'steps', mod1Src: 'lfo1', mod1Dst: 'level', mod1Amt: 0.1 };
+  assert.equal(valueAt(trace(sixteen), 15.5 / 16), -0.5);
+  // documents: the shape travels as a list, and only when it is in use
+  const doc = paramsToPatch(base);
+  assert.deepEqual(doc.lfos[0].steps, steps);
+  assert.equal(doc.lfos[1].steps, undefined);
+  const back = patchToParams(doc);
+  assert.deepEqual([back.lfo1Shape, back.lfo1Steps, back.lfo1S1, back.lfo1S2, back.lfo1S4], ['steps', 4, 1, -1, 0]);
+  assert.throws(() => sectionToParams('lfo', 1, { steps: [1] }), /2 to 16 values/);
+  assert.throws(() => sectionToParams('lfo', 1, { steps: new Array(17).fill(0) }), /2 to 16 values/);
+  // other shapes are what they were
+  assert.equal(trace({ ...base, lfo1Shape: 'square' })[10], 1);
 });
 
 test('64 routes: all of them count, documents carry them, the 65th is refused', () => {

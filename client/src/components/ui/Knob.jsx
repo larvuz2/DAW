@@ -69,9 +69,14 @@ export function Knob({
   const emit = useRafCallback((v) => onChange?.(v));
   const emitAlt = useRafCallback(() => { const d = altMove.current; altMove.current = 0; if (d) onAltDrag?.(d); });
   const n = Math.max(0, Math.min(1, toNorm(value ?? 0, min, max, curve)));
+  // where the knob stands including moves that have not come back as a new value yet: key presses that arrive
+  // faster than the screen redraws add up instead of all starting from the same place
+  const at = useRef(n);
+  at.current = n;
 
   const setNorm = (nn) => {
-    let v = fromNorm(Math.max(0, Math.min(1, nn)), min, max, curve);
+    at.current = Math.max(0, Math.min(1, nn));
+    let v = fromNorm(at.current, min, max, curve);
     if (step) v = Math.round(v / step) * step;
     v = Math.max(min, Math.min(max, v));
     emit(v);
@@ -98,7 +103,7 @@ export function Knob({
   const onWheel = (e) => {
     if (disabled) return;
     e.stopPropagation();
-    setNorm(n + (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 0.005 : 0.03));
+    setNorm(at.current + (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 0.005 : 0.03));
   };
   const onDoubleClick = () => {
     if (!disabled && def !== undefined) onChange?.(def);
@@ -107,7 +112,7 @@ export function Knob({
     if (disabled) return;
     const fine = e.shiftKey ? 0.005 : 0.02;
     const moves = { ArrowUp: fine, ArrowRight: fine, ArrowDown: -fine, ArrowLeft: -fine, PageUp: 0.1, PageDown: -0.1 };
-    if (e.key in moves) setNorm(n + moves[e.key]);
+    if (e.key in moves) setNorm(at.current + moves[e.key]);
     else if (e.key === 'Home') setNorm(0);
     else if (e.key === 'End') setNorm(1);
     else if ((e.key === 'Delete' || e.key === 'Backspace') && def !== undefined) onChange?.(def);

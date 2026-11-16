@@ -109,6 +109,16 @@ test('section tools edit one part of a patch; other instruments are refused with
   assert.ok(Number(measured[4]) > Number(measured[3]) + 6 && Number(measured[4]) > Number(measured[6]) + 20, 'the resonance peak sits on the cutoff');
   assert.match(await call('set_synth_filter', { channel: 'Lead', type: 'formant', cutoff: 1000, resonance: 0.4, morph: 0.5, keyTrack: 0 }), /F1 formant 1000 Hz res 0\.4 drive 0\.3 vowel 0\.5/);
   assert.equal(chan(await project(), 'Lead').instrument.params.f1Morph, 0.5);
+  // a filter that oscillates by itself is reported as that, not as a +116 dB "response"; an off filter reports nothing
+  const singing = await call('set_synth_filter', { channel: 'Lead', type: 'ladder24', cutoff: 1000, resonance: 0.95, drive: 0 });
+  assert.match(singing, /Filter 1 \(ladder24\) at resonance 0\.95 self-oscillates[^\n]*a tone of its own at about 1000 Hz/);
+  assert.doesNotMatch(singing, /Measured response/);
+  assert.match(await call('set_synth_filter', { channel: 'Lead', type: 'ladder24', resonance: 0.5 }), /Measured response of filter 1 \(ladder24\): 50 Hz -?[\d.]+ dB/);
+  assert.match(await call('set_synth_filter', { channel: 'Lead', type: 'comb', cutoff: 110, resonance: 0.97 }), /Measured response of filter 1 \(comb\)[^\n]*still ringing after a second/);
+  const f2 = chan(await project(), 'Lead').instrument.params;
+  await call('set_synth_filter', { channel: 'Lead', filter: 2, on: false });
+  assert.doesNotMatch(await call('set_synth_filter', { channel: 'Lead', filter: 2, on: false, routing: 'serial' }), /Measured response|self-oscillates/);
+  await call('set_synth_filter', { channel: 'Lead', filter: 2, on: f2.f2On, routing: f2.filterRoute });
   await fails(call('set_synth_filter', { channel: 'Lead', type: 'moog' }), /Invalid option/);
   await fails(call('set_synth_filter', { channel: 'Lead', morph: 2 }), /expected number to be <=1 at morph/);
   await call('set_synth_filter', { channel: 'Lead', type: f1.f1Type, cutoff: f1.f1Cutoff, resonance: f1.f1Res, drive: f1.f1Drive, keyTrack: f1.f1Key, morph: f1.f1Morph });
@@ -137,6 +147,26 @@ test('section tools edit one part of a patch; other instruments are refused with
   await fails(call('set_synth_chaos', { channel: 'Lead', chaos: 1 }), /Nothing to change/);
   await call('set_synth_modulation', { channel: 'Lead', remove: [{ source: 'chaos2', target: 'f1Cutoff' }] });
   assert.match(await call('describe_synth', { topic: 'modulation' }), /64 routes[\s\S]*macro8\s+macro 8[\s\S]*chaos1\s+chaos generator 1[\s\S]*CHAOS \(set_synth_chaos[\s\S]*drift\s+rate = how fast it wanders/);
+  // raw params written for the old schema are mapped too, not refused with a list of 500 keys
+  assert.match(await call('update_channel', { channel: 'Lead', params: { env2Curve: 1 } }), /Updated/);
+  ins = chan(await project(), 'Lead').instrument.params;
+  assert.deepEqual([ins.env2DCurve, ins.env2RCurve, ins.env2Curve], [-1, -1, undefined]);
+  await fails(call('update_channel', { channel: 'Lead', params: { env2Curve: 1, nonsense: 3 } }), /Unknown parameter "nonsense"/);
+  await call('set_synth_envelope', { channel: 'Lead', envelope: 2, decayCurve: -0.5, releaseCurve: -0.5, attackCurve: -0.3 });
+  await fails(call('update_synth_patch', { channel: 'Lead', patch: { envelopes: [{ id: 1, curve: 'x' }] } }), /Envelope 1: "curve" must be a number from -1 to 1 \(got "x"\)/);
+  await fails(call('update_synth_patch', { channel: 'Lead', patch: { envelopes: [{ id: 1, curve: 9 }] } }), /must be a number from -1 to 1 \(got 9\)/);
+  // a route that cannot do anything says so: a free-running LFO keeps to the clock
+  await call('set_synth_lfo', { channel: 'Lead', lfo: 3, trigger: 'free' });
+  assert.match(await call('set_synth_modulation', { channel: 'Lead', routes: [{ source: 'macro6', target: 'lfo3Rate', amount: 0.5 }] }), /LFO 3 rate: no effect — LFO 3 is free-running \(trigger "free"\)/);
+  await call('set_synth_lfo', { channel: 'Lead', lfo: 3, trigger: 'note' });
+  assert.match(await call('get_synth_patch', { channel: 'Lead' }), /LFO 3 rate 1 Hz → 4 Hz as Macro 6 goes 0 → 1/);
+  await call('set_synth_modulation', { channel: 'Lead', remove: [{ source: 'macro6', target: 'lfo3Rate' }] });
+  // a drawn LFO shape as a list
+  assert.match(await call('set_synth_lfo', { channel: 'Lead', lfo: 4, steps: [1, -1, 0.5, 0, 0.25], smooth: 0.3, sync: '1bar' }), /Set LFO 4/);
+  ins = chan(await project(), 'Lead').instrument.params;
+  assert.deepEqual([ins.lfo4Shape, ins.lfo4Steps, ins.lfo4S2, ins.lfo4S5, ins.lfo4Smooth], ['steps', 5, -1, 0.25, 0.3]);
+  await fails(call('set_synth_lfo', { channel: 'Lead', lfo: 4, steps: [2, 0] }), /expected number to be <=1/);
+  await call('set_synth_lfo', { channel: 'Lead', lfo: 4, shape: 'sine', sync: 'off' });
   // a patch document written before the per-stage curves is still accepted
   await call('update_synth_patch', { channel: 'Lead', patch: { envelopes: [{ id: 4, decay: 0.2, curve: -1 }] } });
   assert.equal(chan(await project(), 'Lead').instrument.params.env4DCurve, -0.25);
@@ -203,6 +233,13 @@ test('analyze_synth_patch measures the patch on the server: pitch, level, and wh
   assert.match(bent, /Pitch: A3 \(2[12]\d/);
   await fails(call('analyze_synth_patch', { channel: 'Lead', velocity: 0 }), /Velocity 0 is silent/);
   await fails(call('analyze_synth_patch', { channel: 'Lead', pitch: { points: [{ at: 0, value: 80 }] } }), /pitch values must be between -48 and 48 semitones/);
+});
+
+test('analyze_synth_patch explains silence it can explain', async () => {
+  await call('create_synth_patch', { name: 'Late', patch: { envelopes: [{ id: 1, delay: 2.5 }] } });
+  assert.match(await call('analyze_synth_patch', { channel: 'Late' }), /Silent because envelope 1 \(the amp envelope\) waits 2\.5 s before it starts and the note is only 1\.5 s long/);
+  assert.doesNotMatch(await call('analyze_synth_patch', { channel: 'Late', noteSeconds: 4, seconds: 5 }), /Silent because/);
+  await call('remove_channel', { channel: 'Late' });
 });
 
 test('set_note_expression: shapes and points per note, selections, removal, and honest hints', async () => {

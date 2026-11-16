@@ -75,59 +75,18 @@ export function tanhFast(x) {
 // tangents of tanh at 0.75, 1.4 and 2.2 (slope, intercept): tanh is concave for v > 0, so each is an upper bound
 const T0S = 0.5965858, T0I = 0.1877096, T1S = 0.21615246, T1I = 0.5827382, T2S = 0.047925344, T2I = 0.8703074;
 
-/**
- * Solves u = tanh(a − b·u), b ≥ 0: the instantaneous loop of a ladder whose input stage saturates. The start value
- * is the best of five lower bounds of the root (from tanh v ≤ v, ≤ 1 and three tangents); one Halley step then
- * leaves an error below 1e-4 of full scale for any level. i0…i3 are the reciprocals that depend only on b.
- */
-function solveFeedback(a, b, i0, i1, i2, i3) {
-  const aa = a < 0 ? -a : a;
-  let v = aa * i0;
-  let q = aa - b; if (q > v) v = q;
-  q = (aa - b * T0I) * i1; if (q > v) v = q;
-  q = (aa - b * T1I) * i2; if (q > v) v = q;
-  q = (aa - b * T2I) * i3; if (q > v) v = q;
-  const x = v > TANH_CLAMP ? TANH_CLAMP : v;
-  const x2 = x * x;
-  const x4 = x2 * x2;
-  const p = x * ((1 + TN1 * x2) + x4 * (TN2 + TN3 * x2));
-  const d = (1 + TD1 * x2) + x4 * (TD2 + TD3 * x2);
-  const d2 = d * d;
-  const e = d2 - p * p;
-  const h = d2 + b * e;
-  const f = (v - aa) * d + b * p;
-  const dv = -(f * h * d) / (h * h + b * p * e * f);
-  const r = 1 / d;
-  const t = p * r;
-  let u = t + e * r * r * dv * (1 - t * dv);
-  if (u < 0) u = 0; else if (u > 1) u = 1;
-  return a < 0 ? -u : u;
-}
-
-/** Solves w = α + β·tanh(w), 0 ≤ β < 1, and returns tanh(w): the clipped resonance path of the MS-20 filter. */
-function solveForward(alpha, beta, i0, i1, i2, i3) {
-  const aa = alpha < 0 ? -alpha : alpha;
-  let w = aa * i0;
-  let q = aa + beta; if (q < w) w = q;
-  q = (aa + beta * T0I) * i1; if (q < w) w = q;
-  q = (aa + beta * T1I) * i2; if (q < w) w = q;
-  q = (aa + beta * T2I) * i3; if (q < w) w = q;
-  const x = w > TANH_CLAMP ? TANH_CLAMP : w;
-  const x2 = x * x;
-  const x4 = x2 * x2;
-  const p = x * ((1 + TN1 * x2) + x4 * (TN2 + TN3 * x2));
-  const d = (1 + TD1 * x2) + x4 * (TD2 + TD3 * x2);
-  const d2 = d * d;
-  const e = d2 - p * p;
-  const h = d2 - beta * e;
-  const f = (w - aa) * d - beta * p;
-  const dw = -(f * h * d) / (h * h - beta * p * e * f);
-  const r = 1 / d;
-  const t = p * r;
-  let u = t + e * r * r * dw * (1 - t * dw);
-  if (u < 0) u = 0; else if (u > 1) u = 1;
-  return alpha < 0 ? -u : u;
-}
+// The two delay-free loops, solved per sample and written out inside the filter loops below (a function call with
+// number arguments that the engine decides not to inline boxes every one of them: measured, 160 garbage collections
+// per 30 s of audio — so there is no function here to call):
+//
+//   negative feedback (ladder, acid): u = tanh(a − b·u), b ≥ 0. With v = a − b·u the equation is
+//   f(v) = v + b·tanh(v) − a = 0, monotonic and concave for v > 0. The start value is the best of five lower bounds
+//   of the root (from tanh v ≤ v, ≤ 1 and three tangents), which is within a few percent; one Halley step — written
+//   over the common denominator of the tanh rational, so it costs one division — then leaves an error below 1e-4 of
+//   full scale at any level. i0…i3 are the four reciprocals that depend only on b.
+//
+//   positive feedback (MS-20): w = α + β·tanh(w), 0 ≤ β < 1, returning tanh(w). The mirror image: upper bounds of
+//   tanh give upper bounds of the root, the start value is the smallest of the same five.
 
 // ---- drive -----------------------------------------------------------------------------------------------------
 // The newer models share one drive law: up to +24 dB into a tanh, with a make-up gain that keeps a signal at the
@@ -463,7 +422,6 @@ export class VoiceFilter {
     const dg = (t[0] - g) / m, dk = (t[1] - k) / m, dpre = (t[2] - pre) / m, dpost = (t[3] - post) / m;
     const moving = dg !== 0 || dk !== 0 || dpre !== 0;
     const m0 = mix[0], m1 = mix[1], m2 = mix[2], m3 = mix[3], m4 = mix[4], comp = mix[5], trim = mix[6];
-    let l0 = s[0], l1 = s[1], l2 = s[2], l3 = s[3], r0 = s[4], r1 = s[5], r2 = s[6], r3 = s[7];
     let g1 = 0, d = 0, g2 = 0, g3 = 0, g4 = 0, b = 0, i0 = 0, i1 = 0, i2 = 0, i3 = 0, pin = 0, pout = 0;
     for (let i = 0; i < m; i++) {
       if (moving || i === 0) {
@@ -479,24 +437,42 @@ export class VoiceFilter {
         pout = post / (pre * (1 + trim * k));
       }
       const seed = k >= 4 ? rng.next() * SEED_LEVEL : 0;
-      let c4 = d * ((g3 * l0 + g2 * l1) + (g1 * l2 + l3));
-      let c1 = d * l0;
-      let c2 = g1 * c1 + d * l1;
-      let c3 = g1 * c2 + d * l2;
-      let u = solveFeedback(L[i] * pin + seed - k * c4, b, i0, i1, i2, i3);
-      let y1 = g1 * u + c1, y2 = g2 * u + c2, y3 = g3 * u + c3, y4 = g4 * u + c4;
-      l0 = 2 * y1 - l0; l1 = 2 * y2 - l1; l2 = 2 * y3 - l2; l3 = 2 * y4 - l3;
-      L[i] = (m0 * u + m1 * y1 + m2 * y2 + m3 * y3 + m4 * y4) * pout;
-      c4 = d * ((g3 * r0 + g2 * r1) + (g1 * r2 + r3));
-      c1 = d * r0;
-      c2 = g1 * c1 + d * r1;
-      c3 = g1 * c2 + d * r2;
-      u = solveFeedback(R[i] * pin + seed - k * c4, b, i0, i1, i2, i3);
-      y1 = g1 * u + c1; y2 = g2 * u + c2; y3 = g3 * u + c3; y4 = g4 * u + c4;
-      r0 = 2 * y1 - r0; r1 = 2 * y2 - r1; r2 = 2 * y3 - r2; r3 = 2 * y4 - r3;
-      R[i] = (m0 * u + m1 * y1 + m2 * y2 + m3 * y3 + m4 * y4) * pout;
+      for (let ch = 0; ch < 2; ch++) {
+        const io = ch ? R : L;
+        const o = ch << 2;
+        const s0 = s[o], s1 = s[o + 1], s2 = s[o + 2], s3 = s[o + 3];
+        const c4 = d * ((g3 * s0 + g2 * s1) + (g1 * s2 + s3));
+        const c1 = d * s0;
+        const c2 = g1 * c1 + d * s1;
+        const c3 = g1 * c2 + d * s2;
+        // u = tanh(a − b·u)
+        const a = io[i] * pin + seed - k * c4;
+        const aa = a < 0 ? -a : a;
+        let v = aa * i0;
+        let q = aa - b; if (q > v) v = q;
+        q = (aa - b * T0I) * i1; if (q > v) v = q;
+        q = (aa - b * T1I) * i2; if (q > v) v = q;
+        q = (aa - b * T2I) * i3; if (q > v) v = q;
+        const x = v > TANH_CLAMP ? TANH_CLAMP : v;
+        const x2 = x * x;
+        const x4 = x2 * x2;
+        const p = x * ((1 + TN1 * x2) + x4 * (TN2 + TN3 * x2));
+        const den = (1 + TD1 * x2) + x4 * (TD2 + TD3 * x2);
+        const den2 = den * den;
+        const e = den2 - p * p;
+        const h = den2 + b * e;
+        const f = (v - aa) * den + b * p;
+        const dv = -(f * h * den) / (h * h + b * p * e * f);
+        const r = 1 / den;
+        const th = p * r;
+        let u = th + e * r * r * dv * (1 - th * dv);
+        if (u < 0) u = 0; else if (u > 1) u = 1;
+        if (a < 0) u = -u;
+        const y1 = g1 * u + c1, y2 = g2 * u + c2, y3 = g3 * u + c3, y4 = g4 * u + c4;
+        s[o] = 2 * y1 - s0; s[o + 1] = 2 * y2 - s1; s[o + 2] = 2 * y3 - s2; s[o + 3] = 2 * y4 - s3;
+        io[i] = (m0 * u + m1 * y1 + m2 * y2 + m3 * y3 + m4 * y4) * pout;
+      }
     }
-    s[0] = l0; s[1] = l1; s[2] = l2; s[3] = l3; s[4] = r0; s[5] = r1; s[6] = r2; s[7] = r3;
   }
 
   /**
@@ -510,7 +486,6 @@ export class VoiceFilter {
     const dg = (t[0] - gc) / m, dk = (t[1] - k) / m, dcurv = (t[2] - curv) / m, dmk = (t[3] - makeup) / m;
     const moving = dg !== 0 || dk !== 0;
     const driven = curv > 1e-3 || t[2] > 1e-3;
-    let l0 = s[0], l1 = s[1], l2 = s[2], l3 = s[3], r0 = s[4], r1 = s[5], r2 = s[6], r3 = s[7];
     let g = 0, h = 0, r4 = 0, a4 = 0, r3c = 0, a3 = 0, r2c = 0, a2 = 0, r1c = 0, a1 = 0, ga2 = 0, ga3 = 0, ga4 = 0;
     let w0 = 0, w1 = 0, w2 = 0, w3 = 0, b = 0, i0 = 0, i1 = 0, i2 = 0, i3 = 0, post = 0;
     for (let i = 0; i < m; i++) {
@@ -535,33 +510,57 @@ export class VoiceFilter {
         post = ACID_KNEE * (1 + 0.4 * k);
       }
       curv += dcurv; makeup += dmk;
+      const shape = driven && curv > 1e-3; // a drive that ramps down to zero ends exactly linear
       const seed = k >= 17 ? rng.next() * SEED_LEVEL : 0;
-      let sigma = (w0 * l0 + w1 * l1) + (w2 * l2 + w3 * l3);
-      let u = solveFeedback(L[i] * (1 / ACID_KNEE) + seed - k * sigma, b, i0, i1, i2, i3);
-      let b4 = l3 * r4;
-      let b3 = (h * b4 + l2) * r3c;
-      let b2 = (h * b3 + l1) * r2c;
-      let b1 = (g * b2 + l0) * r1c;
-      let c2 = a2 * b1 + b2;
-      let c3 = a3 * c2 + b3;
-      let y4 = ga4 * u + sigma;
-      l0 = 2 * (a1 * u + b1) - l0; l1 = 2 * (ga2 * u + c2) - l1; l2 = 2 * (ga3 * u + c3) - l2; l3 = 2 * y4 - l3;
-      let y = y4 * post;
-      L[i] = driven && curv > 1e-3 ? tanhFast(curv * y) * (makeup / curv) : y;
-      sigma = (w0 * r0 + w1 * r1) + (w2 * r2 + w3 * r3);
-      u = solveFeedback(R[i] * (1 / ACID_KNEE) + seed - k * sigma, b, i0, i1, i2, i3);
-      b4 = r3 * r4;
-      b3 = (h * b4 + r2) * r3c;
-      b2 = (h * b3 + r1) * r2c;
-      b1 = (g * b2 + r0) * r1c;
-      c2 = a2 * b1 + b2;
-      c3 = a3 * c2 + b3;
-      y4 = ga4 * u + sigma;
-      r0 = 2 * (a1 * u + b1) - r0; r1 = 2 * (ga2 * u + c2) - r1; r2 = 2 * (ga3 * u + c3) - r2; r3 = 2 * y4 - r3;
-      y = y4 * post;
-      R[i] = driven && curv > 1e-3 ? tanhFast(curv * y) * (makeup / curv) : y;
+      for (let ch = 0; ch < 2; ch++) {
+        const io = ch ? R : L;
+        const o = ch << 2;
+        const s0 = s[o], s1 = s[o + 1], s2 = s[o + 2], s3 = s[o + 3];
+        const sigma = (w0 * s0 + w1 * s1) + (w2 * s2 + w3 * s3);
+        // u = tanh(a − b·u)
+        const a = io[i] * (1 / ACID_KNEE) + seed - k * sigma;
+        const aa = a < 0 ? -a : a;
+        let v = aa * i0;
+        let q = aa - b; if (q > v) v = q;
+        q = (aa - b * T0I) * i1; if (q > v) v = q;
+        q = (aa - b * T1I) * i2; if (q > v) v = q;
+        q = (aa - b * T2I) * i3; if (q > v) v = q;
+        const x = v > TANH_CLAMP ? TANH_CLAMP : v;
+        const x2 = x * x;
+        const x4 = x2 * x2;
+        const p = x * ((1 + TN1 * x2) + x4 * (TN2 + TN3 * x2));
+        const den = (1 + TD1 * x2) + x4 * (TD2 + TD3 * x2);
+        const den2 = den * den;
+        const e = den2 - p * p;
+        const hh = den2 + b * e;
+        const f = (v - aa) * den + b * p;
+        const dv = -(f * hh * den) / (hh * hh + b * p * e * f);
+        const r = 1 / den;
+        const th = p * r;
+        let u = th + e * r * r * dv * (1 - th * dv);
+        if (u < 0) u = 0; else if (u > 1) u = 1;
+        if (a < 0) u = -u;
+        // the state-only parts of the stage outputs
+        const b4 = s3 * r4;
+        const b3 = (h * b4 + s2) * r3c;
+        const b2 = (h * b3 + s1) * r2c;
+        const b1 = (g * b2 + s0) * r1c;
+        const c2 = a2 * b1 + b2;
+        const c3 = a3 * c2 + b3;
+        const y4 = ga4 * u + sigma;
+        s[o] = 2 * (a1 * u + b1) - s0; s[o + 1] = 2 * (ga2 * u + c2) - s1; s[o + 2] = 2 * (ga3 * u + c3) - s2; s[o + 3] = 2 * y4 - s3;
+        let y = y4 * post;
+        if (shape) {
+          // drive after the filter: tanh(curv·y) · makeup / curv (the tanh rational, written out)
+          let z = curv * y;
+          if (z > TANH_CLAMP) z = TANH_CLAMP; else if (z < -TANH_CLAMP) z = -TANH_CLAMP;
+          const z2 = z * z;
+          const z4 = z2 * z2;
+          y = ((z * ((1 + TN1 * z2) + z4 * (TN2 + TN3 * z2))) / ((1 + TD1 * z2) + z4 * (TD2 + TD3 * z2))) * (makeup / curv);
+        }
+        io[i] = y;
+      }
     }
-    s[0] = l0; s[1] = l1; s[2] = l2; s[3] = l3; s[4] = r0; s[5] = r1; s[6] = r2; s[7] = r3;
   }
 
   /**
@@ -576,7 +575,6 @@ export class VoiceFilter {
     const moving = dg !== 0 || dk !== 0;
     const driven = curv > 1e-3 || t[2] > 1e-3;
     const hp = this.hp;
-    let l0 = s[0], l1 = s[1], r0 = s[2], r1 = s[3];
     let g1 = 0, d = 0, g2 = 0, beta = 0, kd = 0, i0 = 0, i1 = 0, i2 = 0, i3 = 0;
     for (let i = 0; i < m; i++) {
       if (moving || i === 0) {
@@ -589,31 +587,55 @@ export class VoiceFilter {
         i0 = 1 / (1 - beta); i1 = 1 / (1 - beta * T0S); i2 = 1 / (1 - beta * T1S); i3 = 1 / (1 - beta * T2S);
       }
       curv += dcurv; makeup += dmk;
-      const seed = k >= 2 ? rng.next() * SEED_LEVEL : 0;
-      let x = L[i];
       const shape = driven && curv > 1e-3; // a drive that ramps down to zero ends exactly linear
-      if (shape) x = tanhFast(curv * x) * (makeup / curv);
-      // everything inside the loop is in knee units
-      let xin = x * (1 / MS20_KNEE) + seed;
-      let c1 = d * l0;
-      let c2 = g1 * c1 + d * l1;
-      let u = xin + solveForward(beta * xin + kd * (c1 - l1), beta, i0, i1, i2, i3);
-      let y1 = g1 * u + c1;
-      let y2 = g2 * u + c2;
-      l0 = 2 * y1 - l0; l1 = 2 * y2 - l1;
-      L[i] = (hp ? u - 2 * y1 + y2 : y2) * MS20_KNEE;
-      x = R[i];
-      if (shape) x = tanhFast(curv * x) * (makeup / curv);
-      xin = x * (1 / MS20_KNEE) + seed;
-      c1 = d * r0;
-      c2 = g1 * c1 + d * r1;
-      u = xin + solveForward(beta * xin + kd * (c1 - r1), beta, i0, i1, i2, i3);
-      y1 = g1 * u + c1;
-      y2 = g2 * u + c2;
-      r0 = 2 * y1 - r0; r1 = 2 * y2 - r1;
-      R[i] = (hp ? u - 2 * y1 + y2 : y2) * MS20_KNEE;
+      const seed = k >= 2 ? rng.next() * SEED_LEVEL : 0;
+      for (let ch = 0; ch < 2; ch++) {
+        const io = ch ? R : L;
+        const o = ch << 1;
+        const s0 = s[o], s1 = s[o + 1];
+        let xin = io[i];
+        if (shape) {
+          // drive in front: tanh(curv·x) · makeup / curv (the tanh rational, written out)
+          let z = curv * xin;
+          if (z > TANH_CLAMP) z = TANH_CLAMP; else if (z < -TANH_CLAMP) z = -TANH_CLAMP;
+          const z2 = z * z;
+          const z4 = z2 * z2;
+          xin = ((z * ((1 + TN1 * z2) + z4 * (TN2 + TN3 * z2))) / ((1 + TD1 * z2) + z4 * (TD2 + TD3 * z2))) * (makeup / curv);
+        }
+        // everything inside the loop is in knee units
+        xin = xin * (1 / MS20_KNEE) + seed;
+        const c1 = d * s0;
+        const c2 = g1 * c1 + d * s1;
+        // w = α + β·tanh(w); the feedback signal is tanh(w)
+        const alpha = beta * xin + kd * (c1 - s1);
+        const aa = alpha < 0 ? -alpha : alpha;
+        let w = aa * i0;
+        let q = aa + beta; if (q < w) w = q;
+        q = (aa + beta * T0I) * i1; if (q < w) w = q;
+        q = (aa + beta * T1I) * i2; if (q < w) w = q;
+        q = (aa + beta * T2I) * i3; if (q < w) w = q;
+        const x = w > TANH_CLAMP ? TANH_CLAMP : w;
+        const x2 = x * x;
+        const x4 = x2 * x2;
+        const p = x * ((1 + TN1 * x2) + x4 * (TN2 + TN3 * x2));
+        const den = (1 + TD1 * x2) + x4 * (TD2 + TD3 * x2);
+        const den2 = den * den;
+        const e = den2 - p * p;
+        const h = den2 - beta * e;
+        const f = (w - aa) * den - beta * p;
+        const dw = -(f * h * den) / (h * h - beta * p * e * f);
+        const r = 1 / den;
+        const th = p * r;
+        let fb = th + e * r * r * dw * (1 - th * dw);
+        if (fb < 0) fb = 0; else if (fb > 1) fb = 1;
+        if (alpha < 0) fb = -fb;
+        const u = xin + fb;
+        const y1 = g1 * u + c1;
+        const y2 = g2 * u + c2;
+        s[o] = 2 * y1 - s0; s[o + 1] = 2 * y2 - s1;
+        io[i] = (hp ? u - 2 * y1 + y2 : y2) * MS20_KNEE;
+      }
     }
-    s[0] = l0; s[1] = l1; s[2] = r0; s[3] = r1;
   }
 
   /** Five parallel band-passes: per formant a cutoff gain, a damping and a (signed) level, all ramped. */
@@ -741,7 +763,8 @@ export class VoiceFilter {
         const echo = ((((0.5 * (yc - ym) + 1.5 * (ya - yb)) * fr + (ym - 2.5 * ya + 2 * yb - 0.5 * yc)) * fr + 0.5 * (yb - ym)) * fr) + ya;
         z += damp * (echo - z);
         const y = tanhFast(curv * (gin * io[i] + fb * z)) / curv;
-        buf[w] = y;
+        // (the line holds 32-bit floats: a decaying echo would go on for ever in denormal numbers, so it stops here)
+        buf[w] = y < 1e-30 && y > -1e-30 ? 0 : y;
         io[i] = y * post;
         w = (w + 1) & mask;
       }
@@ -757,10 +780,11 @@ export class VoiceFilter {
  * filter is fed a −60 dBFS impulse and the Fourier transform of what comes out is evaluated at exactly those
  * frequencies. So it is right for every model, comb, formant and phaser included, and it shows what the drive stage
  * and the resonance compensation really do. A setting that still rings after `maxSeconds` (a comb at high feedback,
- * a self-oscillating ladder) is faded out, which lowers and widens its peaks slightly.
+ * a self-oscillating ladder) is faded out, which lowers and widens its peaks slightly — pass `info: {}` to be told
+ * (info.decayed).
  * settings: { type, cutoff, resonance, drive, morph }.
  */
-export function filterResponse(settings, freqs, { sampleRate = 48000, maxSeconds = 0.4 } = {}) {
+export function filterResponse(settings, freqs, { sampleRate = 48000, maxSeconds = 0.4, info = null } = {}) {
   const f = new VoiceFilter(sampleRate);
   f.setType(settings.type);
   f.set(settings.cutoff ?? 1000, settings.resonance ?? 0, settings.drive ?? 0, settings.morph ?? 0);
@@ -791,6 +815,8 @@ export function filterResponse(settings, freqs, { sampleRate = 48000, maxSeconds
     if (b >= 2 * WINDOW && windowPeak <= peak * 1e-6) { decayed = true; break; }
     windowPeak = 0;
   }
+  // info.decayed = false: the setting was still ringing at the end (a self-oscillating filter has no steady response)
+  if (info) info.decayed = decayed;
   if (!decayed) {
     for (let i = 0; i < len; i++) {
       const w = Math.cos((Math.PI / 2) * (i / len));

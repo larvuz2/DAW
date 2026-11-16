@@ -147,8 +147,11 @@ export function registerSoundTools({ tool, backend, load }) {
       } else {
         if (a.plugin) throw new Error('plugin only works with instrument "plugin"');
         if (a.preset && !Object.hasOwn(INSTRUMENTS[kind].presets, a.preset)) throw new Error(`Unknown preset "${a.preset}" for ${kind}. Available: ${Object.keys(INSTRUMENTS[kind].presets).join(', ')}`);
-        if (a.params) sanitizeParams(INSTRUMENTS[kind].params, a.params, { strict: true }); // unknown keys, out-of-range values
-        patch.instrument = { ...(a.instrument && { kind: a.instrument }), ...(a.preset && { preset: a.preset }), ...(a.params && { params: a.params }) };
+        // keys renamed since an older version are mapped first (the same hook that loads old projects), then: unknown
+        // keys, out-of-range values
+        const given = a.params && (INSTRUMENTS[kind].migrate ? INSTRUMENTS[kind].migrate(a.params) : a.params);
+        if (given) sanitizeParams(INSTRUMENTS[kind].params, given, { strict: true });
+        patch.instrument = { ...(a.instrument && { kind: a.instrument }), ...(a.preset && { preset: a.preset }), ...(given && { params: given }) };
       }
     }
     if (!Object.keys(patch).length) throw new Error('Nothing to change');

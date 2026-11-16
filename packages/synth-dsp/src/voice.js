@@ -6,7 +6,7 @@
 // Rendering runs in control blocks of CTRL output samples: modulation is evaluated once per block and every audible
 // control (pitch, level, table position, cutoff, amp) is ramped across the block, so nothing steps ("zipper noise").
 import { getWavetable, tableLevel, levelFor, FRAME, STRIDE } from './wavetables.js';
-import { GGS_PARAMS, completeParams, syncBeats, needsOversampling, envCurveK, MOD_SOURCES, MOD_TARGETS, OSC_IDS, ENV_COUNT, LFO_COUNT, MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, MOD_SLOTS, SOURCE_DESTS, WARP_MODES, LFO_SHAPES, SUB_WAVES } from './params.js';
+import { GGS_PARAMS, LFO_STEPS, stepShape, completeParams, syncBeats, needsOversampling, envCurveK, MOD_SOURCES, MOD_TARGETS, OSC_IDS, ENV_COUNT, LFO_COUNT, MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, MOD_SLOTS, SOURCE_DESTS, WARP_MODES, LFO_SHAPES, SUB_WAVES } from './params.js';
 import { VoiceFilter, NC, NS } from './filters.js';
 import { Chaos } from './chaos.js';
 import { Rng, hash32, hashBipolar, Decimator2, DEFAULT_HALFBAND, Arena, clamp, TAU } from './util.js';
@@ -34,6 +34,9 @@ const F_K = [null, keysOf('f1'), keysOf('f2')];
 const CHAOS_K = [null, ...Array.from({ length: CHAOS_COUNT }, (_, i) => keysOf(`chaos${i + 1}`))];
 // everything a voice keeps in typed arrays over 64 bytes comes out of one block (see Arena)
 const VOICE_BYTES = 8 * (5 * (MAX_INNER / 2) + MOD_SOURCES.length + MOD_TARGETS.length + 2 * (3 * NC + NS) + 4 * DEFAULT_HALFBAND.length);
+const TURING = CHAOS_TYPES.indexOf('turing');
+const STEPS = LFO.steps; // the drawn LFO shape
+const LFO_STEP_KEYS = [null, ...[1, 2, 3, 4].map((i) => Array.from({ length: LFO_STEPS }, (_, k) => `lfo${i}S${k + 1}`))];
 const MACRO_KEYS = Array.from({ length: MACRO_COUNT }, (_, i) => `macro${i + 1}`);
 const SLOT_KEYS = Array.from({ length: MOD_SLOTS }, (_, i) => [`mod${i + 1}Src`, `mod${i + 1}Dst`, `mod${i + 1}Amt`, `mod${i + 1}Via`]);
 
@@ -148,6 +151,8 @@ class Osc {
     this.pos = 0;
     this.warpAmt = 0;
     this.fm = 0;
+    this.monoGate = 1;
+    this.monoTo = 1;
     this.first = true;
   }
 }
@@ -194,7 +199,7 @@ export class GgsVoice {
     this.lfoPhase = new Float64Array(LFO_COUNT);
     this.macro = new Float64Array(MACRO_COUNT);
     this.chaos = [null, null];
-    this.chaosc = Array.from({ length: CHAOS_COUNT }, () => ({ used: false, type: 0, rate: 1, beats: 0, char: 0.5, steps: 16, same: false }));
+    this.chaosc = Array.from({ length: CHAOS_COUNT }, () => ({ used: false, type: 0, rate: 1, beats: 0, char: 0.5, steps: 16, same: false, locked: false }));
     this.src = mem.f64(MOD_SOURCES.length);
     this.dst = mem.f64(MOD_TARGETS.length);
     this.amp = 0;
@@ -252,11 +257,17 @@ export class GgsVoice {
     for (let u = 0; u < 4; u++) {
       if (!this.swap[u]) continue;
       if (this.gate[u] > 0) { waiting = true; continue; }
+      const was1 = this.p.f1On;
+      const was2 = this.p.f2On;
       for (const k of SWAP_KEYS[u]) this.p[k] = this.next[k];
       this.swap[u] = false;
       changed = true;
-      // the voice is silent here: a filter that comes (back) on must not replay what it last heard
-      if (u === BUS) { this.vf[0].reset(); this.vf[1].reset(); }
+      // a filter that comes (back) on must not replay what it last heard. Only that one: an edit elsewhere on the
+      // buses must not cut off a comb that is still ringing. (A new model clears its own memory in setType.)
+      if (u === BUS) {
+        if (!was1 && this.p.f1On) this.vf[0].reset();
+        if (!was2 && this.p.f2On) this.vf[1].reset();
+      }
     }
     if (changed) {
       this.configure();
@@ -348,6 +359,7 @@ export class GgsVoice {
       c.steps = p[CHAOS_K[n].Steps];
       if (c.used && (!this.chaos[i] || c.same !== same)) this.chaos[i] = new Chaos(same ? 0xc4a05 + i : hash32(this.seed ^ Math.imul(i + 1, 0x632be5ab)));
       c.same = same;
+      c.locked = same && c.beats > 0 && c.type === TURING;
     }
     this.envc = [1, 2, 3, 4].map((i) => {
       const [ka, na] = stageCurve(p[ENV_K[i].ACurve]);
@@ -358,7 +370,14 @@ export class GgsVoice {
     this.lfoc = [1, 2, 3, 4].map((i) => {
       const sync = p[LFO_K[i].Sync];
       const free = p[LFO_K[i].Trig] === 'free';
-      return { shape: LFO[p[LFO_K[i].Shape]] || 0, rate: p[LFO_K[i].Rate], beats: sync === 'off' ? 0 : syncBeats(sync), free, fade: p[LFO_K[i].Fade], phase: p[LFO_K[i].Phase], seed: free ? 1000 + i : this.seed + i };
+      const shape = LFO[p[LFO_K[i].Shape]] || 0;
+      const c = { shape, rate: p[LFO_K[i].Rate], beats: sync === 'off' ? 0 : syncBeats(sync), free, fade: p[LFO_K[i].Fade], phase: p[LFO_K[i].Phase], seed: free ? 1000 + i : this.seed + i, steps: null, count: 0, smooth: 0 };
+      if (shape === STEPS) {
+        c.count = Math.round(p[LFO_K[i].Steps]);
+        c.smooth = p[LFO_K[i].Smooth];
+        c.steps = LFO_STEP_KEYS[i].map((key) => p[key]);
+      }
+      return c;
     });
     this.fc = [1, 2].map((i) => ({ on: p[F_K[i].On], cutoff: p[F_K[i].Cutoff], res: p[F_K[i].Res], drive: p[F_K[i].Drive], key: p[F_K[i].Key], morph: p[F_K[i].Morph] }));
     this.vf[0].setType(p.f1Type);
@@ -449,7 +468,11 @@ export class GgsVoice {
     for (let i = 0; i < MACRO_COUNT; i++) src[SRC.macro1 + i] = clamp(i < given ? macros[i] : this.macro[i], 0, 1);
     for (let i = 0; i < CHAOS_COUNT; i++) {
       const c = this.chaosc[i];
-      if (c.used) src[SRC.chaos1 + i] = this.chaos[i].advance(dt, c.type, c.beats ? this.bpm / 60 / c.beats : c.rate, c.char, c.steps);
+      if (!c.used) continue;
+      const rate = c.beats ? this.bpm / 60 / c.beats : c.rate;
+      // a tempo-synced Turing pattern on the shared path follows the clock, like a "free" LFO: every note hears the
+      // same step at the same moment, in time with the song
+      src[SRC.chaos1 + i] = c.locked ? this.chaos[i].at(timeEnd * rate, c.type, c.char, c.steps) : this.chaos[i].advance(dt, c.type, rate, c.char, c.steps);
     }
 
     // LFOs read the rate modulation of the previous block (one block late is inaudible, and it breaks the loop
@@ -480,6 +503,7 @@ export class GgsVoice {
           v = a + (hashBipolar(cyc + 1, c.seed) - a) * x * x * (3 - 2 * x);
           break;
         }
+        case 7: v = stepShape(c.steps, c.count, c.smooth, x); break; // a drawn shape
         default: v = Math.sin(TAU * x);
       }
       src[SRC.lfo1 + i] = c.fade > 0 && this.age < c.fade ? v * (this.age / c.fade) : v;
@@ -537,7 +561,9 @@ export class GgsVoice {
         }
       }
       // (an oscillator switched on while the note sounds starts from silence and fades in)
-      if (o.first) { o.inc = o.incTo; o.pos = o.posTo; o.level = gate[k] < 1 ? 0 : o.levelTo; o.warpAmt = o.warpTo; o.fm = o.fmTo; o.first = false; }
+      // what other oscillators hear of this one as an FM source fades with it too (it does not pass the level knob)
+      o.monoTo = open[k];
+      if (o.first) { o.inc = o.incTo; o.pos = o.posTo; o.level = gate[k] < 1 ? 0 : o.levelTo; o.monoGate = gate[k] < 1 ? 0 : 1; o.warpAmt = o.warpTo; o.fm = o.fmTo; o.first = false; }
     }
     const sub = this.sub;
     sub.levelTo = clamp(this.subLevel + dst[DST.subLevel], 0, 2);
@@ -661,6 +687,8 @@ export class GgsVoice {
     const mono = o.mono;
     const needMono = o.needMono;
     if (needMono) mono.fill(0, 0, m);
+    const mg0 = o.monoGate;
+    const dmg = (o.monoTo - mg0) / m;
     const lv0 = o.level;
     const dlv = (o.levelTo - lv0) / m;
     const dincBase = (o.incTo - o.inc) / m;
@@ -673,6 +701,7 @@ export class GgsVoice {
       const gr = o.gr[u];
       const gm = o.gm[u];
       let lv = lv0;
+      let mg = mg0;
       let ww = w;
       let a = wa;
       let depth = fm;
@@ -725,13 +754,13 @@ export class GgsVoice {
         lv += dlv;
         TL[i] += s * gl * lv;
         TR[i] += s * gr * lv;
-        if (needMono) mono[i] += s * gm;
+        if (needMono) { mg += dmg; mono[i] += s * gm * mg; }
       }
       o.phase[u] = ph;
       o.fbA[u] = y1;
       o.fbB[u] = y2;
     }
-    o.inc = o.incTo; o.pos = o.posTo; o.level = o.levelTo; o.warpAmt = warpTo; o.fm = o.fmTo;
+    o.inc = o.incTo; o.pos = o.posTo; o.level = o.levelTo; o.monoGate = o.monoTo; o.warpAmt = warpTo; o.fm = o.fmTo;
     this.route(o.dest, m);
   }
 
@@ -739,7 +768,9 @@ export class GgsVoice {
   fmBuffer(from) {
     if (from === 'sub') return this.sub.mono;
     if (from === 'noise') return this.noise.mono;
-    return this.oscs[OSC_IDS.indexOf(from)].mono;
+    // (an oscillator that is off renders nothing: its buffer would be the last block it made, looping for ever)
+    const src = this.oscs[OSC_IDS.indexOf(from)];
+    return src.on ? src.mono : null;
   }
 
   renderSub(m) {

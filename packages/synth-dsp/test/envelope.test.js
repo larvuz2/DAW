@@ -137,6 +137,45 @@ test('live structural edits do not click: oscillators fade in and out, the voice
   near(rms(swapped, FS - 9600, FS), rms(fresh, FS - 9600, FS), rms(fresh, FS - 9600, FS) * 0.02, 'level after the filter swap');
 });
 
+test('an oscillator that modulates another (FM) fades with its edits too, and leaves nothing behind when switched off', () => {
+  // the "FM bell" layout: A is heard, B is only its modulator (level 0)
+  const bell = { oscAFmFrom: 'B', oscAFm: 0.35, oscBOn: true, oscBTable: 'basic', oscBPos: 0, oscBLevel: 0, oscBOct: 1, oscBRand: 0 };
+  for (const [label, delta] of [['unison of the modulator 1 → 4', { oscBUnison: 4 }], ['warp of the modulator', { oscBWarp: 'sync' }], ['table of the modulator', { oscBTable: 'tilt' }], ['modulator switched off', { oscBOn: false }]]) {
+    const { x, at } = edited(bell, delta);
+    const steady = Math.max(curvature(x, at - 9600, at - 10), curvature(x, FS - 9600, FS));
+    const c = curvature(x, at - 10, at + 2400);
+    // 0.9.0 measured 0.24 … 0.36 here: the modulator was swapped at full depth. Now the FM depth sweeps down and
+    // back up in a few milliseconds — a quick change of timbre, a few times the steady curvature, not a step.
+    assert.ok(c < Math.max(0.012, steady * 4), `${label}: curvature ${c.toExponential(2)} at the edit (steady ${steady.toExponential(2)})`);
+  }
+  // switched off, the modulator is gone: the note is the same as one that never had it
+  const off = edited(bell, { oscBOn: false }).x;
+  const never = edited({ oscAFmFrom: 'B', oscAFm: 0.35 }, {}).x;
+  let worst = 0;
+  for (let i = FS - 9600; i < FS; i++) worst = Math.max(worst, Math.abs(off[i] - never[i]));
+  assert.ok(worst < 1e-6, `no trace of the modulator after it is switched off (difference ${worst.toExponential(1)})`);
+  // and switched on under a held note it arrives without a step
+  const on = edited({ oscAFmFrom: 'B', oscAFm: 0.35, oscBTable: 'basic', oscBPos: 0, oscBLevel: 0, oscBOct: 1, oscBRand: 0 }, { oscBOn: true });
+  assert.ok(curvature(on.x, on.at - 10, on.at + 2400) < 0.004);
+  assert.ok(rms(on.x, FS - 4800, FS) > 0.05);
+});
+
+test('an edit elsewhere on the buses does not cut off a filter that is still ringing', () => {
+  // a comb ringing after a pluck: the sub's wave is changed (its level is 0), the noise type, the routing
+  const pluck = { oscALevel: 0, noiseLevel: 0, f1On: true, f1Type: 'comb', f1Cutoff: 220, f1Res: 0.95, f1Morph: 0.2, env1D: 6, env1S: 1, env2D: 0.03, env2S: 0, mod1Src: 'env2', mod1Dst: 'noiseLevel', mod1Amt: 1 };
+  const plain = edited(pluck, {}).x;
+  assert.ok(rms(plain, FS - 9600, FS) > 1e-3, 'the comb is still ringing at the end');
+  for (const delta of [{ subWave: 'square' }, { noiseType: 'pink' }, { subDest: 'f2' }, { filterRoute: 'parallel' }]) {
+    const x = edited(pluck, delta).x;
+    const ratio = rms(x, FS - 9600, FS) / rms(plain, FS - 9600, FS);
+    assert.ok(ratio > 0.7 && ratio < 1.4, `${Object.keys(delta)[0]}: the comb rings on (${ratio.toFixed(2)} of the unedited level)`);
+  }
+  // a filter that is switched on does start from silence, and a new model from its own
+  const cold = edited({ ...pluck, f2On: false, f2Type: 'lp12', f2Cutoff: 300 }, { f2On: true });
+  assert.ok(curvature(cold.x, cold.at - 10, cold.at + 2400) < 0.02);
+  assert.equal(edited(pluck, { f1Type: 'combNeg' }).voice.p.f1Type, 'combNeg');
+});
+
 test('a wavetable swap fades through silence; knob moves do not dip; an edit taken back leaves no trace', () => {
   const { x, at } = edited({}, { oscATable: 'formant' });
   const steady = Math.max(curvature(x, at - 9600, at - 10), curvature(x, FS - 9600, FS));

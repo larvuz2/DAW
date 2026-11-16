@@ -258,12 +258,26 @@ export class Chaos {
    */
   advance(dt, type, rate, character, steps) {
     if (type !== this.type) this.start(type, character);
-    this.pos += rate * dt;
-    const sp = this.pos * STEPS_PER_CYCLE[type];
+    return this.scan(this.pos + rate * dt, type, character, steps, MAX_STEPS);
+  }
+
+  /**
+   * The value at an absolute position on the tape (in cycles from its start). A generator driven this way is a
+   * function of time: every voice that asks for the same position gets the same value — how a tempo-synced Turing
+   * pattern stays in step with the song (a voice that starts late runs the steps it missed; they are bit operations).
+   */
+  at(pos, type, character, steps) {
+    if (type !== this.type || pos < this.pos) { this.pos = 0; this.start(type, character); }
+    return this.scan(pos, type, character, steps, Infinity);
+  }
+
+  scan(pos, type, character, steps, most) {
+    this.pos = pos;
+    const sp = pos * STEPS_PER_CYCLE[type];
     const step = Math.floor(sp);
     const f = sp - step;
     let n = step - this.lastStep;
-    if (n > MAX_STEPS) n = MAX_STEPS;
+    if (n > most) n = most;
     this.lastStep = step;
     let v;
     if (type === 0) {

@@ -75,18 +75,20 @@ export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, 
   const move = (e) => {
     const d = drag.current;
     if (!d) return;
-    const px = clamp(e.clientX - d.left + d.dx, 0, width);
+    const px = clamp((e.clientX - d.left) * d.zoom + d.dx, 0, width);
     const hz = F_MIN * Math.pow(F_MAX / F_MIN, px / width);
-    onChange({ cutoff: Math.round(hz * 10) / 10, resonance: clamp(Math.round((d.res + (d.y - e.clientY) / (height * 0.9)) * 1000) / 1000, 0, 1) });
+    onChange({ cutoff: Math.round(hz * 10) / 10, resonance: clamp(Math.round((d.res + ((d.y - e.clientY) * d.zoom) / (height * 0.9)) * 1000) / 1000, 0, 1) });
   };
   const down = (e) => {
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     const r = e.currentTarget.getBoundingClientRect();
+    // (on a narrow screen the graph is drawn smaller than it is: `zoom` turns screen pixels into its own)
+    const zoom = width / r.width;
     // grabbed near the handle: move it from where it is; anywhere else: the cutoff jumps to the pointer
     const hx = xOf(clamp(cutoff, F_MIN, F_MAX));
-    const px = e.clientX - r.left;
-    drag.current = { y: e.clientY, res: resonance, dx: Math.abs(px - hx) < 14 ? hx - px : 0, left: r.left };
+    const px = (e.clientX - r.left) * zoom;
+    drag.current = { y: e.clientY, res: resonance, dx: Math.abs(px - hx) < 14 ? hx - px : 0, left: r.left, zoom };
     move(e);
   };
   const up = () => { drag.current = null; };
@@ -100,8 +102,8 @@ export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, 
   };
 
   return (
-    <div className="ggs-fgraph" style={{ width, height }}>
-      <canvas ref={ref} style={{ width, height }} tabIndex={0} role="application" data-nodrag
+    <div className="ggs-fgraph" style={{ width }}>
+      <canvas ref={ref} style={{ width, aspectRatio: `${width} / ${height}` }} tabIndex={0} role="application" data-nodrag
         aria-label={`Filter response. Cutoff ${formatValue(cutoff, { unit: 'Hz' })}, resonance ${resonance.toFixed(2)}. Arrow keys: left and right move the cutoff, up and down the resonance.`}
         title="Measured response of this filter, 20 Hz – 20 kHz. Drag: left/right = cutoff, up/down = resonance."
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key} />

@@ -4,6 +4,7 @@
 import { useRef, useState } from 'react';
 import { envShape, envCurveK, ENV_CURVE_SCALE } from '@greanteadawy/synth-dsp';
 import { formatValue } from '../ui/Knob.jsx';
+import { DragNumber } from '../ui/Controls.jsx';
 
 const W = 330;
 const H = 108;
@@ -32,7 +33,8 @@ function layout(env, k) {
 
 /** The curve that puts a stage at fraction `f` of its way after half its time (the inverse of envShape at 0.5). */
 function curveThrough(f) {
-  const k = -2 * Math.log(1 / clamp(f, 0.012, 0.988) - 1);
+  // (the ends of the range, ±1, put the half-time point within a ten-thousandth of the stage's start or end level)
+  const k = -2 * Math.log(1 / clamp(f, 1e-4, 1 - 1e-4) - 1);
   return clamp(-Math.sign(k) * Math.sqrt(Math.abs(k) / ENV_CURVE_SCALE), -1, 1);
 }
 
@@ -98,16 +100,16 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
   const down = (id) => (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // a second press on a bend handle right after the first puts its default back (the pointer is captured by the
-    // graph while dragging, so the browser's own double-click would not land on the handle)
+    // a second press on a bend handle right after the first, let go without bending, puts its default back (the
+    // pointer is captured by the graph while dragging, so the browser's own double-click would not land on the
+    // handle). A press that turns into a drag is a drag, however soon after the last one.
     const again = lastDown.current.id === id && e.timeStamp - lastDown.current.at < 350;
     lastDown.current = { id, at: e.timeStamp };
-    if (again && CURVE_OF[id]) { onChange({ [id]: defaults?.[id] ?? 0 }); return; }
     ref.current.setPointerCapture(e.pointerId);
     const { px, py } = point(e);
     // attack and hold share a spot while the hold is zero: the first move decides (right = add hold)
     const undecided = (id === 'attack' || id === 'hold') && env.hold < 0.0005;
-    drag.current = { id: undecided ? null : id, scale, env: { ...env }, x0: px, grab: { dx: 0, dy: 0 } };
+    drag.current = { id: undecided ? null : id, scale, env: { ...env }, x0: px, y0: py, bent: false, again, grab: { dx: 0, dy: 0 } };
     const n = [...nodes, ...bends].find((q) => q.id === id);
     drag.current.grab = { dx: n.cx - px, dy: n.cy - py };
     setActive(id);
@@ -121,9 +123,17 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
       d.id = px > d.x0 ? 'hold' : 'attack';
       setActive(d.id);
     }
+    // a bend handle only answers to up and down: a sideways wobble must not rewrite the curve from the handle's
+    // (pixel-rounded) position
+    if (CURVE_OF[d.id] && !d.bent) {
+      if (Math.abs(py - d.y0) < 1) return;
+      d.bent = true;
+    }
     apply(d.id, px + d.grab.dx, py + d.grab.dy);
   };
   const up = () => {
+    const d = drag.current;
+    if (d?.again && !d.bent && CURVE_OF[d.id]) onChange({ [d.id]: defaults?.[d.id] ?? 0 });
     drag.current = null;
     setActive(null);
   };
@@ -147,7 +157,7 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
 
   const t = (v) => formatValue(v, { unit: 's' });
   // the times and the sustain have knobs underneath; the three bends only live here
-  const readout = [['attackCurve', 'attack'], ['decayCurve', 'decay'], ['releaseCurve', 'release']].map(([id, name]) => [id, `${name} ${env[id] > 0 ? '+' : ''}${env[id].toFixed(2)}`]);
+  const readout = [['attackCurve', 'attack'], ['decayCurve', 'decay'], ['releaseCurve', 'release']];
   const valueText = (id) => (CURVE_OF[id] ? env[id].toFixed(2) : id === 'decay' ? `${t(env.decay)}, sustain ${s.toFixed(2)}` : t(env[id]));
 
   return (
@@ -174,8 +184,15 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
           </rect>
         ))}
       </svg>
-      <div className="ggs-envedit-read" title="Bend of each slope: 0 = straight, negative = fast first, positive = slow first. Drag the round handles; double-click one to reset it.">
-        <span>Curves</span>{readout.map(([id, text]) => <span key={id} className={active === id ? 'on' : ''}>{text}</span>)}
+      <div className="ggs-envedit-read">
+        <span title="Bend of each slope: 0 = straight, negative = fast first, positive = slow first. Drag a round handle on the graph, or a number here (a handle disappears when its slope has no height: a sustain of 0 or 1).">Curves</span>
+        {readout.map(([id, name]) => (
+          <label key={id} className={active === id ? 'on' : ''}>
+            {name}
+            <DragNumber value={env[id]} min={-1} max={1} step={0.01} sensitivity={0.01} format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}`}
+              title={`${NAMES[id]}: drag up/down, or double-click to type (-1 … 1)`} onChange={(v) => onChange({ [id]: Math.round(v * 100) / 100 })} />
+          </label>
+        ))}
       </div>
     </div>
   );

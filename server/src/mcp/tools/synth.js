@@ -9,7 +9,7 @@ import {
   SUB_WAVES, NOISE_TYPES, LFO_SHAPES, LFO_SYNC, LFO_TRIGGERS, DRIVE_TYPES, DELAY_SYNC, QUALITIES, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO,
   MOD_TARGET_INFO, MOD_SLOTS, WAVETABLE_IDS, describeWavetables, describeSynth, paramsToPatch, patchToParams, sectionToParams, modulationRoutes,
   routesToParams, checkRoute, summarizePatch, ggsDefaults, releaseTail, FILTER_INFO, filterResponse, migrateParams,
-  MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, CHAOS_INFO, CHAOS_PATHS, chaosPreview, macroLabel, macroUsed
+  MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, CHAOS_INFO, CHAOS_PATHS, chaosPreview, macroLabel, macroUsed, LFO_STEPS
 } from '@greanteadawy/synth-dsp';
 import { z, ok, projectIdArg, annotations as A, uniqueName, normVelocity } from '../util.js';
 import { curveArg, buildExpression } from './expression.js';
@@ -224,9 +224,18 @@ export function registerSynthTools({ tool, backend, load }) {
     const reply = await applyParams(p, ch, { ...sectionToParams('filter', filter, given), ...(routing ? { filterRoute: routing } : {}) }, `Set filter ${filter}`);
     // what the setting does, measured on the filter itself (small signal, at its base cutoff: no modulation, no key tracking)
     const now = { ...ch.instrument.params, ...sectionToParams('filter', filter, given) };
+    if (!now[`f${filter}On`]) return reply; // an off filter does nothing: no curve to report
+    const type = now[`f${filter}Type`];
     const freqs = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
-    const db = filterResponse({ type: now[`f${filter}Type`], cutoff: now[`f${filter}Cutoff`], resonance: now[`f${filter}Res`], drive: now[`f${filter}Drive`], morph: now[`f${filter}Morph`] }, freqs);
-    reply.content[0].text += `\nMeasured response of filter ${filter} (${now[`f${filter}Type`]}): ${freqs.map((f, i) => `${f >= 1000 ? `${f / 1000}k` : f} Hz ${db[i] > 0 ? '+' : ''}${Math.max(-99, Math.round(db[i] * 10) / 10)} dB`).join(' · ')}`;
+    const info = {};
+    const db = filterResponse({ type, cutoff: now[`f${filter}Cutoff`], resonance: now[`f${filter}Res`], drive: now[`f${filter}Drive`], morph: now[`f${filter}Morph`] }, freqs, { maxSeconds: 1, info });
+    const hz = Math.round(now[`f${filter}Cutoff`]);
+    if (!info.decayed && ['ladder', 'acid', 'ms20'].includes(FILTER_INFO[type].family)) {
+      // a filter that oscillates by itself has no frequency response to speak of
+      reply.content[0].text += `\nFilter ${filter} (${type}) at resonance ${now[`f${filter}Res`]} self-oscillates (or rings for seconds): it sounds a tone of its own at about ${hz} Hz${now[`f${filter}Key`] >= 0.99 ? ', following the notes' : ' (key track 1 makes it follow the notes)'}. Lower the resonance for a filter that only shapes the sound.`;
+    } else {
+      reply.content[0].text += `\nMeasured response of filter ${filter} (${type}): ${freqs.map((f, i) => `${f >= 1000 ? `${f / 1000}k` : f} Hz ${db[i] > 0 ? '+' : ''}${Math.max(-99, Math.round(db[i] * 10) / 10)} dB`).join(' · ')}${info.decayed ? '' : ' (still ringing after a second: its peaks are taller and narrower than these numbers)'}`;
+    }
     return reply;
   });
 
@@ -258,7 +267,7 @@ export function registerSynthTools({ tool, backend, load }) {
 
   tool('set_synth_lfo', {
     title: 'Set a synth LFO',
-    description: 'Configure one of the four LFOs of a GGS Synth: shape (sine, triangle, saw, ramp, square, sh = random steps, smooth = random glide), rate in Hz or a tempo division (sync), trigger "note" (restarts with every note: per-note vibrato) or "free" (one clock shared by all notes, repeatable in renders: rhythmic wobbles, slow pad movement), fade-in time and start phase. An LFO does nothing until routed with set_synth_modulation.',
+    description: 'Configure one of the four LFOs of a GGS Synth: shape (sine, triangle, saw, ramp, square, sh = random steps, smooth = random glide, steps = a shape you write as a list of 2-16 heights: a step sequencer, or a drawn curve with smooth > 0), rate in Hz or a tempo division (sync), trigger "note" (restarts with every note: per-note vibrato) or "free" (one clock shared by all notes, repeatable in renders: rhythmic wobbles, slow pad movement), fade-in time and start phase. An LFO does nothing until routed with set_synth_modulation.',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
       lfo: z.number().int().min(1).max(4),
@@ -267,13 +276,17 @@ export function registerSynthTools({ tool, backend, load }) {
       sync: z.enum(LFO_SYNC).optional().describe('Tempo-synced length of one cycle, e.g. "1/8", "1/4d", "2bar"; "off" = use rate'),
       trigger: z.enum(LFO_TRIGGERS).optional(),
       fade: z.number().min(0).max(5).optional().describe('Seconds until it reaches full depth (delayed vibrato)'),
-      phase: unit.optional()
+      phase: unit.optional(),
+      steps: z.array(z.number().min(-1).max(1)).min(2).max(LFO_STEPS).optional().describe('The drawn shape: one cycle plays these heights in order, e.g. [1, 0, 0.5, 0, 1, -1, 0.5, 0] with sync "1bar" is an eighth-note pattern. Giving steps selects shape "steps" unless shape says otherwise'),
+      smooth: unit.optional().describe('For shape "steps": 0 = hard steps, 1 = each step glides into the next')
     },
     annotations: A.edit
   }, async ({ projectId, channel, lfo, ...fields }) => {
     const p = await load(projectId);
     const ch = ggsChannel(p, channel);
-    return applyParams(p, ch, sectionToParams('lfo', lfo, fields), `Set LFO ${lfo}`);
+    const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+    if (given.steps && !given.shape) given.shape = 'steps';
+    return applyParams(p, ch, sectionToParams('lfo', lfo, given), `Set LFO ${lfo}`);
   });
 
   tool('set_synth_chaos', {
@@ -413,6 +426,12 @@ export function registerSynthTools({ tool, backend, load }) {
       describeAnalysis(x)
     ].filter(Boolean);
     if (x.peakDb > -1) lines.push('The patch alone nearly clips: lower its gain (set_synth_effect gain) — presets sit near -18 LUFS per note.');
+    // silence has reasons a measurement cannot name by itself
+    if (!(x.peakDb > -90)) {
+      if (params.env1Delay >= duration) lines.push(`Silent because envelope 1 (the amp envelope) waits ${params.env1Delay} s before it starts and the note is only ${duration} s long: shorten its delay (set_synth_envelope envelope 1 delay) or hold the note longer (noteSeconds).`);
+      else if (params.level <= 0 && !modulationRoutes(params).some((r) => r.target === 'level')) lines.push('Silent because the voice level is 0 and nothing is routed to "level".');
+      else if (params.gain <= 0) lines.push('Silent because the output gain is 0 (set_synth_effect gain).');
+    }
     return ok(lines.join('\n'), { lufs: x.lufs, momentaryMaxLufs: x.momentaryMaxLufs, peakDb: x.peakDb, pitch: x.pitch, spectrum: x.spectrum, envelope: r.envelope, stereoWidth: x.stereo?.width ?? null });
   });
 }

@@ -19,6 +19,7 @@ import { PresetBrowser } from './synth/PresetBrowser.jsx';
 import { WavetablePicker } from './synth/WavetablePicker.jsx';
 import { ParamTable } from './synth/ParamTable.jsx';
 import { SourceBar, SourceMeter } from './synth/SourceBar.jsx';
+import { StepEditor } from './synth/StepEditor.jsx';
 import { SOURCE_GROUPS, sourceFamily, sourceColor, ringsOf, liveTarget, liveSource } from './synth/modulation.js';
 
 const TABS = [['osc', 'Oscillators'], ['filter', 'Filters'], ['mod', 'Modulators'], ['matrix', 'Matrix'], ['fx', 'Effects'], ['all', 'All parameters']];
@@ -296,7 +297,7 @@ export function SynthEditor({ channel }) {
           onAltDrag={target && rings.length ? (delta) => changeDepth(key, delta) : undefined}
           onDropSource={target ? (src) => MOD_SOURCES.includes(src) && src !== 'none' && modulate(src, key) : undefined}
           onContextMenu={target ? knobMenu(key, d) : undefined}
-          onChange={(v) => set(key, d.step ? Math.round(v) : Math.round(v * 10000) / 10000)} />
+          onChange={(v) => set(key, d.step ? Math.round(v) : Math.round(v * 1e6) / 1e6)} />
       );
     }
     if (d.type === 'select') {
@@ -388,15 +389,29 @@ export function SynthEditor({ channel }) {
 
   const lfoPanel = (i) => {
     const sync = val(`lfo${i}Sync`);
+    const drawn = val(`lfo${i}Shape`) === 'steps';
+    const steps = drawn ? Array.from({ length: val(`lfo${i}Steps`) }, (_, k) => val(`lfo${i}S${k + 1}`)) : null;
+    const redraw = (fn) => setMany(Object.fromEntries(steps.map((v, k) => [`lfo${i}S${k + 1}`, Math.round(fn(v, k) * 100) / 100])));
     return (
       <fieldset key={i} className={`param-group ggs-lfo ${used(`lfo${i}`) ? '' : 'idle'}`} title={used(`lfo${i}`) ? undefined : 'Not routed yet: add a route in the Matrix tab'}>
         <legend>LFO {i}<SourceMeter source={`lfo${i}`} live={live} className="in-legend" /></legend>
-        <LfoView shape={val(`lfo${i}Shape`)} phase={val(`lfo${i}Phase`)} />
+        {drawn
+          ? <StepEditor steps={steps} smooth={val(`lfo${i}Smooth`)} label={`LFO ${i}`} onDraw={(k, v) => setDrag({ [`lfo${i}S${k + 1}`]: v }, `lfo${i}:draw`)} />
+          : <LfoView shape={val(`lfo${i}Shape`)} phase={val(`lfo${i}Phase`)} />}
         <div className="param-row">
           {C(`lfo${i}Shape`)}
           {sync === 'off' ? C(`lfo${i}Rate`) : <div className="ggs-note" title="Tempo-synced">{syncBeats(sync)} beats</div>}
           {C(`lfo${i}Sync`)}{C(`lfo${i}Trig`)}{C(`lfo${i}Fade`)}{C(`lfo${i}Phase`)}
+          {drawn && C(`lfo${i}Steps`)}{drawn && C(`lfo${i}Smooth`)}
         </div>
+        {drawn && (
+          <div className="ggs-steps-tools">
+            <span>Draw the shape above.</span>
+            <button className="btn tiny" onClick={() => redraw(() => Math.random() * 2 - 1)} title="A new random pattern">Random</button>
+            <button className="btn tiny" onClick={() => redraw((v) => -v)} title="Turn the shape upside down">Invert</button>
+            <button className="btn tiny" onClick={() => redraw((v, k) => 1 - (2 * k) / Math.max(1, steps.length - 1))} title="A falling ramp across all steps">Ramp</button>
+          </div>
+        )}
       </fieldset>
     );
   };

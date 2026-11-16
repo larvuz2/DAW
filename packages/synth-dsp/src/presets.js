@@ -30,6 +30,12 @@ const lfo = (i, shape, rate, o = {}) => ({
   ...(o.fade ? { [`lfo${i}Fade`]: o.fade } : {}),
   ...(o.phase ? { [`lfo${i}Phase`]: o.phase } : {})
 });
+/** Chaos generator i: type, then a rate in Hz or a tempo division, then { character, steps, same (one path for every note) }. */
+const chaos = (i, type, rate, o = {}) => ({
+  [`chaos${i}Type`]: type,
+  ...(typeof rate === 'string' ? { [`chaos${i}Sync`]: rate } : { [`chaos${i}Rate`]: rate }),
+  ...(o.character !== undefined ? { [`chaos${i}Char`]: o.character } : {}), ...(o.steps ? { [`chaos${i}Steps`]: o.steps } : {}), ...(o.same ? { [`chaos${i}Path`]: 'same' } : {})
+});
 const osc = (x, o) => Object.fromEntries(Object.entries({ On: true, ...o }).map(([k, v]) => [`osc${x}${k}`, v]));
 
 const P = {};
@@ -41,7 +47,7 @@ function preset(name, category, description, macros, expression, params, test = 
 
 // ------------------------------------------------------------------------------------------------------- pads
 
-preset('Velvet Pad', 'pad', 'Warm analog-style pad: a soft detuned stack over a slow filter swell.',
+preset('Velvet Pad', 'pad', 'Warm analog-style pad: a soft detuned stack over a slow filter swell, every voice drifting a few cents on its own.',
   ['Brightness', 'Movement', 'Octave shimmer', 'Width'],
   'Pressure opens the filter; slide moves the oscillators from dark to bright.', {
     ...osc('A', { Table: 'tilt', Pos: 0.38, Level: 0.7, Unison: 5, Detune: 22, Spread: 0.9 }),
@@ -50,8 +56,9 @@ preset('Velvet Pad', 'pad', 'Warm analog-style pad: a soft detuned stack over a 
     f1Type: 'lp24', f1Cutoff: 850, f1Res: 0.12, f1Key: 0.3,
     ...env(1, 0.55, 2, 0.85, 1.8), ...env(2, 1.4, 3, 0.5, 2),
     ...lfo(1, 'sine', 0.13, { free: true }), ...lfo(2, 'triangle', 0.21, { free: true, phase: 0.3 }),
+    ...chaos(2, 'drift', 0.3, { character: 0.7 }),
     ...mods([
-      ['env2', 'f1Cutoff', 0.16], ['pressure', 'f1Cutoff', 0.24], ['timbre', 'oscAPos', 0.4], ['lfo1', 'oscAPos', 0.06],
+      ['env2', 'f1Cutoff', 0.16], ['pressure', 'f1Cutoff', 0.24], ['timbre', 'oscAPos', 0.4], ['lfo1', 'oscAPos', 0.06], ['chaos2', 'pitchFine', 0.05],
       ['macro1', 'f1Cutoff', 0.35], ['lfo2', 'f1Cutoff', 0.12, 'macro2'], ['macro3', 'oscBLevel', 0.5], ['macro4', 'oscADetune', 0.25],
       ['velocity', 'f1Cutoff', 0.08]
     ]),
@@ -72,7 +79,7 @@ preset('Glass Horizon', 'pad', 'Evolving spectral pad: glassy partials that neve
     chorusMix: 0.3, delayMix: 0.18, delaySync: '1/4d', delayFb: 0.4, reverbMix: 0.5, reverbSize: 0.85, reverbDamp: 0.3, gain: 0.36
   }, { chord: true });
 
-preset('Cinema Atmos', 'pad', 'Cinematic atmosphere: slow vowels, a moving comb and a breath of noise under a long hall.',
+preset('Cinema Atmos', 'pad', 'Cinematic atmosphere: slow vowels, a moving comb and a breath of noise under a long hall, stirred by a chaos generator that never repeats.',
   ['Vowel', 'Breath', 'Filter', 'Drift'],
   'Pressure brings in the breath and brightness; slide morphs the vowel.', {
     ...osc('A', { Table: 'formant', Pos: 0.15, Level: 0.7, Unison: 4, Detune: 15, Spread: 0.9 }),
@@ -81,8 +88,9 @@ preset('Cinema Atmos', 'pad', 'Cinematic atmosphere: slow vowels, a moving comb 
     f1Type: 'lp24', f1Cutoff: 1300, f1Res: 0.15, f1Key: 0.25,
     f2On: true, f2Type: 'bp12', f2Cutoff: 2600, f2Res: 0.25, filterRoute: 'parallel',
     ...env(1, 1.8, 3, 0.9, 4), ...env(2, 3, 4, 0.6, 4), ...lfo(1, 'sine', 0.05, { free: true }), ...lfo(2, 'smooth', 0.09, { free: true }),
+    ...chaos(1, 'lorenz', 0.07, { character: 0.35, same: true }),
     ...mods([
-      ['lfo1', 'oscAPos', 0.3], ['lfo2', 'oscBPos', 0.4], ['env2', 'f1Cutoff', 0.15], ['pressure', 'noiseLevel', 0.3], ['pressure', 'f1Cutoff', 0.18],
+      ['lfo1', 'oscAPos', 0.3], ['lfo2', 'oscBPos', 0.4], ['chaos1', 'f2Cutoff', 0.07], ['chaos1', 'oscBPan', 0.4], ['env2', 'f1Cutoff', 0.15], ['pressure', 'noiseLevel', 0.3], ['pressure', 'f1Cutoff', 0.18],
       ['timbre', 'oscAPos', 0.6], ['macro1', 'oscAPos', 0.7], ['macro2', 'noiseLevel', 0.4], ['macro3', 'f1Cutoff', 0.35], ['macro4', 'oscADetune', 0.3]
     ]),
     chorusMix: 0.25, reverbMix: 0.6, reverbSize: 0.95, reverbDamp: 0.35, gain: 0.61
@@ -162,11 +170,13 @@ preset('Mono Titan', 'lead', 'Cinematic mono lead: thick, driven through a ladde
     f1Type: 'ladder24', f1Cutoff: 1100, f1Res: 0.4, f1Drive: 0.3, f1Key: 0.5,
     mono: true, legato: true, glide: 0.09,
     ...env(1, 0.006, 0.5, 0.85, 0.22), ...env(2, 0.004, 0.5, 0.3, 0.3), ...lfo(1, 'sine', 5.2, { fade: 0.45 }),
+    ...chaos(2, 'drift', 0.35, { character: 0.6 }),
     ...mods([
+      ['chaos2', 'pitchFine', 0.04], ['chaos2', 'oscADetune', 0.04],
       ['env2', 'f1Cutoff', 0.32], ['pressure', 'f1Cutoff', 0.28], ['timbre', 'f1Drive', 0.6], ['lfo1', 'pitchFine', 0.14], ['velocity', 'f1Cutoff', 0.12],
       ['macro1', 'f1Cutoff', 0.4], ['macro2', 'f1Drive', 0.6], ['lfo1', 'pitchFine', 0.3, 'macro3'], ['macro4', 'subLevel', 0.5]
     ]),
-    driveAmt: 0.22, driveType: 'tube', delayMix: 0.18, delaySync: '1/4', delayFb: 0.3, reverbMix: 0.22, reverbSize: 0.6, gain: 0.56
+    driveAmt: 0.22, driveType: 'tube', delayMix: 0.18, delaySync: '1/4', delayFb: 0.3, reverbMix: 0.22, reverbSize: 0.6, gain: 0.55
   });
 
 preset('Sync Razor', 'lead', 'Tearing hard-sync lead: the classic sweep, here on the slide dimension.',
@@ -227,8 +237,9 @@ preset('Analog Bass', 'bass', 'Textured analog bass: saw and pulse into a driven
     f1Type: 'ladder24', f1Cutoff: 300, f1Res: 0.45, f1Drive: 0.35, f1Key: 0.4,
     mono: true, glide: 0.02,
     ...env(1, 0.003, 0.5, 0.75, 0.1), ...env(2, 0.001, 0.22, 0.12, 0.15),
+    ...chaos(2, 'drift', 0.4, { character: 0.6 }),
     ...mods([
-      ['env2', 'f1Cutoff', 0.4], ['velocity', 'f1Cutoff', 0.14], ['pressure', 'f1Cutoff', 0.25], ['timbre', 'f1Res', 0.4],
+      ['env2', 'f1Cutoff', 0.4], ['velocity', 'f1Cutoff', 0.14], ['pressure', 'f1Cutoff', 0.25], ['timbre', 'f1Res', 0.4], ['chaos2', 'pitchFine', 0.03], ['chaos2', 'f1Cutoff', 0.015],
       ['macro1', 'f1Cutoff', 0.4], ['env2', 'f1Cutoff', 0.3, 'macro2'], ['macro3', 'f1Res', 0.5], ['macro4', 'f1Drive', 0.6]
     ]),
     gain: 0.92
@@ -320,10 +331,10 @@ preset('Pluck Garden', 'keys', 'Plucked string from a modelled resonator: a burs
     f2On: true, f2Type: 'lp12', f2Cutoff: 5200, f2Res: 0, f2Key: 0.4,
     ...env(1, 0.001, 3, 0, 0.5), ...env(2, 0.001, 0.045, 0, 0.04),
     ...mods([
-      ['env2', 'noiseLevel', 1], ['env2', 'noiseLevel', 0.9], ['env2', 'oscALevel', 1], ['velocity', 'f2Cutoff', 0.16], ['pressure', 'f1Res', 0.08], ['timbre', 'f2Cutoff', 0.2],
+      ['env2', 'noiseLevel', 1], ['env2', 'noiseLevel', 0.9], ['env2', 'oscALevel', 1], ['env2', 'oscALevel', 1], ['velocity', 'f2Cutoff', 0.16], ['pressure', 'f1Res', 0.08], ['timbre', 'f2Cutoff', 0.2],
       ['macro1', 'oscAPos', 0.4], ['macro2', 'f1Res', 0.09], ['macro3', 'subLevel', 0.4, 'env1'], ['macro4', 'f2Cutoff', 0.25]
     ]),
-    delayMix: 0.15, delaySync: '1/8d', delayFb: 0.3, reverbMix: 0.25, reverbSize: 0.6, gain: 2
+    delayMix: 0.15, delaySync: '1/8d', delayFb: 0.3, reverbMix: 0.25, reverbSize: 0.6, gain: 1.11
   });
 
 preset('Dream EP', 'keys', 'Evolving harmonic keys: a soft tone whose overtones bloom after each note.',
@@ -439,12 +450,13 @@ preset('Spectral Motion', 'experimental', 'Two digital spectra modulating each o
     f1Type: 'bp12', f1Cutoff: 1400, f1Res: 0.3, f1Key: 0.3,
     f2On: true, f2Type: 'lp12', f2Cutoff: 7000, filterRoute: 'parallel', oscBDest: 'f2',
     ...env(1, 0.8, 2, 0.9, 3),
-    ...lfo(1, 'smooth', 0.23, { free: true }), ...lfo(2, 'smooth', 0.37, { free: true }), ...lfo(3, 'sine', 0.08, { free: true }),
+    ...lfo(1, 'smooth', 0.23, { free: true }), ...lfo(2, 'smooth', 0.37, { free: true }),
+    ...chaos(1, 'rossler', 0.11, { character: 0.7, same: true }),
     ...mods([
-      ['lfo1', 'oscAPos', 0.45], ['lfo2', 'oscBPos', 0.5], ['lfo3', 'f1Cutoff', 0.2], ['pressure', 'oscAFm', 0.3], ['timbre', 'f1Cutoff', 0.3],
+      ['lfo1', 'oscAPos', 0.45], ['lfo2', 'oscBPos', 0.5], ['chaos1', 'f1Cutoff', 0.18], ['pressure', 'oscAFm', 0.3], ['timbre', 'f1Cutoff', 0.3],
       ['macro1', 'oscAFm', 0.3], ['macro2', 'f1Res', 0.5], ['macro3', 'lfo1Rate', 0.7], ['macro3', 'lfo2Rate', 0.7], ['macro4', 'oscAFm', 0.25, 'lfo2']
     ]),
-    delayMix: 0.22, delaySync: '1/4d', delayFb: 0.5, reverbMix: 0.55, reverbSize: 0.9, gain: 0.61
+    delayMix: 0.22, delaySync: '1/4d', delayFb: 0.5, reverbMix: 0.55, reverbSize: 0.9, gain: 0.59
   }, { chord: true });
 
 preset('Metal Resonator', 'experimental', 'Struck metal ringing through a tuned comb: gongs, pipes and bowed steel.',
