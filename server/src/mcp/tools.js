@@ -23,6 +23,7 @@ import { registerSpatialTools } from './tools/spatial.js';
 import { registerPluginTools } from './tools/plugins.js';
 import { registerExpressionTools } from './tools/expression.js';
 import { registerSynthTools } from './tools/synth.js';
+import { registerHarmonyTools } from './tools/harmony.js';
 import { registerPrompts } from './prompts.js';
 
 export { GUIDE };
@@ -169,6 +170,7 @@ export function createMcpServer(realBackend) {
   registerPluginTools(ctx);
   registerExpressionTools(ctx);
   registerSynthTools(ctx);
+  registerHarmonyTools(ctx);
   registerPrompts(ctx);
 
   const batchShape = {

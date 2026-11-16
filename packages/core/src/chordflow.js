@@ -466,9 +466,10 @@ export function progressionInKey(p, key = 'C') {
 /**
  * Search the library. query: words looked for in names, tags and descriptions ("sad piano", "andalusian");
  * tags: all of them must be on the progression; scale: its mode ("minor", "dorian"…) — or mood: 'major' / 'minor'
- * for every mode with that third; length: number of chords. Returned in `key`, best match first.
+ * for every mode with that third; length: number of chords; prefer: 'major' / 'minor' — equally good matches of that
+ * mood come first. Returned in `key`, best match first.
  */
-export function findProgressions({ query = '', tags = [], scale = null, mood = null, length = null, key = 'C', limit = 20 } = {}) {
+export function findProgressions({ query = '', tags = [], scale = null, mood = null, length = null, key = 'C', limit = 20, prefer = null } = {}) {
   const words = String(query || '').toLowerCase().split(/[\s,]+/).filter(Boolean);
   const wantTags = (tags || []).map((t) => String(t).toLowerCase());
   const known = progressionTags().map((t) => t.tag);
@@ -495,7 +496,8 @@ export function findProgressions({ query = '', tags = [], scale = null, mood = n
       score += hit;
     }
     if (words.length && !all) continue;
-    scored.push({ p, score });
+    const minor = SCALES[p.scale].includes(3) && !SCALES[p.scale].includes(4);
+    scored.push({ p, score: score + (prefer && (prefer === 'minor') === minor ? 0.5 : 0) });
   }
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, Math.max(1, limit)).map(({ p }) => progressionInKey(p, key));

@@ -37,7 +37,7 @@ test('the server registers the expression and synth tools, and describes the syn
   for (const n of ['set_note_expression', 'get_note_expression', 'transform_note_expression', 'copy_note_expression', 'evaluate_composition',
     'describe_synth', 'create_synth_patch', 'get_synth_patch', 'update_synth_patch', 'set_synth_oscillator', 'set_synth_filter',
     'set_synth_envelope', 'set_synth_lfo', 'set_synth_chaos', 'set_synth_modulation', 'set_synth_effect', 'analyze_synth_patch']) assert.ok(names.includes(n), n);
-  assert.equal(names.length, 97);
+  assert.equal(names.length, 102);
   for (const t of tools) assert.ok(t.description, `${t.name} is described`);
   assert.match(await call('describe_synth'), /oscillators A, B, C/);
   assert.match(await call('describe_synth', { topic: 'wavetables' }), /glass\s+Spectral Glass \(12 frames\)/);

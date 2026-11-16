@@ -2,9 +2,10 @@
 import {
   STEP, ticksPerBar, uid, parseNote, noteName, findChannel, findPattern, patternLength, parseStepString,
   chordProgressionNotes, bassFromChords, bassLineFromChords, VOICINGS, melodyFromString, melodyLength, quantizeNotes, humanizeNotes, legatoNotes, rollNotes,
-  toStepString, isStepLike, CHORD_TYPES, COLORS, maxPatternLength, MAX_PATTERN_BARS, stepsPerBeat, describeExpression, hasExpression,
-  parseNoteText, formatNoteText
+  toStepString, isStepLike, COLORS, maxPatternLength, MAX_PATTERN_BARS, stepsPerBeat, describeExpression, hasExpression,
+  parseNoteText, formatNoteText, CHORD_SYMBOLS, BASS_RULES, progressionByName, euclidString
 } from '@greanteadawy/core';
+import { voicedChords } from './harmony.js';
 import { curveArg, withExpression } from './expression.js';
 import {
   z, ok, projectIdArg, unitArg, annotations as A, normVelocity, growPatternOp, assertFitsPattern, resolveChords, steps, barsOf, uniqueName, assertNameFree,
@@ -17,6 +18,20 @@ const replaceArg = z.boolean().optional().describe("Default true: first clear th
 
 /** Notes of a channel outside [lo, hi) — kept when a range is rewritten. */
 const outside = (pt, channelId, lo, hi) => (pt.notes[channelId] || []).filter((n) => n.start < lo || n.start >= hi);
+
+/**
+ * "E(5,16)" → the Euclidean rhythm of 5 hits in 16 steps as a step string; "E(3,8,2)" turns it by 2 steps; a
+ * count after it repeats it ("E(3,8)x2" = two bars of tresillo in eighths… of sixteenths). Anything else is returned as it is.
+ */
+function euclidSteps(text) {
+  const m = /^\s*E\(\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*(-?\d+)\s*)?\)\s*(?:[x*]\s*(\d+))?\s*$/i.exec(String(text));
+  if (!m) return text;
+  const [pulses, count, rotation, times] = [Number(m[1]), Number(m[2]), Number(m[3] || 0), Number(m[4] || 1)];
+  if (!(count >= 1 && count <= 64)) throw new Error(`"${text.trim()}": a Euclidean rhythm is E(hits, steps) with 1–64 steps, e.g. E(5,16)`);
+  if (pulses > count) throw new Error(`"${text.trim()}": ${pulses} hits do not fit in ${count} steps — it is E(hits, steps), e.g. E(5,16)`);
+  if (!(times >= 1 && times * count <= 1024)) throw new Error(`"${text.trim()}": too many repeats`);
+  return euclidString(count, pulses, rotation, { accentFirst: true }).repeat(times);
+}
 
 export function registerNoteTools({ tool, backend, load }) {
   // ---------------------------------------------------------------- patterns
@@ -146,7 +161,7 @@ export function registerNoteTools({ tool, backend, load }) {
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string().describe('Pattern id or name'),
-      tracks: z.record(z.string(), z.string().max(8192)).describe('Map of channel name/id -> step string, e.g. {"Kick":"x---x---x---x---","Snare":"----x-------x---"}'),
+      tracks: z.record(z.string(), z.string().max(8192)).describe('Map of channel name/id -> step string, e.g. {"Kick":"x---x---x---x---","Snare":"----x-------x---"} — or a Euclidean rhythm: "E(5,16)" = 5 hits spread evenly over 16 steps, "E(3,8,2)" turned by 2 steps, "E(3,8)x4" repeated'),
       mode: z.enum(['replace', 'merge']).optional(),
       note: z.union([z.string(), z.number()]).optional().describe("Note to trigger (default: each channel's step note). Use other notes to pitch drums.")
     },
@@ -163,7 +178,7 @@ export function registerNoteTools({ tool, backend, load }) {
       const ch = findChannel(p, ref);
       if (seen.has(ch.id)) throw new Error(`"${ref}" and "${seen.get(ch.id)}" are the same channel — give each channel once`);
       seen.set(ch.id, ref);
-      const { hits, steps: count } = parseStepString(str);
+      const { hits, steps: count } = parseStepString(euclidSteps(str));
       maxSteps = Math.max(maxSteps, count);
       const key = note !== undefined ? parseNote(note) : ch.rootKey;
       const notes = hits.map((h) => ({ id: uid('n'), key, start: h.step * STEP, length: STEP, velocity: h.velocity }));
@@ -255,16 +270,19 @@ export function registerNoteTools({ tool, backend, load }) {
 
   tool('add_chords', {
     title: 'Add chord progression',
-    description: `Write a chord progression into a channel. Chord symbols (Am, F, Cmaj7, G7, Dm9, Esus4, Bdim, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°); "-" = rest. Qualities: ${Object.keys(CHORD_TYPES).filter(Boolean).join(' ')}. Chords are voice-led smoothly around a register. Styles: block (sustained), rhythm (hit on each x of a step string), arp-up, arp-down, arp-updown, broken. Voicings: close (default), open (wider pads), drop2 (jazz/neo-soul keys), drop3, spread (cinematic: root low, tones opened up), shell (root-3rd-7th: lo-fi/jazz comping), rootless (no root + 9th: modern keys over a bassline).`,
+    description: `Write a chord progression into a channel. Chord symbols (Am, F, Cmaj7, G7, Dm9, Esus4, Bdim, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°); "-" = rest. Qualities: ${CHORD_SYMBOLS.filter(Boolean).join(' ')}. Chords are voice-led smoothly around a register. Styles: block (sustained), rhythm (hit on each x of a step string), arp-up, arp-down, arp-updown, broken. Voicings: close (default), open (wider pads), drop2 (jazz/neo-soul keys), drop3, spread (cinematic: root low, tones opened up), shell (root-3rd-7th: lo-fi/jazz comping), rootless (no root + 9th: modern keys over a bassline).`,
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
       channel: z.string(),
-      chords: z.array(z.string()).min(1).max(256),
+      chords: z.array(z.string()).min(1).max(256).optional().describe('The chords: symbols or roman numerals; "-" = a rest'),
+      progression: z.string().max(80).optional().describe('Instead of chords: a progression of the library by name, e.g. "Axis", "Andalusian cadence", "ii-V-I" (played in the project key; find them with harmony action "progressions")'),
       stepsPerChord: z.number().min(1).max(1024).optional().describe('Default 16 (one bar per chord)'),
       octave: z.number().int().min(0).max(8).optional().describe('Octave of the first chord root (default 4)'),
       style: z.enum(['block', 'rhythm', 'arp-up', 'arp-down', 'arp-updown', 'broken']).optional(),
       voicing: z.enum(VOICINGS).optional().describe('How the chord tones are spread (default close)'),
+      voices: z.number().int().min(3).max(6).optional().describe('Voice-lead the whole progression with this many voices: every voice moves as little as possible from chord to chord, without parallel fifths and octaves (4 = four-part writing). Replaces voicing/inversion/register; voicing "open" or "spread" lets the upper voices span two octaves'),
+      bass: z.enum(BASS_RULES).optional().describe('With voices: "root" = the lowest voice plays the root or the slash bass (default), "smooth" = it may take any chord tone if that moves less (inversions)'),
       inversion: z.number().int().min(0).max(4).optional().describe('Inversion of the first chord (the rest are voice-led from it); default 0'),
       register: z.union([z.string(), z.number()]).optional().describe('Center pitch the voicings stay around, e.g. "E4" for mid keys, "C5" for airy pads (default: the first chord at octave)'),
       rhythm: z.string().max(4096).optional().describe('For style=rhythm: step string restarted every chord, e.g. "x--x--x-"'),
@@ -280,17 +298,21 @@ export function registerNoteTools({ tool, backend, load }) {
     const pt = findPattern(p, a.pattern);
     const ch = findChannel(p, a.channel);
     const spc = a.stepsPerChord ?? 16;
-    const chords = resolveChords(a.chords, p);
+    if (!!a.chords === !!a.progression) throw new Error('Give either chords (symbols or roman numerals) or progression (a name from the library) — one of the two');
+    const named = a.progression ? progressionByName(a.progression, p.key) : null;
+    const chords = named ? named.chords : resolveChords(a.chords, p);
     const lo = Math.round((a.start || 0) * STEP);
     const hi = lo + Math.round(chords.length * spc * STEP);
     assertFitsPattern(p, pt, hi);
     // a rhythm or arp rate implies its style when no style is given
     const style = a.style || (a.rhythm ? 'rhythm' : a.arpRate ? 'arp-up' : 'block');
-    const ignored = [a.rhythm && style !== 'rhythm' && 'rhythm', a.arpRate && !style.startsWith('arp') && 'arpRate'].filter(Boolean);
+    const ignored = [a.rhythm && style !== 'rhythm' && 'rhythm', a.arpRate && !style.startsWith('arp') && 'arpRate', a.bass && !a.voices && 'bass (it needs voices)', a.voices && a.inversion && 'inversion', a.voices && a.register !== undefined && 'register'].filter(Boolean);
+    // with `voices` the whole progression is voiced at once (least movement in every voice)
+    const solved = a.voices ? voicedChords(chords, { octave: a.octave ?? 4, voicing: a.voicing || 'close', voices: a.voices, bass: a.bass || 'root' }) : null;
     const notes = chordProgressionNotes(chords, {
       start: lo, chordLength: spc * STEP, octave: a.octave ?? 4, style,
       rhythm: a.rhythm, rate: (a.arpRate ?? 2) * STEP, velocity: normVelocity(a.velocity, 0.75), gate: a.gate ?? (style === 'block' ? 1 : 0.9),
-      voicing: a.voicing || 'close', inversion: a.inversion || 0, center: a.register !== undefined ? parseNote(a.register) : null
+      voicing: a.voicing || 'close', inversion: a.inversion || 0, center: a.register !== undefined ? parseNote(a.register) : null, voicings: solved
     });
     const ops = [a.replace === false
       ? { type: 'notes/add', patternId: pt.id, channelId: ch.id, notes }
@@ -298,7 +320,7 @@ export function registerNoteTools({ tool, backend, load }) {
     const grow = growPatternOp(p, pt, hi);
     if (grow) ops.unshift(grow);
     await backend.applyOps(p.id, ops);
-    return ok(`Wrote ${chords.join(' – ')} (${notes.length} notes, ${style}${a.voicing && a.voicing !== 'close' ? `, ${a.voicing} voicing` : ''}) to "${ch.name}" in "${pt.name}".${ignored.length ? ` Note: ${ignored.join(' and ')} ignored with style "${style}".` : ''}`);
+    return ok(`Wrote ${named ? `"${named.name}" = ` : ''}${chords.join(' – ')} (${notes.length} notes, ${style}${a.voices ? `, ${a.voices} voices led smoothly` : ''}${a.voicing && a.voicing !== 'close' ? `, ${a.voicing} voicing` : ''}) to "${ch.name}" in "${pt.name}".${ignored.length ? ` Note: ${ignored.join(' and ')} ignored with style "${style}".` : ''}`);
   });
 
   tool('add_bassline', {

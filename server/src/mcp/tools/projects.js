@@ -1,6 +1,6 @@
 // Studio status, projects, versions and undo.
-import { TEMPLATES, SCALES, summarizeProject, normalizeKey, diffProjects, didYouMean } from '@greanteadawy/core';
-import { z, ok, projectIdArg, annotations as A } from '../util.js';
+import { TEMPLATES, summarizeProject, normalizeKey, diffProjects, didYouMean, requireScale, SCALE_INFO } from '@greanteadawy/core';
+import { z, ok, projectIdArg, scaleArg, annotations as A } from '../util.js';
 
 export function registerProjectTools({ tool, backend, load, resolveProjectId }) {
   tool('get_studio_status', {
@@ -35,12 +35,13 @@ export function registerProjectTools({ tool, backend, load, resolveProjectId }) 
       bpm: z.number().min(20).max(400).optional(),
       template: z.enum(Object.keys(TEMPLATES)).optional().describe('Starter template (default "empty")'),
       key: z.string().optional().describe('Key root, e.g. "C", "F#" (used for roman-numeral chords and the piano roll scale highlight)'),
-      scale: z.enum(Object.keys(SCALES)).optional(),
+      scale: scaleArg.optional(),
       timeSignature: z.string().regex(/^\d+\/\d+$/).optional().describe('e.g. "4/4", "3/4", "6/8"')
     },
     annotations: A.edit
-  }, async ({ name, bpm, template = 'empty', key, scale, timeSignature }) => {
+  }, async ({ name, bpm, template = 'empty', key, scale: scaleName, timeSignature }) => {
     // validate everything before creating anything (a failed call must not leave a half-made project behind)
+    const scale = scaleName === undefined ? undefined : requireScale(scaleName);
     const k = key !== undefined ? normalizeKey(key) : null;
     if (key !== undefined && !k) throw new Error(`Invalid key "${key}": give the root only (C, F#, Bb) and the mode via scale (e.g. key "A", scale "minor")`);
     let timeSig = null;
@@ -55,7 +56,7 @@ export function registerProjectTools({ tool, backend, load, resolveProjectId }) 
     let p = await backend.createProject({ name, bpm, template, ...(k && templated ? { key: k } : {}) });
     const warnings = [];
     if (templated && scale && scale !== p.scale) {
-      warnings.push(`Note: the "${template}" template is written in ${p.scale}${k ? `; its chords/melody were moved to ${k}` : ''} but keep their ${p.scale} colour — rewrite them for ${scale}.`);
+      warnings.push(`Note: the "${template}" template is written in ${p.scale}${k ? `; its chords/melody were moved to ${k}` : ''} but keep their ${p.scale} colour — rewrite them for ${SCALE_INFO[scale].label}.`);
     }
     const patch = {};
     if (k) patch.key = k;
@@ -128,7 +129,7 @@ export function registerProjectTools({ tool, backend, load, resolveProjectId }) 
       swing: z.number().min(0).max(100).optional().describe('Swing 0–100: delays every 2nd 16th. MPC/Ableton swing % ≈ 50 + swing/4 (MPC 54% = 16, 58% = 32, 62% = 48, 66% ≈ triplet shuffle = 64; 100 = 75%, dotted). Typical: house 15–25, boom bap 40–55, lo-fi 50–65.'),
       timeSignature: z.string().regex(/^\d+\/\d+$/).optional().describe('e.g. "4/4", "3/4", "6/8"'),
       key: z.string().optional(),
-      scale: z.enum(Object.keys(SCALES)).optional()
+      scale: scaleArg.optional()
     },
     annotations: A.edit
   }, async ({ projectId, name, bpm, swing, timeSignature, key, scale }) => {
@@ -139,7 +140,7 @@ export function registerProjectTools({ tool, backend, load, resolveProjectId }) 
     if (swing !== undefined) patch.swing = swing / 100;
     if (timeSignature) patch.timeSig = timeSignature.split('/').map(Number);
     if (key) patch.key = key;
-    if (scale) patch.scale = scale;
+    if (scale) patch.scale = requireScale(scale);
     if (!Object.keys(patch).length) throw new Error('Nothing to change');
     const p = await backend.applyOps(id, [{ type: 'project/update', patch }]);
     return ok(`Project "${p.name}": ${p.bpm} BPM, ${p.timeSig.join('/')}, swing ${Math.round(p.swing * 100)}%, key ${p.key} ${p.scale}.`);

@@ -1,10 +1,11 @@
 // Instruments, channels, sound preview and music theory helpers.
 import {
   INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, makeInstrument, describeInstruments, describeEffects, uid, noteName,
-  findChannel, parseNote, SCALES, scaleNotes, chordNotes, diatonicChords, romanToChord, isRomanNumeral, CHORD_TYPES, scaleSpelling, spelledNoteName,
+  findChannel, parseNote, SCALES, SCALE_INFO, scaleGroups, requireScale, scaleNotes, chordNotes, diatonicChords, romanToChord, isRomanNumeral, CHORD_INFO, CHORD_SYMBOLS, scaleSpelling, spelledNoteName,
+  detectChords, detectKey, euclidString, chordSpelling,
   sanitizeParams, MAX_NUDGE_MS, sanitizePluginValues
 } from '@greanteadawy/core';
-import { z, ok, projectIdArg, annotations as A, uniqueName, assertNameFree, normVelocity } from '../util.js';
+import { z, ok, projectIdArg, scaleArg, annotations as A, uniqueName, assertNameFree, normVelocity } from '../util.js';
 import { requirePlugin, pluginValues } from './plugins.js';
 
 export function registerSoundTools({ tool, backend, load }) {
@@ -266,21 +267,44 @@ export function registerSoundTools({ tool, backend, load }) {
 
   tool('music_theory', {
     title: 'Music theory helper',
-    description: 'Exact notes for scales and chords, diatonic chords of a key, or roman-numeral progressions converted to chord symbols (e.g. "i VI III VII" in A minor → Am F C G). Defaults to the project key/scale.',
+    description: `Look things up — nothing here changes the project:
+- "scale": the notes of a scale; "scales": all 57 scales by family with what each sounds like (any name works: "aeolian", "jazz minor", "phrygian dominant").
+- "chord": the notes of a chord; "chord_types": the 65 chord qualities and their spellings.
+- "diatonic_chords": the chords of a key; "progression": roman numerals → chord symbols (e.g. "i VI III VII" in A minor → Am F C G; also V7/V, IV/1 over a bass degree, N6, I64).
+- "identify": name the chord that notes make (and the key they suggest).
+- "euclid": a Euclidean rhythm as a step string — pulses spread evenly over steps (3 in 8 = tresillo, 5 in 16 = bossa nova) — for write_drums.
+Defaults to the project key/scale. For what a chord does in the key, what could come next, substitutions and the progression library use the harmony tool.`,
     inputSchema: {
       projectId: projectIdArg,
-      action: z.enum(['scale', 'chord', 'diatonic_chords', 'progression']),
+      action: z.enum(['scale', 'scales', 'chord', 'chord_types', 'diatonic_chords', 'progression', 'identify', 'euclid']),
       key: z.string().optional().describe('Root, e.g. "A", "F#" (default: project key)'),
-      scale: z.enum(Object.keys(SCALES)).optional().describe('Default: project scale'),
-      chord: z.string().optional().describe('For action=chord, e.g. "Cmaj9", "F#m7b5"'),
+      scale: scaleArg.optional().describe('Default: project scale. Any name of a scale works'),
+      chord: z.string().optional().describe('For action=chord, e.g. "Cmaj9", "F#m7b5", "G7b9", "C6/9"'),
       progression: z.string().optional().describe('For action=progression: roman numerals separated by spaces or dashes, e.g. "i-VI-III-VII" or "I V vi IV"'),
+      notes: z.array(z.union([z.string().max(8), z.number()])).min(1).max(24).optional().describe('For action=identify: the notes, e.g. ["E3","G3","C4"] or MIDI numbers'),
+      steps: z.number().int().min(1).max(64).optional().describe('For action=euclid: length of the rhythm in steps (16 = one bar of sixteenths)'),
+      pulses: z.number().int().min(0).max(64).optional().describe('For action=euclid: how many hits'),
+      rotation: z.number().int().min(-64).max(64).optional().describe('For action=euclid: start the rhythm this many steps later (default 0)'),
       octave: z.number().int().min(0).max(8).optional(),
       sevenths: z.boolean().optional().describe('For diatonic_chords: 7th chords instead of triads')
     },
     annotations: A.readOnly
   }, async (a) => {
+    if (a.action === 'scales') {
+      return ok(`${Object.keys(SCALES).length} scales. Use the name before the colon (or any alias) as scale:\n${scaleGroups().map((g) => `${g.family}:\n${g.scales.map((x) => `  ${x.id}${x.aliases.length ? ` (${x.aliases.slice(0, 3).join(', ')})` : ''}: ${x.description}`).join('\n')}`).join('\n')}`);
+    }
+    if (a.action === 'chord_types') {
+      const families = [...new Set(CHORD_INFO.map((c) => c.family))];
+      return ok(`${CHORD_INFO.length} chord types — write them after a root (C, F#, Bb) or a roman numeral. Symbol (other spellings): intervals in semitones\n${families.map((f) => `${f}: ${CHORD_INFO.filter((c) => c.family === f).map((c) => `${c.symbol || 'major (no symbol)'}${c.aliases.length ? ` (${c.aliases.slice(0, 3).join(' ')})` : ''} ${c.intervals.join('-')}`).join(', ')}`).join('\n')}`);
+    }
+    if (a.action === 'euclid') {
+      if (a.steps === undefined || a.pulses === undefined) throw new Error('euclid needs steps and pulses, e.g. steps: 16, pulses: 5');
+      if (a.pulses > a.steps) throw new Error(`pulses is ${a.pulses}: there cannot be more hits than steps (${a.steps})`);
+      const text = euclidString(a.steps, a.pulses, a.rotation || 0);
+      return ok(`E(${a.pulses},${a.steps}${a.rotation ? `,${a.rotation}` : ''}) = ${text}\nUse it in write_drums as that step string — or write "E(${a.pulses},${a.steps}${a.rotation ? `,${a.rotation}` : ''})" there directly.`);
+    }
     let key = a.key;
-    let scale = a.scale;
+    let scale = a.scale === undefined ? undefined : requireScale(a.scale);
     if (!key || !scale) {
       try {
         const p = await load(a.projectId);
@@ -297,25 +321,36 @@ export function registerSoundTools({ tool, backend, load }) {
     switch (a.action) {
       case 'scale': {
         const notes = scaleNotes(key, scale, octave, 1);
-        return ok(`${key} ${scale}: ${names(notes)} (MIDI ${notes.join(' ')})`);
+        return ok(`${key} ${SCALE_INFO[scale].label}: ${names(notes)} (MIDI ${notes.join(' ')})\n${SCALE_INFO[scale].description}`);
       }
       case 'chord': {
         if (!a.chord) throw new Error('chord is required');
-        const notes = chordNotes(a.chord, octave);
-        return ok(`${a.chord}: ${names(notes)} (MIDI ${notes.join(' ')})`);
+        const symbol = isRomanNumeral(a.chord) ? romanToChord(a.chord, key, scale) : a.chord;
+        const notes = chordNotes(symbol, octave);
+        // (a chord spells its own notes: the third of A7 is C#, whatever the key)
+        const own = chordSpelling(symbol, spell);
+        return ok(`${symbol}${symbol === a.chord ? '' : ` (${a.chord} in ${key} ${SCALE_INFO[scale].label})`}: ${notes.map((n) => spelledNoteName(n, own)).join(' ')} (MIDI ${notes.join(' ')})`);
       }
       case 'diatonic_chords': {
         const list = diatonicChords(key, scale, { sevenths: !!a.sevenths });
-        return ok(`Diatonic ${a.sevenths ? 'seventh chords' : 'triads'} of ${key} ${scale}:\n${list.map((c) => `${c.numeral.padEnd(5)} ${c.chord.padEnd(7)} ${c.notes.join(' ')}`).join('\n')}`);
+        return ok(`Diatonic ${a.sevenths ? 'seventh chords' : 'triads'} of ${key} ${SCALE_INFO[scale].label}:\n${list.map((c) => `${c.numeral.padEnd(5)} ${c.chord.padEnd(7)} ${c.notes.join(' ')}`).join('\n')}`);
       }
       case 'progression': {
         if (!a.progression) throw new Error('progression is required');
-        const tokens = a.progression.split(/[\s,–-]+/).filter(Boolean);
+        const tokens = a.progression.split(/[\s,–]+|-(?![1-7]\b)(?=[b#♭♯]?[IViNn])/).filter(Boolean);
         const chords = tokens.map((t) => {
-          if (!isRomanNumeral(t)) throw new Error(`"${t}" is not a roman numeral`);
+          if (!isRomanNumeral(t)) throw new Error(`"${t}" is not a roman numeral. Write a degree (I–VII, lower case = minor) and a chord quality: ii7, V7#9, bVII, vii°7 — "V7/V" applies a chord to another degree, "IV/1" puts it over a bass degree`);
           return romanToChord(t, key, scale);
         });
-        return ok(`${a.progression} in ${key} ${scale} = ${chords.join(' – ')}\nChord qualities you can use: ${Object.keys(CHORD_TYPES).filter(Boolean).join(' ')}`);
+        return ok(`${a.progression} in ${key} ${SCALE_INFO[scale].label} = ${chords.join(' – ')}\nChord qualities you can use: ${CHORD_SYMBOLS.filter(Boolean).join(' ')}`);
+      }
+      case 'identify': {
+        if (!a.notes?.length) throw new Error('identify needs notes, e.g. notes: ["E3","G3","C4"]');
+        const pitches = a.notes.map((n) => parseNote(n));
+        const found = detectChords(pitches, { spell });
+        const keys = detectKey(pitches.map((k) => ({ key: k, length: 1 })), { count: 3 });
+        if (!found.length) return ok(`${pitches.map((x) => spelledNoteName(x, spell)).join(' ')}: ${new Set(pitches.map((x) => x % 12)).size < 2 ? 'one note is not a chord' : 'no chord of the dictionary fits these notes'}.`);
+        return ok(`${pitches.map((x) => spelledNoteName(x, spell)).join(' ')} =\n${found.slice(0, 5).map((c, i) => `${i + 1}. ${c.name.padEnd(10)} ${c.score.toFixed(2)}${c.inversion ? `  inversion ${c.inversion}` : ''}${c.missing.length ? `  without ${c.missing.join(', ')}` : ''}${c.extra.length ? `  plus ${c.extra.join(', ')}` : ''}`).join('\n')}${pitches.length >= 4 && keys.length ? `\nKeys these notes fit: ${keys.map((k) => `${k.key} ${k.scale}`).join(', ')}` : ''}`);
       }
       default:
         throw new Error('Unknown action');

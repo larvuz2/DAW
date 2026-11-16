@@ -4,6 +4,8 @@ import { STEP, ticksPerBar, isRomanNumeral, romanToChord, maxPatternLength, MAX_
 
 export { z };
 
+/** A scale by its id or by any name people use for it; turn it into the id with requireScale (core). */
+export const scaleArg = z.string().min(2).max(40).describe('Scale or mode: major, minor, dorian, harmonicMinor … or any of its names ("aeolian", "jazz minor", "phrygian dominant"). music_theory action "scales" lists all 57');
 export const projectIdArg = z.string().optional().describe('Project id. Defaults to the active project (the one open in the browser).');
 export const unitArg = z.enum(['steps', 'beats', 'bars', 'ticks']).optional().describe('Unit for start/length given as numbers (default steps = 16th notes)');
 

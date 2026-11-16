@@ -8,6 +8,9 @@ import { readChord, mod12, isRest } from './harmony.js';
 export const VOICE_LEAD_STYLES = ['close', 'open'];
 export const BASS_RULES = ['root', 'smooth'];
 const MAX_CANDIDATES = 320;
+// What a parallel fifth or octave costs, in the currency of movement (10 a semitone): two voices would rather move
+// five semitones more between them than run in parallel.
+const PARALLEL = 50;
 
 /** The tones of a chord by how much it needs them: root, third (or sus), seventh, sixth, tensions, fifth. */
 function tonesByImportance(chord) {
@@ -90,7 +93,7 @@ function transitionCost(a, b, avoidParallels) {
     for (let j = i + 1; j < a.length; j++) {
       const before = (a[j] - a[i]) % 12;
       // two voices a fifth or an octave apart that move the same way and stay a fifth or an octave apart
-      if ((before === 7 || before === 0) && (b[j] - b[i]) % 12 === before && Math.sign(moved) === Math.sign(b[j] - a[j])) cost += 30;
+      if ((before === 7 || before === 0) && (b[j] - b[i]) % 12 === before && Math.sign(moved) === Math.sign(b[j] - a[j])) cost += PARALLEL;
     }
   }
   return cost;

@@ -348,6 +348,22 @@ export function spelledNoteName(midi, spell) {
 }
 
 /**
+ * A speller for the notes of one chord (pitch class → name), written by letter from its root: A7 = A C# E G,
+ * Db7 = Db F Ab Cb, C/E keeps its E. Notes that are not in the chord follow `fallback` (a key's speller).
+ */
+export function chordSpelling(symbol, fallback = null) {
+  const { root, intervals, bass } = parseChord(symbol);
+  const text = String(symbol).trim();
+  const rootName = chordRootName(text);
+  const byPc = new Map(intervals.map((i) => [(root + i) % 12, chordToneName(rootName, i)]));
+  if (bass !== null && !byPc.has(bass)) byPc.set(bass, chordRootName(text.slice(text.lastIndexOf('/') + 1)));
+  return (pc) => {
+    const p = ((Math.round(pc) % 12) + 12) % 12;
+    return byPc.get(p) ?? (fallback ? fallback(p) : FLAT_SPELLING[p]);
+  };
+}
+
+/**
  * Convert a roman numeral to a chord symbol in a key: "i", "VI", "bVII", "ii°", "V7", "IVmaj7", "V7/V", "IV/1", "N6",
  * "I64". Upper case = major, lower case = minor; the suffix is any chord quality the studio knows. The root comes
  * from the scale degree of `scale` (accidentals b/# shift it).

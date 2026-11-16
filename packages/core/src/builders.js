@@ -89,10 +89,12 @@ export function notesFromSteps(str, { key = 60, length = STEP, offset = 0, veloc
  *   rhythm      hit the chord on each "x" of `rhythm` (a step string, restarted every chord)
  *   arp-up / arp-down / arp-updown   arpeggiate at `rate` ticks per note
  *   broken      bass note first, then the upper notes together on the next beat
+ * voicings: the pitches of each chord, when they were worked out elsewhere (voiceLead): voicing, inversion and center
+ * are then not used.
  */
 export function chordProgressionNotes(chords, {
   start = 0, chordLength = PPQ * 4, octave = 4, style = 'block', rhythm = 'x-------x-------', rate = STEP * 2,
-  velocity = 0.75, voiceLead = true, inversion = 0, gate = 0.9, center = null, voicing = 'close'
+  velocity = 0.75, voiceLead = true, inversion = 0, gate = 0.9, center = null, voicing = 'close', voicings = null
 } = {}) {
   if (!VOICINGS.includes(voicing)) throw new Error(`Unknown voicing "${voicing}".${didYouMean(voicing, VOICINGS)} Use: ${VOICINGS.join(', ')}`);
   const out = [];
@@ -101,10 +103,12 @@ export function chordProgressionNotes(chords, {
     const t0 = start + ci * chordLength;
     if (isRest(symbol)) return;
     // voice-lead the chord itself; a slash bass (C/E) always goes below it
-    const { bass, root } = parseChord(symbol);
+    const { bass, root } = voicings ? { bass: null, root: 0 } : parseChord(symbol);
     const plain = String(symbol).replace(/\/[^/]+$/, '');
     let upper;
-    if (ROOT_POSITION_VOICINGS.has(voicing)) {
+    // (voicings solved for the whole progression at once — see voiceLead — are taken as they are)
+    if (voicings) upper = voicings[ci] || [];
+    else if (ROOT_POSITION_VOICINGS.has(voicing)) {
       // these re-arrange around the root, so build them from root position and only move whole octaves
       upper = applyVoicing(chordNotes(plain, octave, 0), voicing, root);
       if (target === null) target = upper.reduce((a, b) => a + b, 0) / upper.length;

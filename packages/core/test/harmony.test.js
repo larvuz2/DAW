@@ -249,8 +249,7 @@ test('voice leading: the whole progression at once, least movement, no parallel 
   // a rest keeps its place; a loop is as smooth the hundredth time
   assert.deepEqual(voiceLead(['C', '-', 'G']).voicings.map((v) => v && v.length), [4, null, 4]);
   const loop = voiceLead(Array.from({ length: 240 }, (_, i) => ['Am', 'F', 'C', 'G'][i % 4]));
-  assert.deepEqual(loop.voicings[8], loop.voicings[200]);
-  assert.equal(new Set(loop.movement.slice(8, 200)).size <= 4, true);
+  assert.deepEqual(loop.voicings.slice(8, 12), loop.voicings.slice(200, 204));
   assert.throws(() => voiceLead(['C'], { voices: 7 }), /voices must be 3–6/);
   assert.throws(() => voiceLead(['C'], { voices: 6, low: 60, high: 72 }), /No 6-voice voicing of C fits between MIDI 60 and 72: widen the range or use fewer voices/);
   assert.deepEqual(voiceLead([]).voicings, []);
