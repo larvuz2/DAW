@@ -295,7 +295,9 @@ reply lists every project that changed.
   `2bar`, `1.5b` or `3s`. About a third of the size of the same notes as JSON, and it reads back unchanged.
 - **`diff_versions`** — what changed between a saved version and now (or between two versions), in words: tempo and
   key, each channel's sound (parameter old → new), notes added / removed / changed as note text, clips, markers,
-  automation, mixer and effects. The studio shows the same under *Versions → Changes*.
+  automation, mixer and effects. The studio shows the same under *Versions → Changes*:
+
+  ![Versions → Changes](screenshots/versions-changes.png)
 - **Errors that say the fix** — a wrong call changes nothing and answers with the argument, what was sent, what is
   valid and the nearest valid value or name:
 

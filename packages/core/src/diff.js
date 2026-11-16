@@ -92,12 +92,16 @@ function noteChangeText(was, now, project) {
  *   counts    { channels, patterns, notesAdded, notesRemoved, notesChanged, clips, automations, effects, mixer, project }
  *   summary   one sentence built from the counts
  * opts.maxNotes: how many notes are spelled out per channel and pattern (the others are counted).
+ * opts.ids: name new things with their ids in [brackets] (for an agent, which addresses them by id) — false for people.
  */
-export function diffProjects(a, b, { maxLines = 60, maxNotes = 10 } = {}) {
+export function diffProjects(a, b, { maxLines = 60, maxNotes = 10, ids = true } = {}) {
+  const tag = (id) => (ids ? ` [${id}]` : '');
   const lines = [];
   const counts = { project: 0, channels: 0, patterns: 0, notesAdded: 0, notesRemoved: 0, notesChanged: 0, clips: 0, markers: 0, automations: 0, mixer: 0, effects: 0 };
   const bar = ticksPerBar(b);
   const barsOf = (ticks) => Math.round((ticks / bar) * 100) / 100;
+  /** A length the way one says it: "2 bars", else a note value or steps. */
+  const span = (ticks, project = b) => { const whole = ticksPerBar(project); return ticks >= whole && ticks % whole === 0 ? plural(ticks / whole, 'bar') : formatDuration(ticks, project); };
 
   // ---- the project itself
   const head = [];
@@ -118,7 +122,7 @@ export function diffProjects(a, b, { maxLines = 60, maxNotes = 10 } = {}) {
     const was = oldChans.get(c.id);
     if (!was) {
       counts.channels++;
-      lines.push(`+ Channel "${c.name}" [${c.id}]: ${c.instrument.kind}${c.instrument.preset ? ` / ${c.instrument.preset}` : ''}, insert ${c.mixerTrack}`);
+      lines.push(`+ Channel "${c.name}"${tag(c.id)}: ${c.instrument.kind}${c.instrument.preset ? ` / ${c.instrument.preset}` : ''}, insert ${c.mixerTrack}`);
       continue;
     }
     const what = fieldChanges(was, c, {
@@ -158,7 +162,7 @@ export function diffProjects(a, b, { maxLines = 60, maxNotes = 10 } = {}) {
       const total = Object.values(pt.notes || {}).reduce((n, list) => n + list.length, 0);
       counts.notesAdded += total;
       const parts = Object.entries(pt.notes || {}).filter(([, list]) => list.length).map(([cid, list]) => `${chanName(cid)} ${list.length}`);
-      lines.push(`+ Pattern "${pt.name}" [${pt.id}]: ${barsOf(pt.length)} bars${total ? `, ${plural(total, 'note')} (${parts.join(', ')})` : ', empty'}`);
+      lines.push(`+ Pattern "${pt.name}"${tag(pt.id)}: ${barsOf(pt.length)} bars${total ? `, ${plural(total, 'note')} (${parts.join(', ')})` : ', empty'}`);
       continue;
     }
     const what = fieldChanges(was, pt, { name: ['name'], length: ['length', (t) => `${barsOf(t)} bars`] });
@@ -191,7 +195,7 @@ export function diffProjects(a, b, { maxLines = 60, maxNotes = 10 } = {}) {
   // ---- playlist: clips, markers, tracks
   const refName = (project, clip) => (clip.kind === 'pattern' ? project.patterns.find((x) => x.id === clip.refId)?.name
     : clip.kind === 'automation' ? project.automations.find((x) => x.id === clip.refId)?.name : null) || clip.refId;
-  const clipText = (project, c) => `${c.kind === 'pattern' ? '' : `${c.kind} `}clip "${refName(project, c)}" at bar ${formatPositionText(c.start, project)}, ${formatDuration(c.length, project)}, track ${c.track + 1}`;
+  const clipText = (project, c) => `${c.kind === 'pattern' ? '' : `${c.kind} `}clip "${refName(project, c)}" at bar ${formatPositionText(c.start, project)}, ${span(c.length, project)}, track ${c.track + 1}`;
   const oldClips = byId(a.playlist.clips);
   const clipLines = [];
   for (const c of b.playlist.clips) {
@@ -199,7 +203,7 @@ export function diffProjects(a, b, { maxLines = 60, maxNotes = 10 } = {}) {
     if (!was) { clipLines.push(`+ ${clipText(b, c)}`); continue; }
     oldClips.delete(c.id);
     const what = fieldChanges(was, c, {
-      start: ['start', (t) => `bar ${formatPositionText(t, b)}`], length: ['length', (t) => formatDuration(t, b)], track: ['track', (t) => t + 1], offset: ['offset', (t) => formatDuration(t || 1, b)],
+      start: ['start', (t) => `bar ${formatPositionText(t, b)}`], length: ['length', (t) => span(t)], track: ['track', (t) => t + 1], offset: ['offset', (t) => (t ? span(t) : 'none')],
       mute: ['mute'], refId: ['content'], gain: ['gain'], fadeIn: ['fade in'], fadeOut: ['fade out'], rate: ['rate']
     });
     if (what.length) clipLines.push(`~ ${c.kind === 'pattern' ? '' : `${c.kind} `}clip "${refName(b, c)}" (bar ${formatPositionText(was.start, a)}): ${what.join(', ')}`);
@@ -239,9 +243,9 @@ export function diffProjects(a, b, { maxLines = 60, maxNotes = 10 } = {}) {
   for (const au of b.automations || []) {
     const was = oldAutos.get(au.id);
     oldAutos.delete(au.id);
-    if (!was) lines.push(`+ Automation "${au.name}" [${au.id}] of ${targetText(b, au.target)}: ${formatDuration(au.length, b)}, ${plural(au.points.length, 'point')}`);
+    if (!was) lines.push(`+ Automation "${au.name}"${tag(au.id)} of ${targetText(b, au.target)}: ${span(au.length)}, ${plural(au.points.length, 'point')}`);
     else {
-      const what = fieldChanges(was, au, { name: ['name'], length: ['length', (t) => formatDuration(t, b)] });
+      const what = fieldChanges(was, au, { name: ['name'], length: ['length', (t) => span(t)] });
       if (!same(was.target, au.target)) what.push(`target ${targetText(a, was.target)} → ${targetText(b, au.target)}`);
       if (!same(was.points, au.points)) what.push(`curve changed (${was.points.length} → ${plural(au.points.length, 'point')})`);
       if (!what.length) continue;
@@ -269,7 +273,7 @@ export function diffProjects(a, b, { maxLines = 60, maxNotes = 10 } = {}) {
     for (const e of m.effects) {
       const before = oldFx.get(e.id);
       oldFx.delete(e.id);
-      if (!before) { fx.push(`+ ${e.type} [${e.id}]`); continue; }
+      if (!before) { fx.push(`+ ${e.type}${tag(e.id)}`); continue; }
       const bits = [];
       if (before.enabled !== e.enabled) bits.push(e.enabled ? 'switched on' : 'bypassed');
       const params = paramChanges(before.params, e.params, EFFECTS[e.type]?.params);

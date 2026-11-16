@@ -192,9 +192,13 @@ test('project diff: every kind of change in words, and the same music is no chan
     { type: 'automation/add', automation: { id: 'au1', name: 'Rise', target: { type: 'master', param: 'volume' }, length: 384, points: [{ t: 0, v: 0 }, { t: 384, v: 1 }] } }
   ]));
   const dc = diffProjects(a, c);
-  assert.match(dc.lines.join('\n'), /^Playlist: 20 clips added, 0 removed, 0 changed\n {2}\+ clip "\w+" at bar 1, 1bar, track 1/m);
+  assert.match(dc.lines.join('\n'), /^Playlist: 20 clips added, 0 removed, 0 changed\n {2}\+ clip "\w+" at bar 1, 1 bar, track 1/m);
   assert.match(dc.lines.join('\n'), /… 12 more/);
-  assert.match(dc.lines.join('\n'), /^\+ Automation "Rise" \[au1\] of master volume: 1bar, 2 points$/m);
+  assert.match(dc.lines.join('\n'), /^\+ Automation "Rise" \[au1\] of master volume: 1 bar, 2 points$/m);
+  // for people: the same, without the ids
+  const plain = diffProjects(a, c, { ids: false }).lines.join('\n');
+  assert.match(plain, /^\+ Automation "Rise" of master volume: 1 bar, 2 points$/m);
+  assert.doesNotMatch(diffProjects(a, b, { ids: false }).lines.join('\n'), /\[(pat|fx|ch)_\w+\]/);
   assert.match(dc.lines.join('\n'), /^Song length \d+ → \d+ bars$/m);
   const moved = applyOps(c, [{ type: 'clip/update', id: 'clip3', patch: { start: 40 * 384, track: 2 } }]);
   assert.match(diffProjects(c, moved).lines.join('\n'), /^~ clip "\w+" \(bar 4\): start bar 4 → bar 41, track 1 → 3$/m);

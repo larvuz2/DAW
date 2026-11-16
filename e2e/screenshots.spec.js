@@ -336,3 +336,40 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await claude.close();
   await page.close();
 });
+
+// What changed since a saved version. Regenerate on its own:
+//   SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.js -g "Versions"
+test('Versions screenshot', async ({ browser, baseURL }) => {
+  fs.mkdirSync(OUT, { recursive: true });
+  const page = await browser.newPage();
+  await page.goto('/');
+  const status = await (await page.request.get('/api/auth/status')).json();
+  if (status.setupRequired) await page.request.post('/api/auth/setup', { data: ADMIN });
+  else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
+  await page.goto('/');
+  await expect(page.locator('.toolbar')).toBeVisible();
+  const claude = await connectMcp(baseURL);
+  await claude.call('create_project', { name: 'Night Drive', template: 'house', bpm: 122 });
+  await expect(page).toHaveTitle(/Night Drive/);
+  await claude.call('save_version', { name: 'Before the bridge' });
+  const names = await page.evaluate(() => { const p = window.greanteadawy.store.getState().project; return { channels: p.channels.map((c) => c.name), patterns: p.patterns.map((x) => x.name) }; });
+  // one round of work by Claude, as one change: a new part, a brighter sound, a mix move
+  await claude.call('batch', { calls: [
+    { tool: 'update_project', args: { bpm: 124 } },
+    { tool: 'add_channel', args: { name: 'Lead', instrument: 'ggs', preset: 'Touch Lead' } },
+    { tool: 'create_pattern', args: { name: 'Bridge', bars: 2 } },
+    { tool: 'add_notes', args: { pattern: 'Bridge', channel: 'Lead', text: '1.1 A3+C4+E4 1/2 v0.7; 1.3 G4 1/8t; > A4 1/8t; > C5 1/8t; 2 E5 1/2; 2.3 D5 1/4 v0.6' } },
+    { tool: 'place_pattern', args: { pattern: 'Bridge', startBar: 9 } },
+    { tool: 'update_channel', args: { channel: names.channels[0], volume: 0.7 } },
+    { tool: 'add_effect', args: { insert: 1, type: 'reverb', params: { mix: 0.2 } } },
+    { tool: 'set_mixer', args: { insert: 0, volumeDb: -1 } }
+  ] });
+  await layout(page, { versions: [10, 10, 700, 520] }, { browserOpen: false });
+  const item = page.locator('.version-item', { hasText: 'Before the bridge' });
+  await item.getByRole('button', { name: 'Changes' }).click();
+  await expect(item.locator('.version-changes pre')).toContainText('+ Pattern "Bridge"');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/versions-changes.png`, clip: { x: 0, y: 0, width: 720, height: 540 } });
+  await claude.close();
+  await page.close();
+});

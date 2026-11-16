@@ -96,7 +96,7 @@ test('dryRun: the call is checked, the answer and the changes are shown, nothing
     ['update_channel', { channel: 'Lead', volume: 0.5, params: { f1Cutoff: 900 } }, /~ Channel "Lead": volume 78 % → 50 %; sound: f1Cutoff \d+ → 900 Hz/],
     ['set_mixer', { insert: 0, volumeDb: -3 }, /~ Master: volume 0 dB → -3 dB/],
     ['add_effect', { insert: 1, type: 'reverb' }, /effects \+ reverb \[fx_/],
-    ['place_pattern', { pattern: 'Verse', startBar: 5 }, /\+ clip "Verse" at bar 5, 2bar, track 1/],
+    ['place_pattern', { pattern: 'Verse', startBar: 5 }, /\+ clip "Verse" at bar 5, 2 bars, track 1/],
     ['set_synth_filter', { channel: 'Lead', type: 'ladder24', cutoff: 700 }, /sound: [^\n]*f1Type "\w+" → "ladder24"/],
     ['remove_channel', { channel: 'Bass' }, /− Channel "Bass" \(bass808\)/],
     ['write_drums', { pattern: 'Verse', tracks: { Kick: 'x---x---x---x---' } }, /Kick: \+4 notes/],

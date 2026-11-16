@@ -10,7 +10,7 @@ import { Icon } from './ui/Icon.jsx';
  * diff_versions, so both look at one account of what happened since.
  */
 function Changes({ saved, project }) {
-  const d = useMemo(() => diffProjects(saved, project, { maxLines: 120 }), [saved, project]);
+  const d = useMemo(() => diffProjects(saved, project, { maxLines: 120, ids: false }), [saved, project]);
   return (
     <div className="version-changes" role="region" aria-label="Changes since this version">
       <b>{d.changed ? d.summary.replace(/^Changed: /, 'Since this version: ') : 'Nothing has changed since this version.'}</b>

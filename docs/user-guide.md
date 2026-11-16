@@ -297,6 +297,8 @@ sung with slides, or a short passing note right after a note with a wide vibrato
   each channel's sound (parameter old → new), notes added (+), removed (−) and changed (~) in a compact notation
   (`2.3 B4 1/4` = bar 2, beat 3, a B4, a quarter note), clips, markers, automation, mixer and effects. It follows
   your edits while it is open, and it is the same account Claude gets when it asks what changed (`diff_versions`).
+
+![Versions: what changed since a saved version](screenshots/versions-changes.png)
 - **Export** (menu): the song as a **16-bit** (dithered, for sharing) or **24-bit** (for mastering) WAV, the pattern loop
   as WAV, **stems** (one 24-bit WAV per channel with its insert effects and sends but no master processing — they sum
   back to the pre-master mix; saved under *Projects → Exports*), **MIDI**, or the project file (.json). Renders and
