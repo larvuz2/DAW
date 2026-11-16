@@ -17,7 +17,8 @@ Open http://localhost:5173. Dev data goes to `./data` (git-ignored); delete it t
 | `npm run dev` | server + client with hot reload |
 | `npm run build` | production build of the client (`client/dist`) |
 | `npm start` | production server |
-| `npm test` | unit & integration tests (core, server and client, `node:test`) |
+| `npm test` | unit & integration tests (core, synth-dsp, server and client, `node:test`) |
+| `npm run bench:synth` | CPU per voice of the GGS Synth engine (see [audio-benchmarks.md](audio-benchmarks.md)) |
 | `npm run lint` | ESLint over the whole repo |
 | `npm run test:e2e` | build + Playwright end-to-end tests against a throwaway server |
 | `npm run screenshots` | regenerate `docs/screenshots/*.png` |
@@ -31,6 +32,7 @@ Open http://localhost:5173. Dev data goes to `./data` (git-ignored); delete it t
 
 ```
 packages/core   shared model, ops, music theory, analysis (browser + Node, no platform APIs)
+packages/synth-dsp  the GGS Synth engine: voice, effects, wavetables, presets (plain JS, no dependencies; AudioWorklet + Node)
 server          Express + WebSocket hub + MCP (src/mcp) + auth (src/auth)
 client          React UI (components/), state (state/), audio engine (audio/), helpers (lib/)
 e2e             Playwright specs
@@ -61,6 +63,11 @@ spatial audio, the plugin system, writing a plugin, export formats, testing & QA
 | Suite | Location |
 |-------|----------|
 | core model/ops/theory/MIDI/templates | `packages/core/test/core.test.js` |
+| per-note expression, the MPE decoder, MPE MIDI files, `evaluateComposition` | `packages/core/test/expression.test.js` |
+| GGS Synth signal quality (tuning, aliasing, zipper noise, voice independence, repeatability) | `packages/synth-dsp/test/dsp.test.js` |
+| GGS presets (levels, expression response, macros) and patch documents | `packages/synth-dsp/test/presets.test.js` |
+| MCP synth and expression tools | `server/test/ggs.test.js` |
+| the worklet, live notes, offline expression, the lane, the editor, MPE input (browser) | `e2e/workflow-ggs.spec.js` |
 | audio analysis & streaming meter | `packages/core/test/analysis.test.js` |
 | spatial coordinates, speaker layouts, ADM | `packages/core/test/spatial.test.js` |
 | plugin manifests, permissions, generated-note cleaning | `packages/core/test/plugins.test.js` |
