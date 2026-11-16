@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { applyOps, prepareOps, uid, STEP, patternLength } from '@greanteadawy/core';
+import { applyOps, prepareOps, uid, STEP, patternLength, EXPRESSION_DIMS, EXPRESSION_RANGE, simplifyCurve } from '@greanteadawy/core';
 import { api, setUnauthorizedHandler } from './api.js';
 import { sync } from './sync.js';
 import { ensureEngine, getEngine, onEngineReady } from '../audio/index.js';
@@ -578,36 +578,60 @@ export const useStore = create((set, get) => ({
   // ---------------------------------------------------------------- live notes & recording
   heldNotes: new Map(),
 
-  liveNoteOn(key, velocity = 0.8, channelId = null) {
+  /** expr: { pitch, pressure, timbre } the note starts with (an MPE controller sends them before the note-on). */
+  liveNoteOn(key, velocity = 0.8, channelId = null, expr = null) {
     const s = get();
     const cid = channelId || s.selectedChannelId;
     if (!cid || !s.project) return;
     const id = `${cid}:${key}`;
     if (s.heldNotes.has(id)) return;
     // register synchronously so a quick key-up before audio is unlocked can't leave a stuck note
-    const h = { voice: null, recTick: null, key, velocity, channelId: cid, t0: 0, released: false };
+    const h = { voice: null, recTick: null, key, velocity, channelId: cid, t0: 0, released: false, now: { pitch: 0, pressure: 0, timbre: 0, ...(expr || {}) }, take: null };
     s.heldNotes.set(id, h);
     const start = () => {
       const eng = getEngine();
       if (!eng || h.released || get().heldNotes.get(id) !== h) return;
       h.voice = eng.noteOn(cid, key, velocity);
       h.t0 = eng.ctx.currentTime;
-      if (get().recording && get().playing) h.recTick = get().currentPatternTick();
+      for (const dim of EXPRESSION_DIMS) if (h.now[dim]) eng.setVoiceExpression(h.voice, dim, h.now[dim]);
+      if (get().recording && get().playing) {
+        h.recTick = get().currentPatternTick();
+        // the take: what the controller did to this note, to become its expression curves
+        h.take = Object.fromEntries(EXPRESSION_DIMS.map((dim) => [dim, h.now[dim] ? [{ time: h.t0, v: h.now[dim] }] : []]));
+      }
     };
     if (getEngine()?.ctx.state === 'running') start();
     else get().unlockAudio().then(start);
   },
 
-  liveNoteOff(key, channelId = null) {
+  /** A held note's pitch (semitones), pressure or timbre (0..1) moved: MPE bend, aftertouch, slide, mod wheel. */
+  liveNoteExpression(key, dim, value, channelId = null) {
+    const s = get();
+    const h = s.heldNotes.get(`${channelId || s.selectedChannelId}:${key}`);
+    if (!h || h.now[dim] === value) return;
+    h.now[dim] = value;
+    const eng = getEngine();
+    if (!eng || !h.voice) return;
+    eng.setVoiceExpression(h.voice, dim, value);
+    if (h.take) {
+      const list = h.take[dim];
+      // the curve starts where the controller was at note-on (rest, unless it said otherwise)
+      if (!list.length) list.push({ time: h.t0, v: 0 });
+      list.push({ time: eng.ctx.currentTime, v: value });
+    }
+  },
+
+  liveNoteOff(key, channelId = null, releaseVelocity = null) {
     const s = get();
     const cid = channelId || s.selectedChannelId;
     const id = `${cid}:${key}`;
     const h = s.heldNotes.get(id);
     if (!h) return;
     h.released = true;
+    h.releaseVelocity = releaseVelocity;
     s.heldNotes.delete(id);
     const eng = getEngine();
-    if (h.voice) eng?.noteOff(h.voice);
+    if (h.voice) eng?.noteOff(h.voice, releaseVelocity);
     if (h.recTick !== null && eng) get().recordNote(h, eng.ctx.currentTime);
   },
 
@@ -647,7 +671,21 @@ export const useStore = create((set, get) => ({
     if (!pat) return;
     const len = patternLength(s.project, pat);
     if (start >= len) start -= len;
-    s.dispatch([{ type: 'notes/add', patternId: pat.id, channelId: h.channelId, notes: [{ id: uid('n'), key: h.key, start, length, velocity: h.velocity }] }], { coalesce: 'record' });
+    const note = { id: uid('n'), key: h.key, start, length, velocity: h.velocity };
+    // what the controller did while the note was held becomes the note's own curves
+    if (h.take) {
+      const span = Math.max(0.01, endTime - h.t0);
+      const expression = {};
+      for (const dim of EXPRESSION_DIMS) {
+        if (h.take[dim].length < 2) continue;
+        const [lo, hi] = EXPRESSION_RANGE[dim];
+        const pts = h.take[dim].map((p) => ({ t: Math.max(0, Math.min(1, (p.time - h.t0) / span)), v: p.v }));
+        expression[dim] = simplifyCurve(pts, (dim === 'pitch' ? 0.03 : 0.015) * Math.min(4, (hi - lo) / 2));
+      }
+      if (Object.keys(expression).length) note.expression = expression;
+    }
+    if (typeof h.releaseVelocity === 'number' && Math.abs(h.releaseVelocity - 0.5) > 0.02) note.releaseVelocity = Math.round(h.releaseVelocity * 100) / 100;
+    s.dispatch([{ type: 'notes/add', patternId: pat.id, channelId: h.channelId, notes: [note] }], { coalesce: 'record' });
   }
 }));
 

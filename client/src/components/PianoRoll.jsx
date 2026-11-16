@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   STEP, PPQ, ticksPerBar, patternLength, uid, noteName, chordNotes, STAMP_CHORDS, SCALES, scalePitchClasses,
-  quantizeNotes, legatoNotes, humanizeNotes, INSTRUMENTS
+  quantizeNotes, legatoNotes, humanizeNotes, INSTRUMENTS, expressionFields, hasExpression, flattenCurve, ticksToSeconds, EXPRESSION_LABELS
 } from '@greanteadawy/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
@@ -10,10 +10,18 @@ import { Select } from './ui/Controls.jsx';
 import { usePlayheadLine, capturePointer } from '../lib/hooks.js';
 import { SNAP_OPTIONS, snapTicks, gesture } from '../lib/actions.js';
 import { getEngine } from '../audio/index.js';
+import { ExpressionLane, LANE_TOOLS, LANE_SHAPES, PITCH_RANGES, shapeCurve } from './ExpressionLane.jsx';
 
 const KEYW = 56;
 const RULER = 22;
 const VEL_H = 70;
+const EXPR_H = 124;
+const LANE_BAR = 26;
+// what the lane under the notes edits: the two per-note values, then the three per-note curves
+const LANES = [['velocity', 'Velocity'], ['release', 'Release vel.'], ['pitch', 'Pitch'], ['pressure', 'Pressure'], ['timbre', 'Slide']];
+const CURVE_LANES = ['pitch', 'pressure', 'timbre'];
+/** What a copy of a note carries besides key, time and velocity: its pan and its performance. */
+const extras = (n) => ({ ...(n.pan ? { pan: n.pan } : {}), ...expressionFields(n) });
 const BLACK = new Set([1, 3, 6, 8, 10]);
 const PC_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -49,6 +57,9 @@ export function PianoRoll() {
   const [selected, setSelected] = useState(() => new Set());
   const [preview, setPreview] = useState(null); // Map id -> note while dragging
   const [box, setBox] = useState(null);
+  const [lane, setLane] = useState('velocity');
+  const [laneTool, setLaneTool] = useState('draw');
+  const [pitchRange, setPitchRange] = useState(2);
   const lastLength = useRef(STEP * 2);
   const drag = useRef(null);
   const scrollRef = useRef(null);
@@ -277,7 +288,7 @@ export function PianoRoll() {
     if ((d.mode === 'move' || d.mode === 'resize') && d.moved && preview) {
       const list = [...preview.values()];
       if (d.duplicate) {
-        const created = list.map((n) => ({ id: uid('n'), key: n.key, start: n.start, length: n.length, velocity: n.velocity }));
+        const created = list.map((n) => ({ id: uid('n'), key: n.key, start: n.start, length: n.length, velocity: n.velocity, ...extras(n) }));
         addNotes(created);
         setSelected(new Set(created.map((n) => n.id)));
       } else {
@@ -309,7 +320,7 @@ export function PianoRoll() {
       const maxE = Math.max(...src.map((n) => n.start + n.length));
       const span = Math.ceil((maxE - minS) / PPQ) * PPQ;
       const offset = e.code === 'KeyD' ? span : (Math.ceil(maxE / PPQ) * PPQ - minS);
-      const created = src.map((n) => ({ id: uid('n'), key: n.key, start: n.start + offset, length: n.length, velocity: n.velocity }));
+      const created = src.map((n) => ({ id: uid('n'), key: n.key, start: n.start + offset, length: n.length, velocity: n.velocity, ...extras(n) }));
       addNotes(created);
       setSelected(new Set(created.map((n) => n.id)));
       return;
@@ -350,6 +361,31 @@ export function PianoRoll() {
     const hits = pool.filter((n) => Math.abs(n.start - tick) * ppt < 5 || (tick >= n.start && tick < n.start + Math.min(n.length, STEP)));
     if (hits.length) commitUpdates(hits.map((n) => ({ ...n, velocity: v })), 'pr-vel');
   };
+
+  // ---------------------------------------------------------------- release velocity & expression lanes
+  const setExpression = (updates, coalesce = 'pr-expr') => {
+    if (updates.length) dispatch([{ type: 'notes/expression', patternId: pattern.id, channelId: channel.id, notes: updates }], coalesce);
+  };
+  const onRelPointer = (e, down) => {
+    if (down) { capturePointer(e); velDrag.current = true; }
+    if (!velDrag.current) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const tick = (e.clientX - r.left) / ppt;
+    const v = Math.round(Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height)) * 100) / 100;
+    const pool = selected.size ? notes.filter((n) => selected.has(n.id)) : notes;
+    // a note's release sits at its end
+    const hits = pool.filter((n) => Math.abs(n.start + n.length - tick) * ppt < 6);
+    setExpression(hits.map((n) => ({ id: n.id, releaseVelocity: v })), 'pr-rel');
+  };
+  const laneTargets = () => (selected.size ? notes.filter((n) => selected.has(n.id)) : notes);
+  const applyShape = (shape) => setExpression(laneTargets().map((n) => ({ id: n.id, expression: { [lane]: shapeCurve(lane, shape, ticksToSeconds(n.length, project.bpm)) } })), gesture('pr-shape'));
+  const clearLane = () => setExpression(laneTargets().filter((n) => (lane === 'release' ? n.releaseVelocity !== undefined : n.expression?.[lane]))
+    .map((n) => (lane === 'release' ? { id: n.id, releaseVelocity: null } : { id: n.id, expression: { [lane]: null } })), gesture('pr-clear'));
+  const curveLane = CURVE_LANES.includes(lane);
+  const laneH = curveLane ? EXPR_H : VEL_H;
+  // the pitch lane widens by itself when a curve goes beyond the chosen range
+  const widest = lane === 'pitch' ? Math.max(0, ...notes.flatMap((n) => (n.expression?.pitch || []).map((pt) => Math.abs(pt.v)))) : 0;
+  const range = PITCH_RANGES.find((r) => r >= Math.max(pitchRange, widest)) || 48;
 
   // ---------------------------------------------------------------- render
   const beatW = PPQ * ppt;
@@ -414,6 +450,27 @@ export function PianoRoll() {
     </>
   );
 
+  const laneBar = (
+    <div className="pr-lane-bar" data-nodrag>
+      <Select value={lane} onChange={setLane} className="pr-lane" title="What the lane under the notes edits: velocity, release velocity, or each note's own pitch / pressure / slide curve"
+        options={LANES.map(([value, label]) => ({ value, label }))} />
+      {curveLane && (
+        <>
+          {LANE_TOOLS.map(([t, label, title]) => (
+            <button key={t} className={`tbtn small text ${laneTool === t ? 'active' : ''}`} title={title} onClick={() => setLaneTool(t)}>{label}</button>
+          ))}
+          <Select value="" onChange={(v) => v && applyShape(v)} className="pr-shape" title={`Give the selected notes (or all) a ready-made ${EXPRESSION_LABELS[lane].toLowerCase()} gesture`}
+            options={[{ value: '', label: 'Shape…' }, ...LANE_SHAPES.map(([value, label]) => ({ value, label }))]} />
+          {lane === 'pitch' && (
+            <Select value={pitchRange} onChange={(v) => setPitchRange(Number(v))} title="Pitch lane range in semitones" options={PITCH_RANGES.map((r) => ({ value: r, label: `±${r}` }))} />
+          )}
+        </>
+      )}
+      {lane !== 'velocity' && <button className="tbtn small text" title="Remove this lane's data from the selected notes (or all)" onClick={clearLane}>Clear</button>}
+      <span className="pr-lane-hint">{curveLane ? (selected.size ? `editing ${selected.size} selected note${selected.size > 1 ? 's' : ''}` : 'editing the notes under the pointer — select notes to shape only those') : ''}</span>
+    </div>
+  );
+
   const bars = [];
   for (let b = 0; b * bar < gridTicks; b++) bars.push(b);
 
@@ -422,7 +479,7 @@ export function PianoRoll() {
       <div className="pr-scroll" ref={scrollRef} onWheel={(e) => {
         if (e.ctrlKey) { e.preventDefault(); setPpt((z) => Math.max(0.25, Math.min(4, z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)))); }
       }}>
-        <div className="pr-inner" style={{ width: KEYW + gridW, height: RULER + gridH + VEL_H }}>
+        <div className="pr-inner" style={{ width: KEYW + gridW, height: RULER + gridH + LANE_BAR + laneH }}>
           <div className="pr-ruler" style={{ width: KEYW + gridW }}>
             <div className="pr-corner">{melodic ? '' : 'drum'}</div>
             {bars.map((b) => <span key={b} className="pr-bar" style={{ left: KEYW + b * barW }}>{b + 1}</span>)}
@@ -450,21 +507,50 @@ export function PianoRoll() {
                 <div key={`g${n.cid}${n.id}`} className="pr-ghost" style={{ left: n.start * ppt, top: (127 - n.key) * keyH, width: Math.max(2, n.length * ppt - 1), height: keyH - 1, background: n.color }} />
               ))}
               {view.map((n) => (
-                <div key={n.id} className={`pr-note ${selected.has(n.id) ? 'sel' : ''}`}
+                <div key={n.id} className={`pr-note ${selected.has(n.id) ? 'sel' : ''} ${hasExpression(n) ? 'expr' : ''}`}
                   style={{ left: n.start * ppt, top: (127 - n.key) * keyH + 0.5, width: Math.max(3, n.length * ppt - 1), height: keyH - 2, '--note-color': channel.color, '--vel': 0.4 + n.velocity * 0.6 }}>
                   {n.length * ppt > 26 && keyH >= 12 && <span>{noteName(n.key)}</span>}
                 </div>
               ))}
+              {/* each note's pitch curve, drawn where it sounds: one row = one semitone */}
+              <svg className="pr-bends" width={gridW} height={gridH}>
+                {view.filter((n) => n.expression?.pitch).map((n) => {
+                  const flat = flattenCurve(n.expression.pitch);
+                  const y = (v) => (127 - n.key - v + 0.5) * keyH;
+                  const pts = [[n.start * ppt, y(flat[0].v)], ...flat.map((pt) => [(n.start + pt.t * n.length) * ppt, y(pt.v)]), [(n.start + n.length) * ppt, y(flat[flat.length - 1].v)]];
+                  return <polyline key={n.id} points={pts.map(([x, yy]) => `${x.toFixed(1)},${yy.toFixed(1)}`).join(' ')} className={selected.has(n.id) ? 'sel' : ''} />;
+                })}
+              </svg>
               {box && <div className="pr-box" style={{ left: Math.min(box.x0, box.x1), top: Math.min(box.y0, box.y1), width: Math.abs(box.x1 - box.x0), height: Math.abs(box.y1 - box.y0) }} />}
             </div>
           </div>
-          <div className="pr-vel" style={{ width: KEYW + gridW, height: VEL_H }}>
-            <div className="pr-vel-label">Vel</div>
-            <div className="pr-vel-lane" style={{ width: gridW }} onPointerDown={(e) => onVelPointer(e, true)} onPointerMove={(e) => onVelPointer(e, false)} onPointerUp={() => { velDrag.current = null; }}>
-              {view.map((n) => (
-                <div key={n.id} className={`pr-vel-bar ${selected.has(n.id) ? 'sel' : ''}`} style={{ left: n.start * ppt, height: `${n.velocity * 100}%`, '--note-color': channel.color }} />
-              ))}
+          <div className="pr-bottom" style={{ width: KEYW + gridW }}>
+          {laneBar}
+          <div className="pr-vel" style={{ width: KEYW + gridW, height: laneH }}>
+            <div className="pr-vel-label" title={curveLane ? `${EXPRESSION_LABELS[lane]} of each note${lane === 'pitch' ? ` (±${range} semitones)` : ' (0–1)'}. Select a note to edit only that note.` : undefined}>
+              {lane === 'velocity' ? 'Vel' : lane === 'release' ? 'Rel' : EXPRESSION_LABELS[lane]}
+              {lane === 'pitch' && <small>±{range}</small>}
             </div>
+            {lane === 'velocity' && (
+              <div className="pr-vel-lane" style={{ width: gridW }} onPointerDown={(e) => onVelPointer(e, true)} onPointerMove={(e) => onVelPointer(e, false)} onPointerUp={() => { velDrag.current = null; }}>
+                {view.map((n) => (
+                  <div key={n.id} className={`pr-vel-bar ${selected.has(n.id) ? 'sel' : ''}`} style={{ left: n.start * ppt, height: `${n.velocity * 100}%`, '--note-color': channel.color }} />
+                ))}
+              </div>
+            )}
+            {lane === 'release' && (
+              <div className="pr-vel-lane pr-rel-lane" style={{ width: gridW }} onPointerDown={(e) => onRelPointer(e, true)} onPointerMove={(e) => onRelPointer(e, false)} onPointerUp={() => { velDrag.current = null; }}>
+                {view.map((n) => (
+                  <div key={n.id} className={`pr-vel-bar ${selected.has(n.id) ? 'sel' : ''} ${n.releaseVelocity === undefined ? 'unset' : ''}`}
+                    style={{ left: (n.start + n.length) * ppt - 3, height: `${(n.releaseVelocity ?? 0.5) * 100}%`, '--note-color': channel.color }} />
+                ))}
+              </div>
+            )}
+            {curveLane && (
+              <ExpressionLane dim={lane} tool={laneTool} range={range} notes={view} selected={selected} ppt={ppt} width={gridW} height={laneH}
+                color={channel.color} channel={channel} pattern={pattern} bpm={project.bpm} />
+            )}
+          </div>
           </div>
           <div ref={playRef} className="pr-playhead" style={{ height: RULER + gridH }} />
         </div>

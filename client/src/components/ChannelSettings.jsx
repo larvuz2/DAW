@@ -6,6 +6,7 @@ import { Knob } from './ui/Knob.jsx';
 import { Select } from './ui/Controls.jsx';
 import { ParamControls } from './ParamControls.jsx';
 import { pickFile, uploadSamples, openSampleEditor } from '../lib/actions.js';
+import { SynthEditor } from './SynthEditor.jsx';
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
 
@@ -64,6 +65,14 @@ export function ChannelSettings() {
   const pluginErrors = useStore((s) => s.pluginErrors);
   const st = useStore.getState();
   const ch = project.channels.find((c) => c.id === channelId) || project.channels[0];
+  const isGgs = ch?.instrument.kind === 'ggs';
+  // the GGS Synth editor needs room: widen a narrow Channel window once when such a channel is shown
+  useEffect(() => {
+    if (!isGgs) return;
+    const s = useStore.getState();
+    const w = s.windows.channelSettings;
+    if (w.open && !w.max && w.w < 700) s.openWindow('channelSettings', { w: Math.min(820, Math.max(700, window.innerWidth - 300)), h: Math.max(w.h, Math.min(640, window.innerHeight - 90)), x: Math.max(8, Math.min(w.x, window.innerWidth - 1100)) });
+  }, [isGgs, ch?.id]);
   if (!ch) {
     return <Window name="channelSettings" title="Channel settings" icon="sliders"><p className="empty-hint">No channel selected.</p></Window>;
   }
@@ -144,17 +153,20 @@ export function ChannelSettings() {
                 ]} />
               <span>Type</span>
             </label>
-            <label className="param-select">
-              <Select value={ch.instrument.preset}
-                onChange={(preset) => upd({ instrument: plugin ? { preset, params: pluginParamValues(plugin.manifest, preset) } : { preset } })}
-                options={Object.keys(def.presets)} />
-              <span>Preset</span>
-            </label>
-            {def.description && <p className="cs-desc">{def.description}</p>}
+            {!isGgs && (
+              <label className="param-select">
+                <Select value={ch.instrument.preset}
+                  onChange={(preset) => upd({ instrument: plugin ? { preset, params: pluginParamValues(plugin.manifest, preset) } : { preset } })}
+                  options={Object.keys(def.presets)} />
+                <span>Preset</span>
+              </label>
+            )}
+            {def.description && !isGgs && <p className="cs-desc">{def.description}</p>}
             {pluginError && <p className="form-error">Plugin error: {pluginError}</p>}
           </div>
         </fieldset>
-        <ParamControls defs={def.params} values={ch.instrument.params} color={ch.color} samples={samples}
+        {isGgs && <SynthEditor channel={ch} />}
+        {!isGgs && <ParamControls defs={def.params} values={ch.instrument.params} color={ch.color} samples={samples}
           onSamplePick={async () => {
             const f = await pickFile('audio/*');
             if (!f) return;
@@ -162,7 +174,7 @@ export function ChannelSettings() {
             if (item) upd({ instrument: { params: { sampleId: item.id } } });
           }}
           onSampleEdit={(id) => openSampleEditor(id)}
-          onChange={(key, v) => upd({ instrument: { params: { [key]: v } } }, `p:${key}`)} />
+          onChange={(key, v) => upd({ instrument: { params: { [key]: v } } }, `p:${key}`)} />}
         <MiniKeyboard channelId={ch.id} base={kbBase} />
       </div>
     </Window>

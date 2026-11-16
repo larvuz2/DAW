@@ -483,10 +483,32 @@ export class AudioEngine {
     prewarmRange(this.ctx.sampleRate, spec, k - 7, k + 7, layer);
   }
 
-  noteOff(voice) {
+  /** releaseVelocity (0..1): how the key was let go, for instruments that listen to it (GGS Synth). */
+  noteOff(voice, releaseVelocity = null) {
     if (!voice) return;
+    if (releaseVelocity !== null) voice.expr?.setReleaseVelocity?.(releaseVelocity);
     voice.noteEnd = this.ctx.currentTime;
     voice.release(this.ctx.currentTime);
+  }
+
+  /**
+   * Move one sounding note's pitch (semitones), pressure or timbre (0..1) — a finger on an MPE controller. GGS
+   * voices have an input for each; other instruments follow the pitch through the detune of their sources.
+   */
+  setVoiceExpression(voice, dim, value) {
+    if (!voice || voice.done) return;
+    const now = this.ctx.currentTime;
+    if (voice.expr) {
+      voice.expr[dim]?.setTargetAtTime(value, now, 0.006); // a few ms of glide: controller steps don't zipper
+      return;
+    }
+    if (dim !== 'pitch') return;
+    for (const src of voice.sources) {
+      const d = src.detune;
+      if (!d || typeof d.setTargetAtTime !== 'function' || (src.frequency && src.frequency.value < 20)) continue;
+      src.liveBase ??= src.pitchBase ?? d.value;
+      d.setTargetAtTime(src.liveBase + value * 100, now, 0.006);
+    }
   }
 
   preview(channelId, key, velocity = 0.8, duration = 0.3) {

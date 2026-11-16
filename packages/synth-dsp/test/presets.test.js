@@ -29,7 +29,8 @@ test('the library: 30 presets in six families, every value valid', () => {
     const sources = new Set(modulationRoutes({ ...ggsDefaults(), ...GGS_PRESETS[name] }).flatMap((r) => [r.source, r.via]));
     assert.ok(sources.has('pressure'), `${name} uses pressure`);
     assert.ok(sources.has('timbre'), `${name} uses slide`);
-    assert.ok(['macro1', 'macro2', 'macro3', 'macro4'].some((m) => sources.has(m)), `${name} assigns macros`);
+    for (const m of ['macro1', 'macro2', 'macro3', 'macro4']) assert.ok(sources.has(m), `${name}: ${m} (${info.macros[m.slice(5) - 1]}) does something`);
+    assert.ok(info.macros.every((label) => label.length <= 16 && !/…/.test(label)), `${name}: macro labels fit a knob`);
   }
   for (const [id, count] of families) assert.equal(count, 5, `five ${id} presets`);
 });

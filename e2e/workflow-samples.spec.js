@@ -7,7 +7,10 @@ import { ADMIN, connectMcp, makeWav, menuItem, voiceWav } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 test.use({
-  launchOptions: { args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
+  launchOptions: {
+    args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+    ...(process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {}) // see playwright.config.js
+  },
   permissions: ['microphone']
 });
 

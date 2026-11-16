@@ -220,3 +220,51 @@ test('evaluateComposition: findings a producer would flag, sorted by severity', 
   assert.equal(clean.counts.issue + clean.counts.warning, 0);
   assert.match(formatEvaluation(clean), /Nothing to fix in the notes/);
 });
+
+test('MPE decoder: per-note bend, pressure and slide; master channel; ordinary keyboards; RPN bend range', async () => {
+  const { createMpeDecoder } = await import('../src/index.js');
+  const d = createMpeDecoder();
+  const bend = (ch, semis, range) => { const v = Math.min(16383, Math.round(8192 + (semis / range) * 8192)); return [0xe0 | ch, v & 127, (v >> 7) & 127]; };
+  // an MPE controller sends a note's slide and bend before the note-on (channels 2 and 3 here)
+  d.message([0xb1, 74, 64]);
+  d.message(bend(1, 12, 48));
+  const [on] = d.message([0x91, 60, 100]);
+  assert.deepEqual([on.type, on.id, on.key, Math.round(on.pitch), Math.round(on.timbre * 100) / 100], ['on', '1:60', 60, 12, 0.5]);
+  assert.ok(Math.abs(on.velocity - 100 / 127) < 1e-9);
+  d.message([0x92, 64, 90]);
+  // a bend on channel 3 moves only the note on channel 3
+  let ev = d.message(bend(2, -2, 48));
+  assert.deepEqual(ev.map((e) => [e.id, e.dim, Math.round(e.value * 100) / 100]), [['2:64', 'pitch', -2]]);
+  // channel pressure and poly pressure
+  ev = d.message([0xd1, 127]);
+  assert.deepEqual(ev.map((e) => [e.id, e.dim, e.value]), [['1:60', 'pressure', 1]]);
+  ev = d.message([0xa2, 64, 64]);
+  assert.equal(ev[0].id, '2:64');
+  assert.ok(Math.abs(ev[0].value - 64 / 127) < 1e-9);
+  // the master channel reaches every note: its bend (±2) adds to each note's own
+  ev = d.message(bend(0, 1, 2));
+  assert.deepEqual(ev.map((e) => [e.id, Math.round(e.value * 100) / 100]).sort(), [['1:60', 13], ['2:64', -1]]);
+  // note-off velocity is the release velocity; a note-on with velocity 0 is a neutral note-off
+  ev = d.message([0x81, 60, 127]);
+  assert.deepEqual([ev[0].type, ev[0].releaseVelocity], ['off', 1]);
+  ev = d.message([0x92, 64, 0]);
+  assert.deepEqual([ev[0].type, ev[0].releaseVelocity], ['off', 0.5]);
+  assert.deepEqual(d.message([0x82, 64, 0]), [], 'a second note-off is ignored');
+  assert.deepEqual(d.held(), []);
+
+  // an ordinary keyboard on channel 1: ±2 semitone wheel, mod wheel = slide, aftertouch = pressure, for all its notes
+  const k = createMpeDecoder();
+  k.message([0x90, 60, 100]);
+  k.message([0x90, 67, 100]);
+  assert.deepEqual(k.message(bend(0, 2, 2)).map((e) => Math.round(e.value * 100) / 100), [2, 2]);
+  assert.deepEqual(k.message([0xb0, 1, 127]).map((e) => [e.dim, e.value]), [['timbre', 1], ['timbre', 1]]);
+  assert.equal(k.message([0xd0, 64]).length, 2);
+  // RPN 0 sets the bend range of a channel (here: 12 semitones on channel 2)
+  k.message([0xb1, 101, 0]); k.message([0xb1, 100, 0]); k.message([0xb1, 6, 12]);
+  k.message([0x91, 72, 100]);
+  const full = [0xe1, 127, 127];
+  assert.ok(Math.abs(k.message(full).find((e) => e.id === '1:72').value - (14 * 8191) / 8192) < 1e-6, 'full bend = +12 on top of the master +2');
+  // all notes off
+  assert.equal(k.message([0xb0, 123, 0]).filter((e) => e.type === 'off').length, 3);
+  assert.deepEqual(k.held(), []);
+});

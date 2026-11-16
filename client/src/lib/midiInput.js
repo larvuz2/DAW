@@ -1,22 +1,30 @@
-// Web MIDI input: play (and record) the selected channel from a hardware MIDI keyboard.
+// Web MIDI input: play (and record) the selected channel from a hardware MIDI keyboard — including MPE controllers,
+// whose per-note pitch bend, pressure and slide reach each note on its own (see core/mpe.js for what is decoded).
+import { createMpeDecoder } from '@greanteadawy/core';
 import { useStore } from '../state/store.js';
 
 let access = null;
-const held = new Map(); // MIDI key -> channel it was started on
+const decoder = createMpeDecoder();
+const held = new Map(); // decoder note id → { key, channel } it was started on
 
 function onMessage(e) {
-  const [status, key, vel] = e.data;
-  const cmd = status & 0xf0;
   const st = useStore.getState();
-  if (cmd === 0x90 && vel > 0) {
-    const ch = st.selectedChannelId;
-    if (!ch) return;
-    held.set(key, ch);
-    st.liveNoteOn(key, vel / 127, ch);
-  } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
-    const ch = held.get(key);
-    held.delete(key);
-    if (ch) st.liveNoteOff(key, ch);
+  for (const ev of decoder.message(e.data)) {
+    if (ev.type === 'on') {
+      const ch = st.selectedChannelId;
+      if (!ch) continue;
+      held.set(ev.id, { key: ev.key, channel: ch });
+      st.liveNoteOn(ev.key, ev.velocity, ch, { pitch: ev.pitch, pressure: ev.pressure, timbre: ev.timbre });
+    } else {
+      const h = held.get(ev.id);
+      if (!h) continue;
+      if (ev.type === 'off') {
+        held.delete(ev.id);
+        st.liveNoteOff(h.key, h.channel, ev.releaseVelocity);
+      } else {
+        st.liveNoteExpression(h.key, ev.dim, ev.value, h.channel);
+      }
+    }
   }
 }
 
@@ -44,4 +52,9 @@ export async function connectMidi() {
   } catch (e) {
     st.toast(`MIDI access denied: ${e.message}`, 'error');
   }
+}
+
+/** Feed raw MIDI bytes as if a controller had sent them (tests, on-screen controllers). */
+export function injectMidi(bytes) {
+  onMessage({ data: bytes });
 }
