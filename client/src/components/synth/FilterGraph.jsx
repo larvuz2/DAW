@@ -1,0 +1,111 @@
+// The frequency response of a filter, measured from the real filter model (filterResponse runs the same code the
+// voices do), and a handle on it: drag left/right for the cutoff, up/down for the resonance.
+import { useEffect, useMemo, useRef } from 'react';
+import { filterResponse } from '@greanteadawy/synth-dsp';
+import { formatValue } from '../ui/Knob.jsx';
+
+const F_MIN = 20;
+const F_MAX = 20000;
+const DB_TOP = 30;
+const DB_BOTTOM = -54;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, onChange, width = 236, height = 96 }) {
+  const ref = useRef(null);
+  const drag = useRef(null);
+  const xOf = (hz) => (Math.log(hz / F_MIN) / Math.log(F_MAX / F_MIN)) * width;
+  const yOf = (db) => ((DB_TOP - clamp(db, DB_BOTTOM, DB_TOP)) / (DB_TOP - DB_BOTTOM)) * height;
+
+  // one point every two pixels, plus the cutoff itself (the handle sits exactly on the curve)
+  const curve = useMemo(() => {
+    const freqs = [];
+    for (let px = 0; px <= width; px += 2) freqs.push(F_MIN * Math.pow(F_MAX / F_MIN, px / width));
+    freqs.push(clamp(cutoff, F_MIN, F_MAX));
+    return { freqs, db: filterResponse({ type, cutoff, resonance, drive, morph }, freqs) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, Math.round(cutoff * 10), Math.round(resonance * 500), Math.round(drive * 200), Math.round(morph * 200), width]);
+
+  useEffect(() => {
+    const cv = ref.current;
+    if (!cv) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = width * dpr;
+    cv.height = height * dpr;
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, width, height);
+    g.globalAlpha = on ? 1 : 0.4;
+    // grid: decades and 0 dB
+    g.lineWidth = 1;
+    g.font = '8.5px ui-monospace, Menlo, monospace';
+    g.fillStyle = 'rgba(255,255,255,0.32)';
+    for (const [hz, text] of [[100, '100'], [1000, '1k'], [10000, '10k']]) {
+      const x = Math.round(xOf(hz)) + 0.5;
+      g.strokeStyle = 'rgba(255,255,255,0.07)';
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, height); g.stroke();
+      g.fillText(text, x + 3, height - 3);
+    }
+    for (const db of [-24, 0, 24]) {
+      const y = Math.round(yOf(db)) + 0.5;
+      g.strokeStyle = db === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)';
+      g.beginPath(); g.moveTo(0, y); g.lineTo(width, y); g.stroke();
+    }
+    const n = curve.freqs.length - 1;
+    g.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = i * 2;
+      const y = yOf(curve.db[i]);
+      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+    }
+    g.strokeStyle = '#f59f42';
+    g.lineWidth = 1.8;
+    g.lineJoin = 'round';
+    g.stroke();
+    g.lineTo(width, height); g.lineTo(0, height); g.closePath();
+    g.fillStyle = 'rgba(245,159,66,0.13)';
+    g.fill();
+    // the handle
+    const hx = xOf(clamp(cutoff, F_MIN, F_MAX));
+    const hy = clamp(yOf(curve.db[n]), 6, height - 6);
+    g.beginPath(); g.arc(hx, hy, 5, 0, Math.PI * 2);
+    g.fillStyle = '#fff'; g.fill();
+    g.strokeStyle = '#f59f42'; g.lineWidth = 2; g.stroke();
+  });
+
+  const move = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    const px = clamp(e.clientX - d.left + d.dx, 0, width);
+    const hz = F_MIN * Math.pow(F_MAX / F_MIN, px / width);
+    onChange({ cutoff: Math.round(hz * 10) / 10, resonance: clamp(Math.round((d.res + (d.y - e.clientY) / (height * 0.9)) * 1000) / 1000, 0, 1) });
+  };
+  const down = (e) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const r = e.currentTarget.getBoundingClientRect();
+    // grabbed near the handle: move it from where it is; anywhere else: the cutoff jumps to the pointer
+    const hx = xOf(clamp(cutoff, F_MIN, F_MAX));
+    const px = e.clientX - r.left;
+    drag.current = { y: e.clientY, res: resonance, dx: Math.abs(px - hx) < 14 ? hx - px : 0, left: r.left };
+    move(e);
+  };
+  const up = () => { drag.current = null; };
+  const key = (e) => {
+    const step = e.shiftKey ? 0.25 : 1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') onChange({ cutoff: clamp(Math.round(cutoff * Math.pow(2, ((e.key === 'ArrowRight' ? 1 : -1) * step) / 12) * 10) / 10, F_MIN, F_MAX) });
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') onChange({ resonance: clamp(Math.round((resonance + (e.key === 'ArrowUp' ? 0.02 : -0.02) * step) * 1000) / 1000, 0, 1) });
+    else return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  return (
+    <div className="ggs-fgraph" style={{ width, height }}>
+      <canvas ref={ref} style={{ width, height }} tabIndex={0} role="application" data-nodrag
+        aria-label={`Filter response. Cutoff ${formatValue(cutoff, { unit: 'Hz' })}, resonance ${resonance.toFixed(2)}. Arrow keys: left and right move the cutoff, up and down the resonance.`}
+        title="Measured response of this filter, 20 Hz – 20 kHz. Drag: left/right = cutoff, up/down = resonance."
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key} />
+      <span className="ggs-fgraph-read">{formatValue(cutoff, { unit: 'Hz' })} · res {resonance.toFixed(2)}</span>
+    </div>
+  );
+}

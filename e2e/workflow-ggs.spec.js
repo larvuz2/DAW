@@ -281,46 +281,178 @@ test('piano roll: shape one note of a chord in the expression lane (shape, freeh
   expect(copy.expression.pressure).toBeTruthy();
 });
 
-test('synth editor: presets, the wavetable view, the matrix and the touch pad', async () => {
+test('synth editor: preset browser, wavetable grid, draggable filter and envelopes, matrix in words, every parameter', async () => {
   const { channels } = await ids();
   await page.evaluate(() => {
     const st = window.greanteadawy.store.getState();
     st.closeWindow('pianoRoll');
-    st.openWindow('channelSettings', { x: 8, y: 8, w: 860, h: 860 });
+    st.openWindow('channelSettings', { x: 8, y: 8, w: 1060, h: 880 });
   });
   const ggs = page.locator('.ggs');
   await expect(ggs).toBeVisible();
-  const params = () => page.evaluate((cid) => window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
-  // a preset loads its patch, its macro names and what touch does
-  await ggs.locator('.ggs-head select').first().selectOption('Glass Horizon');
-  await expect.poll(async () => (await params()).preset).toBe('Glass Horizon');
-  expect((await params()).params.oscATable).toBe('glass');
+  const instrument = () => page.evaluate((cid) => window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
+  const param = async (key) => (await instrument()).params[key];
+  const tab = (name) => ggs.locator('.ggs-tabs button', { hasText: name }).click();
+
+  // ---- presets: search finds a patch by what it sounds like, a click loads it, arrow keys walk the list
+  await ggs.locator('.ggs-presets-name').click();
+  const search = ggs.locator('.ggs-browser input[type=search]');
+  await expect(search).toBeFocused();
+  await expect(ggs.locator('.ggs-browser li')).toHaveCount(31);
+  await search.fill('glassy partials');
+  await expect(ggs.locator('.ggs-browser li')).toHaveCount(1);
+  await ggs.locator('.ggs-browser li', { hasText: 'Glass Horizon' }).click();
+  await expect.poll(async () => (await instrument()).preset).toBe('Glass Horizon');
+  expect(await param('oscATable')).toBe('glass');
   await expect(ggs.locator('.ggs-head')).toContainText('Shimmer');
   await expect(ggs.locator('.ggs-head')).toContainText('Pressure scans the glass table');
-  // oscillators: scopes are drawn, the wavetable can be changed
-  await expect(ggs.locator('.ggs-osc canvas')).toHaveCount(3);
-  await ggs.locator('.ggs-osc').first().locator('select').nth(0).selectOption('fmbell');
-  await expect.poll(async () => (await params()).params.oscATable).toBe('fmbell');
-  // matrix: add a route with one click, change its amount, remove it
-  await ggs.locator('.ggs-tabs button', { hasText: 'Matrix' }).click();
-  const rows = ggs.locator('.ggs-matrix tbody tr');
+  // tags come from the patch itself: the acid preset is found by its filter
+  await search.fill('acid');
+  await expect(ggs.locator('.ggs-browser li b').first()).toHaveText('Acid Line');
+  await search.fill('');
+  await ggs.locator('.ggs-browser .chip', { hasText: 'Pads' }).click();
+  await expect(ggs.locator('.ggs-browser li')).toHaveCount(5);
+  await search.press('ArrowDown');
+  await expect.poll(async () => (await instrument()).preset).toBe('Cinema Atmos');
+  await search.press('ArrowUp');
+  await expect.poll(async () => (await instrument()).preset).toBe('Glass Horizon');
+  await search.press('Escape');
+  await expect(ggs.locator('.ggs-browser')).toHaveCount(0);
+  await ggs.locator('button[aria-label="Next preset"]').click();
+  await expect.poll(async () => (await instrument()).preset).toBe('Cinema Atmos');
+  await ggs.locator('button[aria-label="Previous preset"]').click();
+  await expect.poll(async () => (await instrument()).preset).toBe('Glass Horizon');
+
+  // ---- oscillators: scopes are drawn, the wavetable is picked from a grid of 46 thumbnails
+  await expect(ggs.locator('.ggs-osc > .ggs-osc-top canvas')).toHaveCount(3);
+  await ggs.locator('.ggs-osc').first().locator('.ggs-wt-name').click();
+  const cells = ggs.locator('.ggs-wt-grid button');
+  await expect(cells).toHaveCount(46);
+  await cells.filter({ hasText: 'FM Bell' }).click();
+  await expect.poll(() => param('oscATable')).toBe('fmbell');
+  await ggs.locator('.ggs-wt-panel input[type=search]').fill('acid');
+  await expect(cells).toHaveCount(1);
+  await ggs.locator('.ggs-wt-panel input[type=search]').fill('');
+  await ggs.locator('.ggs-wt-grid').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => param('oscATable')).not.toBe('fmbell');
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => param('oscATable')).toBe('fmbell');
+  await page.keyboard.press('Escape');
+  await expect(ggs.locator('.ggs-wt-panel')).toHaveCount(0);
+  // every control explains itself
+  await expect(ggs.locator('.ggs-osc').first().locator('.knob').first()).toHaveAttribute('title', /Where in the wavetable/);
+
+  // ---- matrix: add a route with one click, read what it does in real units, remove it
+  await tab('Matrix');
+  const rows = ggs.locator('.ggs-matrix tbody tr:not(.ggs-route-says)');
   const before = await rows.count();
   await ggs.locator('.ggs-matrix-quick button', { hasText: 'Vibrato by pressure' }).click();
   await expect(rows).toHaveCount(before + 1);
-  const added = (await params()).params;
+  await expect(ggs.locator('.ggs-route-says').last()).toHaveText('Pitch −30 ct ↔ +30 ct as LFO 1 swings −1 ↔ 1, depth scaled by pressure');
+  await expect(ggs.locator('.ggs-route-says', { hasText: /^Filter 1 cutoff [\d.]+ k?Hz → [\d.]+ kHz as slide goes 0 → 1/ })).toHaveCount(1);
+  const added = (await instrument()).params;
   const slot = [...Array(16)].map((_, i) => i + 1).find((i) => added[`mod${i}Src`] === 'lfo1' && added[`mod${i}Dst`] === 'pitchFine' && added[`mod${i}Via`] === 'pressure');
   expect(slot).toBeTruthy();
   await rows.last().locator('button').click();
   await expect(rows).toHaveCount(before);
-  expect((await params()).params[`mod${slot}Src`]).toBe('none');
-  // the other tabs render their graphs
-  await ggs.locator('.ggs-tabs button', { hasText: 'Filters' }).click();
+  expect(await param(`mod${slot}Src`)).toBe('none');
+
+  // ---- filters: the curve is the real response; its handle sets cutoff (x) and resonance (y); one undo per drag
+  await tab('Filters');
   await expect(ggs.locator('.ggs-filter canvas')).toHaveCount(2);
-  await ggs.locator('.ggs-tabs button', { hasText: 'Envelopes' }).click();
-  await expect(ggs.locator('.ggs-env canvas')).toHaveCount(4);
+  const graph = ggs.locator('.ggs-filter').first().locator('canvas');
+  const g = await graph.boundingBox();
+  const cutoffBefore = await param('f1Cutoff');
+  const resBefore = await param('f1Res');
+  await page.mouse.move(g.x + g.width / 3, g.y + 60);
+  await page.mouse.down();
+  await page.mouse.move(g.x + g.width / 2, g.y + 40, { steps: 6 });
+  await page.mouse.up();
+  // the middle of a 20 Hz – 20 kHz log axis is 632 Hz; 20 px up of 100 adds 0.22 resonance
+  await expect.poll(() => param('f1Cutoff')).toBeGreaterThan(600);
+  expect(await param('f1Cutoff')).toBeLessThan(670);
+  expect(await param('f1Res')).toBeCloseTo(resBefore + 0.222, 1);
+  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await expect.poll(() => param('f1Cutoff')).toBe(cutoffBefore);
+  expect(await param('f1Res')).toBe(resBefore);
+  await graph.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(() => param('f1Res')).toBeCloseTo(resBefore + 0.02, 5);
+  // the new models are in the menu; Morph appears under the name it has for the type
+  const f1 = ggs.locator('.ggs-filter').first();
+  await expect(f1.locator('.knob-label', { hasText: 'Vowel' })).toHaveCount(0);
+  await f1.locator('select').selectOption('formant');
+  await expect.poll(() => param('f1Type')).toBe('formant');
+  await expect(f1.locator('.knob-label', { hasText: 'Vowel' })).toHaveCount(1);
+  await expect(f1.locator('.ggs-filter-desc')).toContainText('tenor voice');
+  await f1.locator('select').selectOption('ladder24');
+  await expect(f1.locator('.ggs-filter-desc')).toContainText('Moog');
+  expect(await f1.locator('select option').count()).toBe(21);
+
+  // ---- envelopes: nodes set times and sustain, round handles bend a slope, the picture is the patch
+  await tab('Envelopes');
+  await expect(ggs.locator('.ggs-envedit svg')).toHaveCount(4);
   await expect(ggs.locator('.ggs-lfo canvas')).toHaveCount(4);
-  await ggs.locator('.ggs-tabs button', { hasText: 'Effects' }).click();
+  const env = ggs.locator('.ggs-env').first();
+  const centre = async (node) => { const r = await env.locator(`[data-node="${node}"]`).boundingBox(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; };
+  const dragNode = async (node, dx, dy) => {
+    const c = await centre(node);
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.down();
+    await page.mouse.move(c.x + dx, c.y + dy, { steps: 5 });
+    await page.mouse.up();
+  };
+  const [d0, s0, a0] = [await param('env1D'), await param('env1S'), await param('env1A')];
+  await dragNode('decay', 25, 30);
+  await expect.poll(() => param('env1D')).toBeGreaterThan(d0);
+  expect(await param('env1S')).toBeLessThan(s0 - 0.2);
+  expect(await param('env1A')).toBe(a0); // the stages to the left did not move
+  // the node is where the pointer left it: the envelope is drawn from the same numbers
+  const s1 = await param('env1S');
+  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await expect.poll(() => param('env1S')).toBe(s0); // the whole drag was one step
+  expect(await param('env1D')).toBe(d0);
+  expect(s1).toBeLessThan(s0);
+  // attack and hold share a spot while the hold is zero: dragging right adds a hold, dragging left shortens the attack
+  expect(await param('env1Hold')).toBe(0);
+  await dragNode('attack', 30, 0);
+  await expect.poll(() => param('env1Hold')).toBeGreaterThan(0.005);
+  expect(await param('env1A')).toBe(a0);
+  // bending the decay: up = slower first (positive curve); double-click puts the default back
+  expect(await param('env1DCurve')).toBe(-0.5);
+  await dragNode('decayCurve', 0, -14);
+  await expect.poll(() => param('env1DCurve')).toBeGreaterThan(-0.3);
+  await env.locator('[data-node="decayCurve"]').dblclick();
+  await expect.poll(() => param('env1DCurve')).toBe(-0.5);
+  await env.locator('[data-node="release"]').focus();
+  const r0 = await param('env1R');
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => param('env1R')).toBeCloseTo(r0 * 1.1, 3);
+  await expect(env.locator('.knob-label', { hasText: 'Delay' })).toHaveCount(1);
+
+  // ---- every parameter in one table: search by what it does, type a value, see what makes the patch
+  await tab('All parameters');
+  const table = ggs.locator('.ggs-ptable');
+  await table.locator('input[type=search]').fill('slide from the previous note');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table.locator('tbody tr code')).toHaveText('glide');
+  await table.locator('tbody input[type=number]').fill('0.25');
+  await table.locator('tbody input[type=number]').press('Enter');
+  await expect.poll(() => param('glide')).toBe(0.25);
+  await expect(table.locator('tbody tr')).toHaveClass(/changed/);
+  await table.locator('button[aria-label="Reset Voice Glide"]').click();
+  await expect.poll(() => param('glide')).toBe(0);
+  await table.locator('input[type=search]').fill('');
+  await table.locator('.chip', { hasText: 'Changed' }).click();
+  const changed = await table.locator('tbody tr').count();
+  expect(changed).toBeGreaterThan(10);
+  expect(changed).toBeLessThan(120);
+  await expect(table.locator('tbody tr code', { hasText: /^f1Type$/ })).toHaveCount(1);
+  await tab('Effects');
   await expect(ggs.locator('fieldset', { hasText: 'Reverb' })).toBeVisible();
+  // back to a preset whose tail the next step listens to
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
   // the touch pad plays a note whose pressure and slide follow the pointer
   const pad = ggs.locator('.ggs-pad');
   await pad.scrollIntoViewIfNeeded();

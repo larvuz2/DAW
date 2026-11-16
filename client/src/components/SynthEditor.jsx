@@ -4,18 +4,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { sanitizeParams } from '@greanteadawy/core';
 import {
-  GGS_PARAMS, GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, OSC_IDS, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO, MOD_TARGET_INFO,
-  ggsParamDef, ggsDefaults, wavetablePreview, wavetableSpectrum, describeWavetables, modulationRoutes, paramsToPatch, patchToParams, paramsToSection, envelopeAt, syncBeats
+  GGS_PARAMS, GGS_PRESET_INFO, OSC_IDS, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO, MOD_TARGET_INFO, FILTER_TYPES, FILTER_INFO,
+  ggsParamDef, ggsDefaults, wavetablePreview, wavetableSpectrum, modulationRoutes, describeRoute, paramsToPatch, patchToParams, paramsToSection, sectionToParams, syncBeats
 } from '@greanteadawy/synth-dsp';
 import { useStore } from '../state/store.js';
 import { Knob } from './ui/Knob.jsx';
 import { Select } from './ui/Controls.jsx';
 import { download, pickFile } from '../lib/actions.js';
+import { EnvelopeEditor } from './synth/EnvelopeEditor.jsx';
+import { FilterGraph } from './synth/FilterGraph.jsx';
+import { PresetBrowser } from './synth/PresetBrowser.jsx';
+import { WavetablePicker } from './synth/WavetablePicker.jsx';
+import { ParamTable } from './synth/ParamTable.jsx';
 
-const TABS = [['osc', 'Oscillators'], ['filter', 'Filters'], ['mod', 'Envelopes & LFOs'], ['matrix', 'Matrix'], ['fx', 'Effects']];
+const TABS = [['osc', 'Oscillators'], ['filter', 'Filters'], ['mod', 'Envelopes & LFOs'], ['matrix', 'Matrix'], ['fx', 'Effects'], ['all', 'All parameters']];
 const OSC_COLORS = { A: '#46c79a', B: '#5ab8f0', C: '#f59f42' };
-const TABLES = describeWavetables();
+const ENV_COLORS = ['#9ad94f', '#f59f42', '#5ab8f0', '#c86be0'];
 const DEFAULTS = ggsDefaults();
+// the filter menu, grouped by character rather than in catalogue order
+const FILTER_GROUPS = [['Clean', ['clean']], ['Analog', ['ladder', 'acid', 'ms20']], ['Special', ['formant', 'phaser', 'comb']]];
+const FILTER_OPTIONS = FILTER_GROUPS.flatMap(([group, families]) => FILTER_TYPES.filter((id) => families.includes(FILTER_INFO[id].family)).map((id) => ({ value: id, label: FILTER_INFO[id].label, group })));
 
 /** A canvas that redraws when its inputs change (sized for the device's pixel ratio). */
 function Scope({ draw, deps, width = 150, height = 56, title }) {
@@ -65,59 +73,6 @@ function WaveView({ table, pos, color, on }) {
           const lvl = Math.max(0, 1 + (20 * Math.log10(spec[i] + 1e-6)) / 60);
           g.fillRect(i * bw + 0.5, h - lvl * (h - top - 3), Math.max(1, bw - 1.5), lvl * (h - top - 3));
         }
-      }} />
-  );
-}
-
-/** Magnitude response of a filter (20 Hz – 20 kHz, ±30 dB), from the same pole pairs the voice uses. */
-function FilterView({ type, cutoff, res, on }) {
-  return (
-    <Scope width={168} height={64} deps={[type, Math.round(cutoff), Math.round(res * 100), on]} title="Frequency response, 20 Hz – 20 kHz"
-      draw={(g, w, h) => {
-        g.globalAlpha = on ? 1 : 0.35;
-        g.fillStyle = 'rgba(255,255,255,0.04)';
-        g.fillRect(0, 0, w, h);
-        const two = /24$/.test(type);
-        const k2 = two ? 1 / (1.3066 * Math.pow(30, res)) : 1 / (0.7071 * Math.pow(56, res));
-        const k1 = 1.848 - 0.6 * res;
-        const stage = (x, k, mode) => {
-          // H(s) of one state-variable stage at s = j·x (x = f / cutoff): |num| / |s² + k·s + 1|
-          const den = Math.hypot(1 - x * x, k * x);
-          const num = mode === 'lp' ? 1 : mode === 'hp' ? x * x : mode === 'bp' ? k * x : mode === 'notch' ? Math.abs(1 - x * x) : Math.abs(1 + x * x);
-          return num / den;
-        };
-        const mode = type.startsWith('lp') ? 'lp' : type.startsWith('hp') ? 'hp' : type.startsWith('bp') ? 'bp' : type;
-        const pts = [];
-        for (let i = 0; i <= w; i += 2) {
-          const f = 20 * Math.pow(1000, i / w);
-          let mag;
-          if (type === 'comb') {
-            const fb = res * 0.985;
-            const ph = (2 * Math.PI * f) / cutoff;
-            mag = (1 - 0.45 * res) / Math.hypot(1 - fb * Math.cos(ph), fb * Math.sin(ph));
-          } else {
-            mag = two ? stage(f / cutoff, k1, mode) * stage(f / cutoff, k2, mode) : stage(f / cutoff, k2, mode);
-          }
-          const db = Math.max(-30, Math.min(30, 20 * Math.log10(mag + 1e-6)));
-          pts.push([i, h / 2 - (db / 30) * (h / 2 - 2)]);
-        }
-        g.strokeStyle = 'rgba(255,255,255,0.12)';
-        g.lineWidth = 1;
-        g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
-        line(g, pts, '#f59f42', 1.8);
-      }} />
-  );
-}
-
-function EnvView({ env }) {
-  return (
-    <Scope width={150} height={48} deps={Object.values(env)} title="Envelope shape (the sustain stage is shown as a fixed length)"
-      draw={(g, w, h) => {
-        const held = env.delay + env.attack + env.hold + env.decay + 0.4;
-        const total = held + env.release;
-        const pts = [];
-        for (let i = 0; i <= w; i++) pts.push([i, h - 3 - envelopeAt(env, (i / w) * total, held) * (h - 6)]);
-        line(g, pts, '#9ad94f');
       }} />
   );
 }
@@ -204,27 +159,32 @@ export function SynthEditor({ channel }) {
   const val = (key) => p[key] ?? DEFAULTS[key];
   const set = (key, value) => st.dispatch([{ type: 'channel/update', id: channel.id, patch: { instrument: { params: { [key]: value } } } }], { coalesce: `ggs:${channel.id}:${key}` });
   const setMany = (params) => st.dispatch([{ type: 'channel/update', id: channel.id, patch: { instrument: { params } } }]);
+  /** Several params moved together by one drag (a node of the envelope, the handle on the filter curve): one undo step. */
+  const setDrag = (params, what) => st.dispatch([{ type: 'channel/update', id: channel.id, patch: { instrument: { params } } }], { coalesce: `ggs:${channel.id}:${what}` });
+  const pickPreset = (preset) => st.dispatch([{ type: 'channel/update', id: channel.id, patch: { instrument: { preset } } }]);
 
   /** The control for one param: knob, dropdown or switch, by its definition. */
   const C = (key, opts = {}) => {
     const d = ggsParamDef(key);
     const label = opts.label ?? d.label;
+    // every control explains itself on hover (the same text as the All parameters tab)
+    const title = opts.title || d.desc;
     if (d.type === 'number') {
       return (
         <Knob key={key} value={val(key)} min={d.min} max={d.max} def={d.default} curve={d.curve} step={d.step} label={label} unit={d.unit}
-          color={opts.color} showValue size={opts.size || 30} bipolar={d.min < 0} title={opts.title} onChange={(v) => set(key, d.step ? Math.round(v) : Math.round(v * 10000) / 10000)} />
+          color={opts.color} showValue size={opts.size || 30} bipolar={d.min < 0} title={title} onChange={(v) => set(key, d.step ? Math.round(v) : Math.round(v * 10000) / 10000)} />
       );
     }
     if (d.type === 'select') {
       return (
-        <label key={key} className="param-select" title={opts.title}>
+        <label key={key} className="param-select" title={title}>
           <Select value={val(key)} options={opts.options || d.options} onChange={(v) => set(key, v)} />
           <span>{label}</span>
         </label>
       );
     }
     return (
-      <label key={key} className="param-bool" title={opts.title}>
+      <label key={key} className="param-bool" title={title}>
         <button className={`toggle ${val(key) ? 'on' : ''}`} onClick={() => set(key, !val(key))} aria-pressed={!!val(key)}>{val(key) ? 'ON' : 'OFF'}</button>
         <span>{label}</span>
       </label>
@@ -245,7 +205,8 @@ export function SynthEditor({ channel }) {
     }
   };
 
-  const routes = modulationRoutes({ ...DEFAULTS, ...p });
+  const full = { ...DEFAULTS, ...p };
+  const routes = modulationRoutes(full);
   const freeSlot = () => {
     for (let i = 1; i <= MOD_SLOTS; i++) if (val(`mod${i}Src`) === 'none' || val(`mod${i}Dst`) === 'none' || !val(`mod${i}Amt`)) return i;
     return 0;
@@ -261,7 +222,6 @@ export function SynthEditor({ channel }) {
   const oscPanel = (x) => {
     const on = val(`osc${x}On`);
     const color = OSC_COLORS[x];
-    const table = TABLES.find((t) => t.id === val(`osc${x}Table`));
     return (
       <fieldset key={x} className={`param-group ggs-osc ${on ? '' : 'off'}`}>
         <legend style={{ color }}>Oscillator {x}</legend>
@@ -269,44 +229,49 @@ export function SynthEditor({ channel }) {
           <WaveView table={val(`osc${x}Table`)} pos={val(`osc${x}Pos`)} color={color} on={on} />
           <div className="ggs-osc-pick">
             {C(`osc${x}On`, { label: 'Power' })}
-            <label className="param-select" title={table?.description}>
-              <Select value={val(`osc${x}Table`)} onChange={(v) => set(`osc${x}Table`, v)} options={TABLES.map((t) => ({ value: t.id, label: t.name }))} />
-              <span>Wavetable</span>
-            </label>
-            {C(`osc${x}Dest`, { title: 'Where this oscillator goes: filter 1, filter 2, both, or past the filters' })}
+            {C(`osc${x}Dest`)}
           </div>
         </div>
+        <WavetablePicker value={val(`osc${x}Table`)} color={color} onPick={(v) => set(`osc${x}Table`, v)} />
         <div className="param-row">
-          {C(`osc${x}Pos`, { color, title: 'Position in the wavetable' })}{C(`osc${x}Level`, { color })}{C(`osc${x}Pan`, { color })}
+          {C(`osc${x}Pos`, { color })}{C(`osc${x}Level`, { color })}{C(`osc${x}Pan`, { color })}
           {C(`osc${x}Oct`, { color })}{C(`osc${x}Semi`, { color })}{C(`osc${x}Fine`, { color })}
         </div>
         <div className="param-row">
           {C(`osc${x}Unison`, { color })}{C(`osc${x}Detune`, { color })}{C(`osc${x}Blend`, { color })}{C(`osc${x}Spread`, { color })}
-          {C(`osc${x}Phase`, { color })}{C(`osc${x}Rand`, { color, title: '1 = every note starts at a random phase; 0 = always the same attack' })}
+          {C(`osc${x}Phase`, { color })}{C(`osc${x}Rand`, { color })}
         </div>
         <div className="param-row">
           {C(`osc${x}Warp`)}{C(`osc${x}WarpAmt`, { color, label: 'Warp' })}
-          {C(`osc${x}FmFrom`, { title: 'Phase modulation from another source (its own letter = feedback)' })}{C(`osc${x}Fm`, { color, label: 'FM' })}
+          {C(`osc${x}FmFrom`)}{C(`osc${x}Fm`, { color, label: 'FM' })}
         </div>
       </fieldset>
     );
   };
 
-  const filterPanel = (i) => (
-    <fieldset key={i} className={`param-group ggs-filter ${val(`f${i}On`) ? '' : 'off'}`}>
-      <legend>Filter {i}</legend>
-      <div className="ggs-osc-top">
-        <FilterView type={val(`f${i}Type`)} cutoff={val(`f${i}Cutoff`)} res={val(`f${i}Res`)} on={val(`f${i}On`)} />
-        <div className="ggs-osc-pick">{C(`f${i}On`, { label: 'Power' })}{C(`f${i}Type`)}</div>
-      </div>
-      <div className="param-row">{C(`f${i}Cutoff`)}{C(`f${i}Res`)}{C(`f${i}Drive`)}{C(`f${i}Key`, { title: '1 = the cutoff follows the note (and its pitch curve)' })}</div>
-    </fieldset>
-  );
+  const filterPanel = (i) => {
+    const type = val(`f${i}Type`);
+    const info = FILTER_INFO[type];
+    return (
+      <fieldset key={i} className={`param-group ggs-filter ${val(`f${i}On`) ? '' : 'off'}`}>
+        <legend>Filter {i}</legend>
+        <div className="ggs-filter-top">{C(`f${i}On`, { label: 'Power' })}{C(`f${i}Type`, { options: FILTER_OPTIONS, title: info.desc })}</div>
+        <FilterGraph type={type} cutoff={val(`f${i}Cutoff`)} resonance={val(`f${i}Res`)} drive={val(`f${i}Drive`)} morph={val(`f${i}Morph`)} on={val(`f${i}On`)}
+          width={308} height={100} onChange={(f) => setDrag(sectionToParams('filter', i, f), `f${i}:graph`)} />
+        <div className="param-row">
+          {C(`f${i}Cutoff`)}{C(`f${i}Res`)}{C(`f${i}Drive`)}{C(`f${i}Key`)}
+          {info.morph && C(`f${i}Morph`, { label: info.morph })}
+        </div>
+        <p className="cs-desc ggs-filter-desc">{info.desc}</p>
+      </fieldset>
+    );
+  };
 
   const envPanel = (i) => (
     <fieldset key={i} className={`param-group ggs-env ${i === 1 || used(`env${i}`) ? '' : 'idle'}`} title={i > 1 && !used(`env${i}`) ? 'Not routed yet: add a route in the Matrix tab' : undefined}>
       <legend>{i === 1 ? 'Envelope 1 · amp' : `Envelope ${i}`}</legend>
-      <EnvView env={paramsToSection({ ...DEFAULTS, ...p }, 'envelope', i)} />
+      <EnvelopeEditor env={paramsToSection({ ...DEFAULTS, ...p }, 'envelope', i)} defaults={paramsToSection(DEFAULTS, 'envelope', i)} color={ENV_COLORS[i - 1]} label={`Envelope ${i}`}
+        onChange={(f) => setDrag(sectionToParams('envelope', i, f), `env${i}:graph`)} />
       <div className="param-row">{C(`env${i}Delay`)}{C(`env${i}A`, { label: 'A' })}{C(`env${i}Hold`)}{C(`env${i}D`, { label: 'D' })}{C(`env${i}S`, { label: 'S' })}{C(`env${i}R`, { label: 'R' })}</div>
     </fieldset>
   );
@@ -320,7 +285,7 @@ export function SynthEditor({ channel }) {
         <div className="param-row">
           {C(`lfo${i}Shape`)}
           {sync === 'off' ? C(`lfo${i}Rate`) : <div className="ggs-note" title="Tempo-synced">{syncBeats(sync)} beats</div>}
-          {C(`lfo${i}Sync`)}{C(`lfo${i}Trig`, { title: 'note: restarts with every note · free: one clock shared by all notes' })}{C(`lfo${i}Fade`)}{C(`lfo${i}Phase`)}
+          {C(`lfo${i}Sync`)}{C(`lfo${i}Trig`)}{C(`lfo${i}Fade`)}{C(`lfo${i}Phase`)}
         </div>
       </fieldset>
     );
@@ -331,12 +296,7 @@ export function SynthEditor({ channel }) {
       <fieldset className="param-group ggs-head">
         <legend>GGS Synth</legend>
         <div className="param-row">
-          <label className="param-select">
-            <Select value={channel.instrument.preset} title={info.description}
-              onChange={(preset) => st.dispatch([{ type: 'channel/update', id: channel.id, patch: { instrument: { preset } } }])}
-              options={[{ value: 'Init', label: 'Init' }, ...GGS_PRESET_CATEGORIES.flatMap(([cat, group]) => Object.keys(GGS_PRESETS).filter((n) => GGS_PRESET_INFO[n]?.category === cat).map((n) => ({ value: n, label: n, group })))]} />
-            <span>Preset</span>
-          </label>
+          <PresetBrowser preset={channel.instrument.preset} onPick={pickPreset} />
           {[1, 2, 3, 4].map((i) => C(`macro${i}`, { label: info.macros[i - 1], color: '#c86be0', size: 34, title: `Macro ${i}: ${info.macros[i - 1]} (automatable)` }))}
           {C('gain')}
           <button className="btn tiny" onClick={exportPatch} title="Save this patch as a .json document">Export</button>
@@ -363,8 +323,8 @@ export function SynthEditor({ channel }) {
           <fieldset className="param-group">
             <legend>Voice</legend>
             <div className="param-row">
-              {C('level', { title: 'Level before the envelope. Set it low and route pressure to "level" for a sound that swells with touch' })}{C('velSens')}{C('relVelSens')}
-              {C('polyphony')}{C('mono')}{C('legato')}{C('glide')}{C('quality', { title: 'auto: 2× oversampling only where the patch can alias · high: always · eco: never' })}
+              {C('level')}{C('velSens')}{C('relVelSens')}
+              {C('polyphony')}{C('mono')}{C('legato')}{C('glide')}{C('quality')}
             </div>
           </fieldset>
         </div>
@@ -376,8 +336,8 @@ export function SynthEditor({ channel }) {
           <fieldset className="param-group">
             <legend>Routing</legend>
             <div className="param-row">
-              {C('filterRoute', { title: 'serial: filter 1 feeds filter 2 · parallel: side by side' })}
-              <p className="cs-desc">Each oscillator chooses its filter on the Oscillators tab (“To”). Sweep a filter per note in the Matrix: env2, pressure or slide → f1Cutoff.</p>
+              {C('filterRoute')}
+              <p className="cs-desc">Each oscillator chooses its filter on the Oscillators tab (“To”). The curve is the filter’s measured response: drag its handle for cutoff and resonance. Sweep a filter per note in the Matrix: env2, pressure or slide → f1Cutoff.</p>
             </div>
           </fieldset>
         </div>
@@ -395,11 +355,12 @@ export function SynthEditor({ channel }) {
             <button className="btn tiny" onClick={() => addRoute('env2', 'f1Cutoff', 0.35)}>Env 2 → cutoff</button>
             <button className="btn tiny" onClick={() => addRoute('velocity', 'f1Cutoff', 0.15)}>Velocity → cutoff</button>
             <button className="btn tiny" onClick={() => addRoute('macro1', 'f1Cutoff', 0.4)}>Macro 1 → cutoff</button>
+            <button className="btn tiny" onClick={() => addRoute('timbre', 'f1Morph', 1)} title="For the morph, formant, phaser and comb filters">Slide → filter morph</button>
           </div>
           <table>
             <thead><tr><th>Source</th><th>Target</th><th>Amount</th><th>Via</th><th /></tr></thead>
             <tbody>
-              {routes.map((r) => (
+              {routes.flatMap((r) => [
                 <tr key={r.slot}>
                   <td><Select value={r.source} title={MOD_SOURCE_INFO[r.source]} options={MOD_SOURCES.filter((x) => x !== 'none')} onChange={(v) => set(`mod${r.slot}Src`, v)} /></td>
                   <td><Select value={r.target} title={MOD_TARGET_INFO[r.target]} options={MOD_TARGETS.filter((x) => x !== 'none')} onChange={(v) => set(`mod${r.slot}Dst`, v)} /></td>
@@ -410,12 +371,14 @@ export function SynthEditor({ channel }) {
                   </td>
                   <td><Select value={r.via || 'none'} title="Scale this route by a second source" options={MOD_SOURCES.map((x) => ({ value: x, label: x === 'none' ? '—' : x }))} onChange={(v) => set(`mod${r.slot}Via`, v)} /></td>
                   <td><button className="tbtn small" onClick={() => removeRoute(r.slot)} aria-label={`Remove route ${r.source} to ${r.target}`} title="Remove">×</button></td>
-                </tr>
-              ))}
+                </tr>,
+                // what the route does, in the units of its target
+                <tr key={`${r.slot}-says`} className="ggs-route-says"><td colSpan={5}>{describeRoute(full, r)}</td></tr>
+              ])}
               {!routes.length && <tr><td colSpan={5} className="ggs-empty">No modulation yet. A route connects a source (envelope, LFO, velocity, the note’s pressure / slide / bend, a macro) to a target.</td></tr>}
             </tbody>
           </table>
-          <p className="cs-desc">An amount of 1 moves the target across its whole range: f1Cutoff 0.3 = 3 octaves, oscAPos 0.5 = half the table, pitch 0.5 = 12 semitones, pitchFine 0.3 = 0.3 semitones. {routes.length}/{MOD_SLOTS} slots used.</p>
+          <p className="cs-desc">Under each route: where it takes its target, from the knob’s position, with this route alone. An amount of 1 is the target’s whole range (cutoff: 10 octaves; pitch: 24 semitones; pitchFine: 1 semitone). {routes.length}/{MOD_SLOTS} slots used.</p>
         </div>
       )}
 
@@ -430,6 +393,8 @@ export function SynthEditor({ channel }) {
           <fieldset className="param-group"><legend>Reverb</legend><div className="param-row">{C('reverbMix')}{C('reverbSize')}{C('reverbDamp')}</div></fieldset>
         </div>
       )}
+
+      {tab === 'all' && <ParamTable params={full} onSet={set} />}
 
       <TouchPad channel={channel} />
     </div>
