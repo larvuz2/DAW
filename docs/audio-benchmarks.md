@@ -60,13 +60,14 @@ Reproduce the raw numbers: the tests above print them on failure; the tables cam
 | FM + warp + drive (2× oversampled) | 0.9 % | 7 % | 14 % | 28 % |
 | Preset Glass Horizon (with chorus, delay, reverb) | 2.4 % | 8 % | 14 % | 24 % |
 | Preset Velvet Pad | 2.0 % | 10 % | 19 % | 36 % |
-| Ladder filter on one saw (2× oversampled) | 1.2 % | 7 % | 13 % | 31 % |
-| Acid filter on one saw (2× oversampled) | 1.1 % | 8 % | 16 % | 31 % |
-| MS-20 filter on one saw (2× oversampled) | 0.8 % | 7 % | 13 % | 26 % |
+| Ladder filter on one saw (2× oversampled) | 1.3 % | 6 % | 12 % | 23 % |
+| Acid filter on one saw (2× oversampled) | 0.9 % | 7 % | 13 % | 26 % |
+| MS-20 filter on one saw (2× oversampled) | 0.7 % | 5 % | 11 % | 21 % |
 | Formant filter (five band-passes) | 0.6 % | 4 % | 6 % | 12 % |
 | Phaser, 12 stages | 0.6 % | 4 % | 9 % | 17 % |
 
-The analog-style filters cost about 0.6 % of a core per voice more than a clean filter at the same (doubled) rate,
+The analog-style filters cost about 0.4 % of a core per voice more than a clean filter at the same (doubled) rate
+(a fifth less since their loop solvers were written out in place),
 and a little more while their cutoff is moving. They are meant for basses and leads; a 16-voice pad through a ladder
 is fine, 32 voices of three unison oscillators through one is not.
 
