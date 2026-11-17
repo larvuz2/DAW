@@ -18,7 +18,7 @@ import { SpatialRig } from './spatial.js';
 import { preparePlugins, pluginParamDefs, pluginEntry } from './plugins.js';
 import { createEffectNode } from './effects.js';
 import { setParam, denormalize } from './dsp.js';
-import { GgsChannel, loadGgsModule, usesGgs } from './ggs-synth/index.js';
+import { GgsChannel, loadGgsModule, usesWorklet } from './ggs-synth/index.js';
 
 const LOOKAHEAD = 0.12; // seconds
 const INTERVAL = 25; // ms
@@ -102,7 +102,8 @@ export class AudioEngine {
     this.syncChannels();
     this.loadNeededSamples(project);
     preparePlugins(this.ctx, project);
-    if (usesGgs(project)) loadGgsModule(this.ctx);
+    // (not only for a GGS Synth: the first note played by hand on an Analog, Additive or Modal channel was silent)
+    if (usesWorklet(project)) loadGgsModule(this.ctx);
     if (this.realtime) {
       // physical-model notes (piano, guitar, bass) render in background workers shortly after an edit settles
       clearTimeout(this.prewarmTimer);
@@ -261,6 +262,10 @@ export class AudioEngine {
         let f = old.get(e.id);
         if (f && f.type === e.type && f.plugin === e.plugin && f.rev === rev(e)) old.delete(e.id);
         else f = { id: e.id, type: e.type, plugin: e.plugin, rev: rev(e), node: createEffectNode(this.ctx, e.type, this, e), params: null };
+        // (switched on while the song plays, it starts on the song's grid — not where the last play left it;
+        // switched off, it lets go of its tail: a disconnected node does not run, and would play it back later)
+        if (f.enabled === false && e.enabled && this.transport?.playing) f.node.sync?.(this.transport.syncPoint());
+        if (f.enabled === true && !e.enabled) f.node.reset?.();
         f.enabled = e.enabled;
         next.push(f);
       }
@@ -832,7 +837,8 @@ export class AudioEngine {
 
   /** Every effect that follows the song position (the pump's grid, tempo-synced DSP effects). */
   forEachSynced(fn) {
-    for (const ins of this.inserts) for (const f of ins.fx) if (f.enabled && typeof f.node.sync === 'function') fn(f.node);
+    // (also the ones that are switched off: they are told where the song is, so that they are right when they come on)
+    for (const ins of this.inserts) for (const f of ins.fx) if (typeof f.node.sync === 'function') fn(f.node);
   }
 }
 
@@ -924,11 +930,13 @@ export class Transport {
     this.timer = null;
     this.engine.killAll();
     this.engine.forEachPump((n) => n.stopSync());
+    this.engine.forEachSynced((n) => n.halt?.(this.engine.bpm));
     this.engine.endAutomation();
   }
 
   onTempoChange() {
-    if (!this.playing) return;
+    // (stopped: effects that follow the tempo — a synced tremolo under a note played by hand — still learn the new one)
+    if (!this.playing) { this.engine.forEachSynced((n) => n.halt?.(this.engine.bpm)); return; }
     // re-anchor at the scheduling cursor so already-queued events stay valid
     this.anchor = { time: this.cursorTime, tick: this.cursorTick, rate: this.rate() };
     this.segments.push(this.anchor);

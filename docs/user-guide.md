@@ -312,7 +312,7 @@ sung with slides, or a short passing note right after a note with a wide vibrato
 
 - **Projects** tab: new project from a template (Default, Empty, Trap, Deep House, Boom Bap, Lo-fi, Acid Techno, Pop Band,
   Indian Fusion, East Asian Lo-fi, UK Drill, Afrobeats, Reggaeton, Liquid Drum & Bass, Synthwave, Disco Funk, Neo-Soul,
-  Bossa Nova, Cinematic, Beatbox Jam), open, duplicate, delete.
+  Bossa Nova, Cinematic, Beatbox Jam, Expressive Synths, Effects & Engines Tour), open, duplicate, delete.
 - **Versions** (menu → Versions…): named snapshots of the current project. Restore any version (undoable); Claude can
   also save versions before risky changes. **Changes** on a version lists what is different now — tempo and key,
   each channel's sound (parameter old → new), notes added (+), removed (−) and changed (~) in a compact notation

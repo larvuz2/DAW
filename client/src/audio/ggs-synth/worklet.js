@@ -178,6 +178,7 @@ for (const [type, Fx] of Object.entries(STUDIO_FX)) {
         const m = e.data;
         if (m?.type === 'params') this.fx.set(m.values);
         else if (m?.type === 'sync') this.next = { time: m.time, beat: m.beat, bpm: m.bpm, playing: m.playing !== false };
+        else if (m?.type === 'reset') this.fx.reset();
         else if (m?.type === 'close') this.closed = true;
       };
     }

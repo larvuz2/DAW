@@ -8,6 +8,7 @@
 // every render). So two renders of an untouched project agree to about −140 dB, not to the bit, and a fingerprint
 // alone would call them different. The null test — subtract one render from the other and measure what is left —
 // is the answer that holds.
+import { INSTRUMENTS } from './instruments.js';
 
 /** Edges of the 24 critical bands of the Bark scale in Hz (Zwicker 1961; the lowest edge raised to 20 Hz). */
 export const BARK_EDGES_HZ = [20, 100, 200, 300, 400, 510, 630, 770, 920, 1080, 1270, 1480, 1720, 2000, 2320, 2700, 3150, 3700, 4400, 5300, 6400, 7700, 9500, 12000, 15500];
@@ -299,4 +300,37 @@ export function compareRenders(a, b) {
     lines.push(`the same by every meter (${still}). Not bit-identical — but a browser sums its mixer in a different order from run to run, so that alone is not a change; a render straight after this one is null-tested against it and settles it`);
   }
   return { identical, same: false, lines, deltas, nullTest: nulled };
+}
+
+
+/** Seconds an effect of this type goes on sounding after its input has stopped (0 for those that do not). */
+const EFFECT_TAILS = {
+  reverb: (p) => p.decay ?? 2, algoverb: (p) => (p.freeze ? 0 : p.decay ?? 2.5), shimmer: (p) => p.decay ?? 6, resonator: (p) => p.decay ?? 3,
+  delay: () => 3
+};
+
+/**
+ * How long a song goes on sounding after its last bar, in seconds — what an export leaves room for instead of
+ * cutting a bell or a hall off. The longest release among the instruments that play, plus most of the longest decay
+ * among the effects that are on (a decay time is to −60 dB: two thirds of it reach −40 dB, where the export's final
+ * fade takes over). Never under 2 s, never over 8 s.
+ */
+export function songTail(project) {
+  let release = 0;
+  for (const c of project?.channels || []) {
+    const def = INSTRUMENTS[c.instrument?.kind];
+    const params = c.instrument?.params || {};
+    const seconds = def?.tail ? def.tail(params) : c.instrument?.kind === 'ggs' ? (params.env1R ?? 0.25) + (params.reverbMix > 0 ? 1.5 : 0) + (params.delayMix > 0 ? 1 : 0) : 0;
+    if (seconds > release) release = seconds;
+  }
+  let decay = 0;
+  for (const m of project?.mixer || []) {
+    for (const fx of m.effects || []) {
+      const seconds = fx.enabled !== false && EFFECT_TAILS[fx.type] ? Number(EFFECT_TAILS[fx.type](fx.params || {})) || 0 : 0;
+      if (seconds > decay) decay = seconds;
+    }
+  }
+  // (the longer of the two, and half of the other: a long release into a long hall is not both in full)
+  const fx = 0.67 * decay;
+  return Math.max(2, Math.min(8, Math.max(release, fx) + 0.5 * Math.min(release, fx)));
 }

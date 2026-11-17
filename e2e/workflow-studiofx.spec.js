@@ -169,6 +169,75 @@ test('GGS Synth: the unison law, the stack and the drive rate are in the editor 
   await expect(editor).toContainText('Uni table');
 });
 
+test('found by the review: the first note played by hand sounds, and an effect switched back on has let go of its tail', async ({ browser, baseURL }) => {
+  test.setTimeout(120_000);
+  // a fresh page: no audio worklet loaded yet, as when the studio has just been opened
+  const fresh = await browser.newPage();
+  const fails = [];
+  fresh.on('pageerror', (e) => fails.push(e.message));
+  try {
+    await fresh.goto('/');
+    await fresh.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
+    const other = await connectMcp(baseURL);
+    await other.call('create_project', { name: 'First note', template: 'empty', bpm: 120 });
+    await other.call('add_channel', { name: 'Solo', instrument: 'analog', preset: 'Saw Bass' });
+    await other.call('add_effect', { insert: 1, type: 'algoverb', params: { decay: 8, mix: 1 } });
+    await other.close();
+    await fresh.goto('/');
+    await expect(fresh).toHaveTitle(/First note/);
+    const heard = await fresh.evaluate(async () => {
+      const { store } = window.greanteadawy;
+      const eng = await store.getState().unlockAudio();
+      const buf = new Float32Array(2048);
+      /** The loudest sample at the master output over `ms`. */
+      const listen = async (ms) => {
+        let peak = 0;
+        const end = performance.now() + ms;
+        while (performance.now() < end) {
+          eng.analyser.getFloatTimeDomainData(buf);
+          for (const v of buf) peak = Math.max(peak, Math.abs(v));
+          await new Promise((res) => setTimeout(res, 15));
+        }
+        return peak;
+      };
+      const st = () => store.getState();
+      const ch = st().project.channels.find((c) => c.name === 'Solo');
+      const fx = st().project.mixer[1].effects[0];
+      const enable = (enabled) => st().dispatch([{ type: 'effect/update', index: 1, effectId: fx.id, patch: { enabled } }]);
+      // the reverb is off for the first part: the note is heard as it is
+      enable(false);
+      // (the studio has had a moment to get ready, as it has before anyone reaches for a key)
+      await new Promise((res) => setTimeout(res, 1500));
+      const v = eng.noteOn(ch.id, 45, 0.9);
+      const first = await listen(400);
+      v?.release(eng.ctx.currentTime + 0.02);
+      await new Promise((res) => setTimeout(res, 600));
+      // now through the reverb: a note, its tail starts — the reverb is switched off, and on again 1.5 s later
+      enable(true);
+      await new Promise((res) => setTimeout(res, 300));
+      const w = eng.noteOn(ch.id, 45, 0.9);
+      await new Promise((res) => setTimeout(res, 300));
+      w?.release(eng.ctx.currentTime + 0.02);
+      await new Promise((res) => setTimeout(res, 500));
+      const tail = await listen(200);
+      enable(false);
+      await new Promise((res) => setTimeout(res, 1500));
+      enable(true);
+      await new Promise((res) => setTimeout(res, 120));
+      const after = await listen(400);
+      return { first, tail, after, voice: !!v };
+    });
+    expect(heard.voice).toBe(true);
+    expect(heard.first, 'the first note played by hand is heard').toBeGreaterThan(0.01);
+    expect(heard.tail, 'the reverb rings after the note').toBeGreaterThan(0.003);
+    // (it would be about a third of `tail` 1.6 s into an 8 s decay, had the reverb kept what it held)
+    expect(heard.after, `switched off and on again, the old tail is gone: ${JSON.stringify(heard)}`).toBeLessThan(heard.tail * 0.05);
+    expect(fails).toEqual([]);
+  } finally {
+    await fresh.close();
+  }
+});
+
 test('no uncaught errors in the browser', async () => {
   expect(errors).toEqual([]);
 });

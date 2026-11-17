@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.13.1 — A song that tours the new sounds, and fixes from the review of 0.13.0
+
+**New template: Effects & Engines Tour** — forty bars in A minor (just intonation on A, every chord beatless) that
+use the Analog, Additive and Modal instruments, a GGS supersaw of unison copies and all fourteen studio effects.
+Menu → *New from template*, or `create_project template="tour"`. Mixed by its numbers (−14 LUFS, true peak
+−1.1 dBTP in a browser render); nobody has listened to it yet. A template can now carry a tuning, effects after the
+master limiter, and more parts than a new project has inserts.
+
+**Fixed** (an independent review of 0.13.0: nothing critical or high; these, each with a test unless said)
+- The first note played by hand on an Analog, Additive or Modal channel was silent (the audio worklet was only
+  loaded ahead of time for a GGS Synth).
+- A reverb (or any effect that holds sound) switched off and on again played the tail it had held: it now lets go.
+- An effect that follows the song (trance gate, synced tremolo and flanger) switched on while the song played ran
+  up to 118 ms off the grid until the next start; effects also learn a tempo changed while the song stood still.
+  *(No automated test: checked by the reviewer's measurement and by reading.)*
+- The Analog's attack depended on how the browser cut the first block of a note (up to −41 dB of difference re
+  peak): a note is now the same note at any block size.
+- An octave or fifth stack on the very highest keys folded back as a tone that was no note (19 kHz at −6.5 dB on
+  key 127): a copy above the reach of the sample rate is left out.
+- `list_instruments kind="analog|additive|modal"` left out what each setting does.
+- A switch set to `"yes"` or `"on"` through the tools was accepted and stored as off: it must be `true` or `false`.
+- Exports ended on a hard cut two seconds after the last bar, whatever still rang: the tail now follows the song
+  (2–8 s, from its instruments' releases and its effects' decays) and ends on a 60 ms fade. **Exported files of
+  songs with long tails are longer than before.**
+
+**Said in the docs now** — what a note of each instrument costs, that nothing compensates the look-ahead of the
+true-peak limiter beside other channels, and that an older version drops what it does not know from a 0.13 project.
+
 ## 0.13.0 — Effects and engines
 
 The fifth batch from GGS Composer: fourteen effects and three instruments that run as the studio's own DSP in the

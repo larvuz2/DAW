@@ -102,6 +102,7 @@ export class Analog extends SynthEngine {
     this.lfo = 0;
     this.count = 0;
     this.gain = 0; this.gainTo = 0;
+    this.gainStep = 0; // (kept between calls of render: a block cut anywhere — the first one of a note is — ramps on)
     this.inc1 = 0; this.inc2 = 0;
     this.g = 0; this.k = 0;
     this.pwNow = 0.5;
@@ -186,7 +187,7 @@ export class Analog extends SynthEngine {
     let g = this.g;
     let k = this.k;
     let gainTo = this.gainTo;
-    let gainStep = 0;
+    let gainStep = this.gainStep;
     for (let i = 0; i < n; i++) {
       if (count === 0) {
         this.control(bend);
@@ -305,6 +306,6 @@ export class Analog extends SynthEngine {
     if (s4 < 1e-20 && s4 > -1e-20) s4 = 0;
     this.p1 = p1; this.p2 = p2; this.ps = ps; this.hold1 = hold1; this.hold2 = hold2;
     this.s1 = s1; this.s2 = s2; this.s3 = s3; this.s4 = s4;
-    this.gain = gain; this.count = count; this.noiseState = noise;
+    this.gain = gain; this.gainStep = gainStep; this.count = count; this.noiseState = noise;
   }
 }

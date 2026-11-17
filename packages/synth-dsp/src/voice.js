@@ -742,6 +742,13 @@ export class GgsVoice {
       let ph = o.phase[u];
       let inc = o.inc * o.ratio[u];
       const dinc = dincBase * o.ratio[u];
+      // A copy whose own pitch is beyond what the sample rate carries (an octave stack on the very highest keys)
+      // is left out for the block: it would fold back as a tone that is no note. Its phase moves on.
+      if (maxInc > 0.46 / this.os && Math.max(o.inc, o.incTo) * o.ratio[u] * this.os > 0.46) {
+        ph += (inc + 0.5 * dinc * m) * m;
+        o.phase[u] = ph - Math.floor(ph);
+        continue;
+      }
       const gl = o.gl[u];
       const gr = o.gr[u];
       const gm = o.gm[u];

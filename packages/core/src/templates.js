@@ -1,7 +1,7 @@
 // Genre starter templates (also used by the MCP `create_project` tool). Each genre is a file in templates/ that exports
 // { label, spec }: spec() describes channels, buses, patterns and the arrangement, and build() turns it into a project.
 import { ticksPerBar } from './constants.js';
-import { createEmptyProject, createDefaultProject, createChannel, createPattern, createClip, createMarker, normalizeProject, normalizeKey } from './model.js';
+import { createEmptyProject, createDefaultProject, createChannel, createPattern, createClip, createMarker, createMixerInsert, normalizeProject, normalizeKey } from './model.js';
 import { parsePitchClass } from './music.js';
 import { createEffect } from './effects.js';
 import { INSTRUMENTS } from './instruments.js';
@@ -24,10 +24,11 @@ import bossanova from './templates/bossanova.js';
 import cinematic from './templates/cinematic.js';
 import beatbox from './templates/beatbox.js';
 import expressive from './templates/expressive.js';
+import tour from './templates/tour.js';
 import { didYouMean } from './suggest.js';
 
 // in the order the template menus list them
-const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox, expressive };
+const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox, expressive, tour };
 
 export const TEMPLATES = {
   default: { label: 'Default (4 drum channels)', bpm: 130 },
@@ -41,6 +42,8 @@ export const TEMPLATES = {
  */
 function build(spec) {
   const p = createEmptyProject({ name: spec.name, bpm: spec.bpm, key: spec.key, scale: spec.scale });
+  // (a song with more parts than a new project has inserts gets the inserts it needs)
+  while (p.mixer.length <= spec.channels.length + (spec.buses || []).length) p.mixer.push(createMixerInsert(p.mixer.length));
   p.swing = spec.swing || 0;
   const bar = ticksPerBar(p);
   const byName = {};
@@ -82,6 +85,9 @@ function build(spec) {
     if (a.trackName) p.playlist.tracks[a.track].name = a.trackName;
   }
   for (const fx of spec.master || []) p.mixer[0].effects.unshift(createEffect(fx.type, fx.params));
+  // (masterEnd: after the master limiter — where a true-peak limiter belongs)
+  for (const fx of spec.masterEnd || []) p.mixer[0].effects.push(createEffect(fx.type, fx.params));
+  if (spec.tuning) p.tuning = spec.tuning;
   p.markers = (spec.markers || []).map((m) => createMarker({ tick: m.bar * bar, name: m.name }));
   return normalizeProject(p);
 }
@@ -130,4 +136,6 @@ function transposeToKey(p, key) {
     }
   }
   p.key = normalizeKey(key);
+  // a tuning built on the song's key moves with it (its chords stay the ratios they were)
+  if (p.tuning && p.tuning.system !== 'equal') p.tuning = { ...p.tuning, root: p.key };
 }

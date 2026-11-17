@@ -1,5 +1,5 @@
 // Offline (faster than realtime) rendering of the song or a pattern, optionally metering stems in the same pass.
-import { patternLength, songLength, ticksPerBar, PPQ, encodeWav, createLevelMeter, SPEAKER_LAYOUTS } from '@greanteadawy/core';
+import { patternLength, songLength, songTail, ticksPerBar, PPQ, encodeWav, createLevelMeter, SPEAKER_LAYOUTS } from '@greanteadawy/core';
 import { AudioEngine } from './engine.js';
 import { LIMITER_HEADROOM } from './effects.js';
 import { preparePlugins } from './plugins.js';
@@ -23,7 +23,7 @@ const TAP_SIZE = 32768; // AnalyserNode history (max fftSize) — must exceed on
  * thing feeding that insert, otherwise right after the channel strip (volume/pan) — always before the master bus.
  */
 export async function renderProject(project, opts = {}) {
-  const { mode = 'song', patternId, loops = 4, tail = 2, sampleRate = 44100, samples = new Map(), bitDepth = 16, ditherSeed = 0, onProgress, encode = true } = opts;
+  const { mode = 'song', patternId, loops = 4, tail = songTail(project), sampleRate = 44100, samples = new Map(), bitDepth = 16, ditherSeed = 0, onProgress, encode = true } = opts;
   const songMode = mode === 'song' && songLength(project) > 0;
   let ticks;
   if (songMode) {
@@ -82,6 +82,14 @@ export async function renderProject(project, opts = {}) {
   onProgress?.(0.02);
   const buffer = await ctx.startRendering();
   transport.playing = false;
+  // whatever still rings where the render ends fades over its last 60 ms: a file never ends on a step
+  if (tail > 0.2 && opts.fadeEnd !== false) {
+    const n = Math.min(buffer.length, Math.round(0.06 * sampleRate));
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const x = buffer.getChannelData(ch);
+      for (let i = 0; i < n; i++) x[buffer.length - n + i] *= 0.5 + 0.5 * Math.cos((Math.PI * (i + 1)) / n);
+    }
+  }
   collect(buffer.length, true);
   grMeter?.collect(buffer.length, true);
   onProgress?.(1);

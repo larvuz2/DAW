@@ -156,3 +156,16 @@ test('analog: the sub is an octave below, the LFO moves what it is sent to, ever
   }
   assert.ok(rmsOf(note(Analog, {}, { key: 57 }).L) > 1e-3);
 });
+
+test('found by the review: a note is the same note however its blocks are cut (the first block of a note is rarely whole)', () => {
+  // the worklet's first call for a note is 128 − offset samples; letting the key go splits a block as well
+  for (const params of [{}, { attack: 0.001 }, Analog.presets['Sync Lead'], Analog.presets['Resonant Pluck']]) {
+    const whole = note(Analog, params, { key: 57, hold: 0.3, block: 128 }).L;
+    for (const block of [1, 37, 91, 500]) {
+      const cut = note(Analog, params, { key: 57, hold: 0.3, block }).L;
+      let worst = 0;
+      for (let i = 0; i < whole.length; i++) worst = Math.max(worst, Math.abs(whole[i] - cut[i]));
+      assert.ok(worst < 2e-3 * Math.max(peakOf(whole), 1e-3), `blocks of ${block}: off by ${db(worst / peakOf(whole)).toFixed(1)} dB re peak`);
+    }
+  }
+});

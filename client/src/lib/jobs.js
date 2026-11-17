@@ -5,7 +5,7 @@
 //   export-stems    render every channel on its own and upload each as a WAV (MCP export_stems, File menu)
 //   spatial         binaural / 5.1 / 7.1 / 7.1.4 / object stems / ADM BWF renders of the 3D mix (lib/spatialExport.js)
 //   generator       run a generator plugin in the sandboxed iframe and return its notes (MCP run_generator)
-import { analyzeAudio, envelopeTimes, encodeWav, ticksPerBar, PPQ, STEP, songNotesInRange, songLength, INSTRUMENTS, audioFingerprint, maskingReport, nullTest, toPcm16 } from '@greanteadawy/core';
+import { analyzeAudio, envelopeTimes, encodeWav, ticksPerBar, PPQ, STEP, songNotesInRange, songLength, songTail, INSTRUMENTS, audioFingerprint, maskingReport, nullTest, toPcm16 } from '@greanteadawy/core';
 import { renderProject } from '../audio/render.js';
 import { preparePlugins } from '../audio/plugins.js';
 import { prepareGgs } from '../audio/ggs-synth/index.js';
@@ -97,7 +97,8 @@ async function renderJob(jobId, job, sync) {
   };
   const mode = job.mode === 'song' && songLength(project) > 0 ? 'song' : 'pattern';
   const samples = getEngine()?.samples || new Map();
-  const opts = { mode, patternId: job.patternId, loops: job.loops || 2, tail: 1.5, samples, encode: false, meterLimiter: true };
+  // (a file that is kept gets room for the song's own tail; an analysis keeps its fixed second and a half)
+  const opts = { mode, patternId: job.patternId, loops: job.loops || 2, tail: job.save ? songTail(project) : 1.5, samples, encode: false, meterLimiter: true };
   st.toast('Claude is rendering and analysing the mix…', 'claude', 2500);
 
   const wanted = [];
@@ -252,7 +253,7 @@ export async function exportStems(job, { jobId, sync } = {}) {
           channels: base.channels.map((c) => ({ ...c, solo: false, mute: c.id !== w.channelId })),
           playlist: { ...base.playlist, clips: base.playlist.clips.filter((c) => c.kind !== 'audio') }
         };
-    const { blob } = await renderProject(solo, { mode, patternId: job.patternId, loops: job.loops || 2, tail: 2, samples, bitDepth, ditherSeed: i + 1 });
+    const { blob } = await renderProject(solo, { mode, patternId: job.patternId, loops: job.loops || 2, tail: songTail(project), samples, bitDepth, ditherSeed: i + 1 });
     const fd = new FormData();
     fd.append('name', `${project.name.slice(0, 20)}-${pad(i + 1)}-${w.name.slice(0, 20)}-${stamp}`);
     fd.append('file', blob, 'stem.wav');

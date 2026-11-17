@@ -11,7 +11,7 @@ export const OFFLINE_START = 0.02;
 
 export const usesStudioFx = (project) => project.mixer.some((m) => m.effects.some((e) => STUDIO_FX[e.type]));
 
-/** { input, output, update(params), sync(point), automation, dispose() } — like every mixer effect. */
+/** { input, output, update(params), sync(point), reset(), automation, dispose() } — like every mixer effect. */
 export function studioFxNode(ctx, engine, type, effect = null) {
   const Fx = STUDIO_FX[type];
   const defs = Fx.defs;
@@ -43,6 +43,15 @@ export function studioFxNode(ctx, engine, type, effect = null) {
       point = pointOf(sp);
       node?.port.postMessage({ type: 'sync', ...point });
     },
+    /** The song stopped, or its tempo changed while it stood still: the effect runs on from where it is, at that tempo. */
+    halt(bpm) {
+      point = { ...point, time: ctx.currentTime, bpm, playing: false };
+      node?.port.postMessage({ type: 'sync', ...point });
+    },
+    /** Switched off: what it still holds (a tail, a delay, a string that rings) is let go of. */
+    reset() {
+      node?.port.postMessage({ type: 'reset' });
+    },
     dispose() {
       disposed = true;
       node?.port.postMessage({ type: 'close' });
@@ -71,4 +80,4 @@ export function studioFxNode(ctx, engine, type, effect = null) {
   return self;
 }
 
-const pointOf = ({ time, tick, bpm }) => ({ time, beat: tick / PPQ, bpm, playing: true });
+const pointOf = ({ time, tick, bpm, playing = true }) => ({ time, beat: tick / PPQ, bpm, playing });

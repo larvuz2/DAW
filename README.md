@@ -93,8 +93,8 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
   (with a warning that lists every project using it).
 - **Pitch correction** — auto-tune a voice or solo instrument to the project's key and scale with amount, speed and
   flatten (natural to robotic), see the sung and corrected pitch, and drag single notes up or down by hand.
-- **Projects** — 18 genre templates, from trap, drill and afrobeats to bossa nova, cinematic and a beatbox jam (with
-  shared FX buses and sidechain), versions (named snapshots), undo/redo,
+- **Projects** — 20 templates, from trap, drill and afrobeats to bossa nova, cinematic and a beatbox jam (with
+  shared FX buses and sidechain), plus two tours: *Expressive Synths* and *Effects & Engines Tour*; versions (named snapshots), undo/redo,
   16-bit (dithered) or 24-bit WAV, **stems**, MIDI and project export, MIDI import.
 - **Live sync** across tabs and devices, mobile-friendly layout, keyboard-accessible controls.
 

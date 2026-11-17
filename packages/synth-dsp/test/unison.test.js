@@ -144,3 +144,27 @@ test('patches made before the laws, the stacks and sixteen copies play exactly a
   const held = renderPatch({ params: { oscAUnison: 7, oscADetune: 30 }, notes: [{ key: 57, velocity: 1, start: 0, duration: 1 }], sampleRate: FS, seconds: 1.2, fx: false });
   assert.ok(peakOf((held.channels || [held.left])[0]) < 1.2);
 });
+
+test('found by the review: a stacked copy above the reach of the sample rate is left out instead of folding back', () => {
+  // the highest key, eight copies, every second pair an octave up: 25 kHz does not exist at 44.1 kHz
+  const fs = 44100;
+  const render = (params) => { const r = renderPatch({ params: { f1On: false, oscAUnison: 8, oscADetune: 0, oscABlend: 1, ...params }, notes: [{ key: 127, velocity: 1, start: 0, duration: 1 }], sampleRate: fs, seconds: 1, fx: false }); return (r.channels || [r.left])[0]; };
+  const strayAt = (x) => {
+    const { mag, binHz } = spectrum(x, 8192, 16384, fs);
+    const f0 = 440 * 2 ** ((127 - 69) / 12);
+    let note = 0;
+    let stray = 0;
+    for (let k = 4; k < mag.length; k++) { const hz = k * binHz; if (Math.abs(hz - f0) < 40) note += mag[k] ** 2; else stray += mag[k] ** 2; }
+    return 10 * Math.log10(stray / note);
+  };
+  const plain = strayAt(render({}));
+  const stacked = strayAt(render({ oscAStack: 'octave' }));
+  assert.ok(stacked < -40, `an octave stack on key 127: ${stacked.toFixed(1)} dB of anything but the note (it was −6.5 dB: a 19 kHz tone)`);
+  assert.ok(Math.abs(stacked - plain) < 12, `like the stack switched off (${plain.toFixed(1)} dB)`);
+  // an octave lower everything fits, and the stack is there
+  const lower = renderPatch({ params: { f1On: false, oscAUnison: 8, oscADetune: 0, oscABlend: 1, oscAStack: 'octave' }, notes: [{ key: 103, velocity: 1, start: 0, duration: 1 }], sampleRate: fs, seconds: 1, fx: false });
+  const { mag, binHz } = spectrum((lower.channels || [lower.left])[0], 8192, 16384, fs);
+  const at = (hz) => { let m = 0; for (let k = Math.round(hz / binHz) - 3; k <= Math.round(hz / binHz) + 3; k++) m = Math.max(m, mag[k]); return m; };
+  const g7 = 440 * 2 ** ((103 - 69) / 12);
+  assert.ok(at(2 * g7) > 0.05 * at(g7), 'the octave copies sound where they fit');
+});

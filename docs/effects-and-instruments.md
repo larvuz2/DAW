@@ -7,6 +7,17 @@ instruments that were there before: nothing existing changed its sound.
 Nothing here has been tuned by ear by a person: every figure on this page was measured by the tests
 (`packages/synth-dsp/test`). What they sound like is for you to judge.
 
+## Hear it: the tour
+
+In the menu (the logo, top left): *New from template → Effects & Engines Tour* (or `create_project template="tour"` for Claude) is a song of forty bars
+that uses all of it: the Analog (bass and a hard-synced lead), the Additive (a pad) and the Modal (marimba, vibraphone,
+kalimba, a tubular bell), a GGS supersaw of unison copies (the *super* law, an octave stack, drive at 4x), and every
+one of the fourteen effects doing a job — the kick through the disperser, a pad chopped by the trance gate, hats and
+clap coming back as a chord from the resonator, the bell into the shimmer, the true-peak limiter last on the master.
+It is in A minor in just intonation on A, on chords that are all whole-number ratios there, voiced by the
+voice-leading solver. Open the mixer and switch things off to hear what each one does; in *Harmony → Tuning*, press
+*Standard* to hear the same song in equal temperament.
+
 ## The effects
 
 In the mixer, *+ Add effect…* lists every effect by what it is for. Each is an insert like any other: it can be
@@ -70,7 +81,11 @@ What each one is, and what was measured:
   side, swap, a delay per side, a DC filter. At rest it passes the input bit for bit.
 
 Cost: the most expensive (the two reverbs) take about 25–30 ms of one CPU core per second of audio, the others
-1–12 ms.
+1–12 ms. Notes cost too, each one on its own: an Analog or a Modal note 1–4 ms per second, an Additive note up to
+24 ms (the *Saw Stack* preset, 64 partials — sixteen of them at once are a third of a core), a GGS note with three
+oscillators of sixteen copies each 58 ms. A heavy session measured in a browser — eight inserts each with the
+algorithmic reverb and the multiband, the limiter on the master, six engine channels playing chords — took 59 % of
+one core and did not drop out.
 
 **Found while measuring.** The frequency shifter, as ported, rang for ever with a shift of +5 kHz, the shortest
 feedback delay and feedback above 0.84: a partial at 19 kHz went to half the sample rate and came back twice as
@@ -127,6 +142,11 @@ sample for sample.
 - For a master that must stay under a true-peak figure: `add_effect insert=0 type="maximizer" params={"ceiling":-1}`.
 
 ## What is not here
+
+- A project made with this version and opened with an older one loses what the older one does not know: its Analog,
+  Additive and Modal channels become kicks (their notes stay) and the new effects are dropped. Keep the two apart.
+- An effect with a look-ahead (the True-peak Limiter: 5 ms) delays what passes through it, and nothing is delayed to
+  match: on the master that only moves the whole song by 5 ms; on one channel beside others, mind it.
 
 - Wavetables defined by a list of harmonics or a formula, a granular instrument, and the grain-cloud and
   spectral-freeze effects of GGS Composer are not ported yet.

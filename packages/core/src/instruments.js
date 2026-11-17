@@ -789,7 +789,9 @@ export const INSTRUMENTS = {
 for (const [kind, Engine] of Object.entries(SYNTH_ENGINES)) {
   INSTRUMENTS[kind] = {
     label: Engine.label, category: Engine.category, melodic: true, defaultKey: 60, color: Engine.color, engine: true,
-    description: Engine.description, params: Engine.defs, presets: Engine.presets
+    description: Engine.description, params: Engine.defs, presets: Engine.presets,
+    // seconds a note may ring after its key is let go, with these settings
+    tail: (params) => Engine.tail(params)
   };
 }
 
@@ -859,7 +861,11 @@ export function sanitizeValue(p, value, strict = false) {
     }
     return value;
   }
-  if (p.type === 'bool') return value === true || value === 'true' || value === 1;
+  if (p.type === 'bool') {
+    // ("yes" or "on" used to be taken, and stored as off: say what a switch takes instead)
+    if (strict && typeof value !== 'boolean') throw new Error(`Parameter "${p.key}" is a switch: it must be true or false (got ${JSON.stringify(value)})`);
+    return value === true || value === 'true' || value === 1;
+  }
   if (p.type === 'sample' || p.type === 'channel') return value == null || value === '' ? null : String(value).slice(0, 64);
   return value;
 }
@@ -900,7 +906,10 @@ export function describeInstruments() {
         ...(p.type === 'number' ? { min: p.min, max: p.max } : {}),
         ...(p.options ? { options: p.options } : {}),
         default: p.default,
-        ...(p.unit ? { unit: p.unit } : {})
+        ...(p.unit ? { unit: p.unit } : {}),
+        // (the engine instruments say what each setting does, as the studio effects do; the GGS Synth's own
+        // descriptions are read with describe_synth)
+        ...(p.description ? { description: p.description } : {})
       }))
     };
   });
