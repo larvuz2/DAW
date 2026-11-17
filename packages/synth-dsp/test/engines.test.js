@@ -11,7 +11,8 @@ test('every engine in the registry passes the checks all of them share', () => {
   assert.ok(Object.keys(SYNTH_ENGINES).length >= 1);
   for (const [type, Engine] of Object.entries(SYNTH_ENGINES)) {
     assert.equal(Engine.type, type);
-    engineChecks(Engine);
+    // (the Analog's own patch is two oscillators 7 cents apart that drift: its pitch is the middle of them)
+    engineChecks(Engine, type === 'analog' ? { cents: 9 } : {});
   }
 });
 

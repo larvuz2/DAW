@@ -2,11 +2,12 @@
 // in the audio worklet and usable in Node. SYNTH_ENGINES is the registry: instrument kind → class.
 import { Additive } from './additive.js';
 import { Modal } from './modal.js';
+import { Analog } from './analog.js';
 
 export { SynthEngine, Adsr, velocityGain, velocityTimbre, keyHz } from './base.js';
-export { Additive, Modal };
+export { Additive, Modal, Analog };
 
-export const SYNTH_ENGINES = Object.fromEntries([Additive, Modal].map((e) => [e.type, e]));
+export const SYNTH_ENGINES = Object.fromEntries([Analog, Additive, Modal].map((e) => [e.type, e]));
 
 /**
  * Render notes of an engine in Node: { channels: [L, R] }.
