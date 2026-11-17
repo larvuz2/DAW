@@ -9,10 +9,10 @@ import { getWavetable, tableLevel, levelFor, FRAME, STRIDE } from './wavetables.
 import { GGS_PARAMS, LFO_STEPS, stepShape, completeParams, syncBeats, needsOversampling, envCurveK, MOD_SOURCES, MOD_TARGETS, OSC_IDS, ENV_COUNT, LFO_COUNT, MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, MOD_SLOTS, SOURCE_DESTS, WARP_MODES, LFO_SHAPES, SUB_WAVES } from './params.js';
 import { VoiceFilter, NC, NS } from './filters.js';
 import { Chaos } from './chaos.js';
+import { MAX_UNISON, UNISON_LAWS, UNISON_STACKS, spreadOf, unisonCents, stackSemis } from './unison.js';
 import { Rng, hash32, hashBipolar, Decimator2, DEFAULT_HALFBAND, Arena, clamp, TAU } from './util.js';
 
 export const CTRL = 16;
-const MAX_UNISON = 8;
 const MAX_INNER = CTRL * 2; // internal samples per control block at 2× oversampling
 
 const SRC = Object.fromEntries(MOD_SOURCES.map((s, i) => [s, i]));
@@ -53,7 +53,7 @@ const valueAt = (v, i) => (typeof v === 'number' ? v : v.length > 1 ? v[i] : v[0
 const FADE = 0.004;
 const BUS = 3;
 const SWAP_KEYS = [
-  ...OSC_IDS.map((x) => ['On', 'Table', 'Warp', 'FmFrom', 'Dest', 'Unison'].map((k) => `osc${x}${k}`)),
+  ...OSC_IDS.map((x) => ['On', 'Table', 'Warp', 'FmFrom', 'Dest', 'Unison', 'UniLaw', 'Stack'].map((k) => `osc${x}${k}`)),
   ['f1On', 'f1Type', 'f2On', 'f2Type', 'filterRoute', 'subWave', 'subDest', 'noiseType', 'noiseDest']
 ];
 
@@ -144,6 +144,12 @@ class Osc {
     this.unison = 0;
     this.detune = -1;
     this.lastPan = NaN;
+    // the unison law and stack, how far the copies are spread over the table, and the highest pitch among them
+    this.law = 0;
+    this.stack = 0;
+    this.uniPos = 0;
+    this.uniNow = 0; // (where the spread over the table stands: it moves to uniPos over a block, as the position does)
+    this.maxRatio = 1;
     this.need = 0;
     this.data = null;
     this.inc = 0;
@@ -322,6 +328,10 @@ export class GgsVoice {
       o.pFm = p[k.Fm];
       o.pDetune = p[k.Detune];
       if (p[k.Blend] !== o.blend || p[k.Spread] !== o.spread) o.lastPan = NaN;
+      const law = UNISON_LAWS.indexOf(p[k.UniLaw]);
+      const stack = UNISON_STACKS.indexOf(p[k.Stack]);
+      if (law !== o.law || stack !== o.stack) { o.law = law; o.stack = stack; o.detune = -1; }
+      o.uniPos = p[k.UniPos];
       o.blend = p[k.Blend];
       o.spread = p[k.Spread];
       o.base = OSC_BASE[x];
@@ -560,7 +570,13 @@ export class GgsVoice {
       const detune = clamp(o.pDetune + dst[base + 6] * 100, 0, 200);
       if (detune !== o.detune) {
         o.detune = detune;
-        for (let u = 0; u < o.unison; u++) o.ratio[u] = Math.pow(2, (spreadOf(u, o.unison) * detune) / 1200);
+        let top = 1;
+        for (let u = 0; u < o.unison; u++) {
+          const ratio = Math.pow(2, unisonCents(o.law, u, o.unison, detune) / 1200 + stackSemis(o.stack, u, o.unison) / 12);
+          o.ratio[u] = ratio;
+          if (ratio > top) top = ratio;
+        }
+        o.maxRatio = top;
         o.need = 0;
       }
       const pan = clamp(o.pPan + dst[base + 3], -1, 1);
@@ -586,7 +602,7 @@ export class GgsVoice {
       // (an oscillator switched on while the note sounds starts from silence and fades in)
       // what other oscillators hear of this one as an FM source fades with it too (it does not pass the level knob)
       o.monoTo = open[k];
-      if (o.first) { o.inc = o.incTo; o.pos = o.posTo; o.level = gate[k] < 1 ? 0 : o.levelTo; o.monoGate = gate[k] < 1 ? 0 : 1; o.warpAmt = o.warpTo; o.fm = o.fmTo; o.first = false; }
+      if (o.first) { o.inc = o.incTo; o.pos = o.posTo; o.uniNow = o.uniPos * 0.5; o.level = gate[k] < 1 ? 0 : o.levelTo; o.monoGate = gate[k] < 1 ? 0 : 1; o.warpAmt = o.warpTo; o.fm = o.fmTo; o.first = false; }
     }
     const sub = this.sub;
     sub.levelTo = clamp(this.subLevel + dst[DST.subLevel], 0, 2);
@@ -667,14 +683,10 @@ export class GgsVoice {
   renderOsc(o, m) {
     const table = o.table;
     const frames = table.frames;
-    // table position: cross-fade the two neighbouring frames; a block that crosses a frame finishes at its edge
-    const fp0 = o.pos * (frames - 1);
-    const f0 = Math.min(frames - 1, Math.floor(fp0));
-    const f1 = Math.min(frames - 1, f0 + 1);
-    const w = fp0 - f0;
-    const wTo = clamp(o.posTo * (frames - 1) - f0, 0, 1);
-    const dw = (wTo - w) / m;
-    const blendFrames = f1 !== f0 && (w > 0 || wTo > 0);
+    // (the table position is worked out per unison copy, below: each may read its own)
+    const uniFrom = o.unison > 1 ? o.uniNow : 0;
+    const uniTo = o.unison > 1 ? o.uniPos * 0.5 : 0;
+    o.uniNow = uniTo;
 
     const warp = o.warp;
     const warpTo = o.warpTo;
@@ -689,7 +701,7 @@ export class GgsVoice {
     const FM_DEPTH = 16 / TAU;
 
     // the richest band-limited copy that stays under Nyquist once unison, warp and FM widen the spectrum
-    const maxInc = Math.max(o.inc, o.incTo) * o.ratio[o.unison - 1];
+    const maxInc = Math.max(o.inc, o.incTo) * o.maxRatio;
     const amt = Math.max(wa, warpTo);
     const widen = warp === 1 ? 1 + 8 * amt : warp === 2 ? 0.5 / (0.5 - 0.46 * amt) : warp === 3 ? 1 + 7 * amt : warp === 4 ? 1 + amt : warp === 5 ? 1 + 5 * amt : 1;
     const fmWiden = fmOn ? 1 + Math.max(fm, o.fmTo) * Math.max(fm, o.fmTo) * 16 : 1;
@@ -703,8 +715,6 @@ export class GgsVoice {
       o.data = tableLevel(table, o.lvl);
     }
     const data = o.data;
-    const b0 = f0 * STRIDE + 1;
-    const b1 = f1 * STRIDE + 1;
 
     TL.fill(0, 0, m); TR.fill(0, 0, m);
     const mono = o.mono;
@@ -717,6 +727,18 @@ export class GgsVoice {
     const dincBase = (o.incTo - o.inc) / m;
 
     for (let u = 0; u < o.unison; u++) {
+      // table position: cross-fade the two neighbouring frames; a block that crosses a frame finishes at its edge.
+      // With "Uni table" the copies stand at their own places around the Position knob (the stack spans the table).
+      const place = uniFrom || uniTo ? spreadOf(u, o.unison) : 0;
+      const fp0 = (place ? clamp(o.pos + place * uniFrom, 0, 1) : o.pos) * (frames - 1);
+      const f0 = Math.min(frames - 1, Math.floor(fp0));
+      const f1 = Math.min(frames - 1, f0 + 1);
+      const w = fp0 - f0;
+      const wTo = clamp((place ? clamp(o.posTo + place * uniTo, 0, 1) : o.posTo) * (frames - 1) - f0, 0, 1);
+      const dw = (wTo - w) / m;
+      const blendFrames = f1 !== f0 && (w > 0 || wTo > 0);
+      const b0 = f0 * STRIDE + 1;
+      const b1 = f1 * STRIDE + 1;
       let ph = o.phase[u];
       let inc = o.inc * o.ratio[u];
       const dinc = dincBase * o.ratio[u];
@@ -874,6 +896,3 @@ export class GgsVoice {
 }
 
 /** Position of unison voice u in the stack, -1..1 (a lone voice sits in the middle). */
-function spreadOf(u, unison) {
-  return unison < 2 ? 0 : (u / (unison - 1)) * 2 - 1;
-}

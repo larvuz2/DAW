@@ -390,6 +390,9 @@ export function SynthEditor({ channel }) {
           {C(`osc${x}Unison`, { color })}{C(`osc${x}Detune`, { color })}{C(`osc${x}Blend`, { color })}{C(`osc${x}Spread`, { color })}
           {C(`osc${x}Phase`, { color })}{C(`osc${x}Rand`, { color })}
         </div>
+        <div className="ggs-row">
+          {C(`osc${x}UniLaw`)}{C(`osc${x}Stack`)}{C(`osc${x}UniPos`, { color })}
+        </div>
         <div className="param-row">
           {C(`osc${x}Warp`)}{C(`osc${x}WarpAmt`, { color, label: 'Warp' })}
           {C(`osc${x}FmFrom`)}{C(`osc${x}Fm`, { color, label: 'FM' })}

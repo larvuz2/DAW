@@ -4,6 +4,7 @@
 import { WAVETABLE_IDS } from './wavetables.js';
 import { FILTER_TYPES, filterIsNonlinear } from './filters.js';
 import { CHAOS_TYPES } from './chaos.js';
+import { MAX_UNISON, UNISON_LAWS, UNISON_STACKS } from './unison.js';
 
 export { FILTER_TYPES, CHAOS_TYPES };
 
@@ -178,10 +179,13 @@ function oscParams(x, on, level) {
     n(`osc${x}Oct`, 'Octave', -4, 4, 0, { step: 1, ...d('Transposes the oscillator in octaves.') }),
     n(`osc${x}Semi`, 'Semi', -12, 12, 0, { step: 1, ...d('Transposes the oscillator in semitones (7 = a fifth up).') }),
     n(`osc${x}Fine`, 'Fine', -100, 100, 0, { unit: 'ct', ...d('Fine tuning in cents. A few cents against another oscillator gives slow beating.') }),
-    n(`osc${x}Unison`, 'Unison', 1, 8, 1, { step: 1, ...d('Number of stacked copies of the oscillator (1 = a single voice). More copies = wider and thicker, and more CPU.') }),
+    n(`osc${x}Unison`, 'Unison', 1, MAX_UNISON, 1, { step: 1, ...d('Number of stacked copies of the oscillator (1 = a single voice, up to 16). More copies = wider and thicker, and more CPU.') }),
     n(`osc${x}Detune`, 'Detune', 0, 100, 20, { unit: 'ct', ...d('How far the unison copies are spread in pitch. 10–25 ct is a supersaw; above 50 it turns into a cluster.') }),
     n(`osc${x}Blend`, 'Blend', 0, 1, 0.75, d('Level of the detuned outer unison copies against the centre ones: lower keeps the pitch firm, 1 is the full wall.')),
     n(`osc${x}Spread`, 'Stereo', 0, 1, 0.7, d('How far the unison copies are spread across the stereo field.')),
+    sel(`osc${x}UniLaw`, 'Uni law', UNISON_LAWS, 'linear', d('How the unison copies are spaced in pitch. linear: evenly (the classic). super: the spacing and the knob curve of the JP-8000 supersaw — Detune is gentle over most of its travel and runs away at the end, so 40–60 ct is the trance lead. exp: the copies crowd round the centre with a few far out (a firm pitch with a wide halo). random: an uneven spacing, the same for every note.')),
+    sel(`osc${x}Stack`, 'Stack', UNISON_STACKS, 'off', d('Tunes some of the unison copies to other notes: going outwards from the centre, every second pair plays an octave up (octave), a fifth up (fifth), or a fifth and an octave in turn — an organ-like stack from one oscillator. Needs Unison at 2 or more; the centre copies keep the note.')),
+    n(`osc${x}UniPos`, 'Uni table', 0, 1, 0, d('Spreads the unison copies across the wavetable: each reads its own position around the Position knob, up to half the table either side at 1. On a table that changes along its length the stack becomes a blend of its timbres, left to right. Does nothing with Unison at 1.')),
     n(`osc${x}Phase`, 'Phase', 0, 1, 0, d('Where in its cycle the oscillator starts each note.')),
     n(`osc${x}Rand`, 'Phase rand', 0, 1, 1, d('How much the start phase is randomised per note: 1 = free-running feel, 0 = every note starts identically (tight basses, kicks).')),
     sel(`osc${x}Warp`, 'Warp', WARP_MODES, 'off', d('Reshapes the wave as it is read: bend leans it, pwm changes the pulse width, sync restarts it early (the hard-sync sweep), mirror plays it forward-backward, fold wraps it over itself, quantize steps it (lo-fi).')),
