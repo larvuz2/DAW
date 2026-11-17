@@ -2,6 +2,7 @@ import { uid } from './ids.js';
 import { sanitizeParams } from './instruments.js';
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
 import { didYouMean } from './suggest.js';
+import { STUDIO_FX } from '@greanteadawy/synth-dsp';
 
 const n = (key, label, min, max, def, extra = {}) => ({ key, label, type: 'number', min, max, default: def, ...extra });
 const sel = (key, label, options, def, extra = {}) => ({ key, label, type: 'select', options, default: def, ...extra });
@@ -139,6 +140,10 @@ export const EFFECTS = {
     ]
   }
 };
+
+// the studio's DSP effects (packages/synth-dsp/src/effects): they run in the audio worklet; their classes carry their
+// own parameter definitions, in the shape used above. `dsp` tells the client which kind of node to build.
+for (const [type, Fx] of Object.entries(STUDIO_FX)) EFFECTS[type] = { label: Fx.label, description: Fx.description, params: Fx.defs, dsp: true };
 
 // a user plugin effect (see plugins.js): effect.plugin holds its id, params come from the plugin's manifest
 EFFECTS.plugin = {

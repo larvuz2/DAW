@@ -7,6 +7,7 @@ import {
   EFFECTS, getChannel, isSpatialObject, SPATIAL_PARAMS, spatialFromNorm, instrumentDefaults, tuningCents
 } from '@greanteadawy/core';
 import { playNote, Voice } from './instruments.js';
+import { OFFLINE_START } from './studiofx.js';
 import { prewarmModels, prewarmRange } from './modelPool.js';
 import { modelOf, layerOf } from './models.js';
 import { SpatialRig } from './spatial.js';
@@ -820,6 +821,11 @@ export class AudioEngine {
   forEachPump(fn) {
     for (const ins of this.inserts) for (const f of ins.fx) if (f.type === 'pump' && f.enabled) fn(f.node);
   }
+
+  /** Every effect that follows the song position (the pump's grid, tempo-synced DSP effects). */
+  forEachSynced(fn) {
+    for (const ins of this.inserts) for (const f of ins.fx) if (f.enabled && typeof f.node.sync === 'function') fn(f.node);
+  }
 }
 
 // ====================================================================== Transport
@@ -895,7 +901,7 @@ export class Transport {
       const loopEnd = this.loopRange().end;
       for (const clip of songAudioCovering(this.project, pos)) this.engine.playAudioClip(clip, t0, pos - clip.start, loopEnd - clip.start);
     }
-    this.engine.forEachPump((n) => n.sync({ time: t0, tick: pos, bpm: this.engine.bpm }));
+    this.engine.forEachSynced((n) => n.sync({ time: t0, tick: pos, bpm: this.engine.bpm }));
     this.schedule();
     if (this.engine.realtime) {
       // background tabs throttle timers to ~1s, so look further ahead while hidden
@@ -919,7 +925,7 @@ export class Transport {
     this.anchor = { time: this.cursorTime, tick: this.cursorTick, rate: this.rate() };
     this.segments.push(this.anchor);
     const sp = { time: this.cursorTime, tick: this.cursorTick, bpm: this.engine.bpm };
-    this.engine.forEachPump((n) => n.sync(sp));
+    this.engine.forEachSynced((n) => n.sync(sp));
   }
 
   /** Current song/pattern position in ticks for the UI. */
@@ -975,7 +981,7 @@ export class Transport {
     this.cursorTick = startTick;
     this.cursorTime = time;
     this.autoFirst = true;
-    this.engine.forEachPump((n) => n.sync({ time, tick: startTick, bpm: this.engine.bpm }));
+    this.engine.forEachSynced((n) => n.sync({ time, tick: startTick, bpm: this.engine.bpm }));
     if (this.mode === 'song') {
       const loopEnd = this.loopRange().end;
       for (const clip of songAudioCovering(this.project, startTick)) this.engine.playAudioClip(clip, time, startTick - clip.start, loopEnd - clip.start);
@@ -1082,7 +1088,7 @@ export class Transport {
   }
 
   /** Offline: prepare to render `totalTicks` worth of playback from 0 (with looping). Returns the end time. */
-  startOffline(mode, patternId, totalTicks, startTime = 0.02) {
+  startOffline(mode, patternId, totalTicks, startTime = OFFLINE_START) {
     this.mode = mode;
     this.patternId = patternId;
     this.playing = true;
@@ -1092,13 +1098,13 @@ export class Transport {
     this.cursorTick = 0;
     this.cursorTime = startTime;
     this.autoFirst = true;
-    this.engine.forEachPump((n) => n.sync({ time: startTime, tick: 0, bpm: this.engine.bpm }));
+    this.engine.forEachSynced((n) => n.sync({ time: startTime, tick: 0, bpm: this.engine.bpm }));
     this.endTime = startTime + totalTicks / this.anchor.rate;
     return this.endTime;
   }
 
   /** Offline: schedule everything up front (fallback when OfflineAudioContext.suspend is unavailable). */
-  scheduleAll(mode, patternId, totalTicks, startTime = 0.02) {
+  scheduleAll(mode, patternId, totalTicks, startTime = OFFLINE_START) {
     const endTime = this.startOffline(mode, patternId, totalTicks, startTime);
     for (let h = startTime; h < endTime + 1; h += 1) this.schedule(Math.min(h + 1, endTime));
     this.playing = false;

@@ -1,7 +1,8 @@
-// Mixer effects built from native Web Audio nodes.
+// Mixer effects built from native Web Audio nodes (the studio's DSP effects — limiter, reverb… — are in studiofx.js).
 // Each factory returns { input, output, update(params), automation: { key: AudioParam | AudioParam[] }, dispose(), sync? }
 import { divisionBeats, EFFECTS } from '@greanteadawy/core';
 import { pluginEffectNode } from './plugins.js';
+import { studioFxNode } from './studiofx.js';
 import { shaperCurve, dbToGain, setParam, FLAT_Q, compressorAutoMakeupDb } from './dsp.js';
 
 /** Look-ahead delay of the browsers' DynamicsCompressorNode (Chromium/WebKit/Gecko share the same 6 ms design). */
@@ -566,6 +567,12 @@ export function createEffectNode(ctx, type, engine, effect = null) {
     const fx = pluginEffectNode(ctx, engine, effect || {});
     fx.type = type;
     fx.def = { params: fx.defs };
+    return fx;
+  }
+  if (EFFECTS[type]?.dsp) {
+    const fx = studioFxNode(ctx, engine, type, effect || {});
+    fx.type = type;
+    fx.def = EFFECTS[type];
     return fx;
   }
   const f = FACTORIES[type];

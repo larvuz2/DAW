@@ -5,10 +5,11 @@
 //              pitch / pressure / timbre curves and the channel's macros.
 //              Nothing depends on message timing, so an offline render is sample-identical every time.
 //   ggs-fx     the channel's drive / chorus / delay / reverb / output gain, after its voices are summed.
+// …and one processor per studio effect (gtd-fx-<type>): the mixer's DSP inserts (limiter, reverb, …), see below.
 // Messages are only used for edits made while a note sounds (a knob turned in the editor) and tempo changes — and,
 // the other way, for what the editor shows while it is open: a watched voice reports where its modulation stands
 // about thirty times a second (nothing in the audio depends on it).
-import { GgsVoice, GgsFx, prewarmTables, MACRO_COUNT } from '@greanteadawy/synth-dsp/engine';
+import { GgsVoice, GgsFx, prewarmTables, MACRO_COUNT, STUDIO_FX } from '@greanteadawy/synth-dsp/engine';
 
 const MACROS = Array.from({ length: MACRO_COUNT }, (_, i) => `macro${i + 1}`);
 
@@ -151,3 +152,61 @@ class GgsFxProcessor extends AudioWorkletProcessor {
 
 registerProcessor('ggs-voice', GgsVoiceProcessor);
 registerProcessor('ggs-fx', GgsFxProcessor);
+
+// ---- studio effects (mixer inserts). One processor per effect type, so each has its own automatable settings as
+// AudioParams (k-rate: read once per block). Everything else arrives with the node (processorOptions) or, when a knob
+// is turned later, as a message. Tempo-synced effects follow the song through a sync point — "beat b is at context
+// time t, at this tempo" — which takes effect at t, whenever the message that carries it arrives: an offline render
+// starts with its sync point already in the options, so its timing never depends on a message.
+for (const [type, Fx] of Object.entries(STUDIO_FX)) {
+  const auto = Fx.defs.filter((d) => d.type === 'number' && d.automatable);
+  class StudioFxProcessor extends AudioWorkletProcessor {
+    static get parameterDescriptors() {
+      return auto.map((d) => param(d.key, d.default, d.min, d.max, 'k-rate'));
+    }
+
+    constructor(options) {
+      super();
+      const o = options.processorOptions || {};
+      this.fx = new Fx(sampleRate);
+      this.fx.set(o.params || {});
+      this.seen = {};
+      this.at = { time: o.time || 0, beat: o.beat || 0, bpm: o.bpm || 120, playing: !!o.playing };
+      this.next = null;
+      this.closed = false;
+      this.port.onmessage = (e) => {
+        const m = e.data;
+        if (m?.type === 'params') this.fx.set(m.values);
+        else if (m?.type === 'sync') this.next = { time: m.time, beat: m.beat, bpm: m.bpm, playing: m.playing !== false };
+        else if (m?.type === 'close') this.closed = true;
+      };
+    }
+
+    process(inputs, outputs, parameters) {
+      if (this.closed) return false;
+      const input = inputs[0];
+      const L = outputs[0][0];
+      const R = outputs[0][1];
+      // nothing connected or nothing sounding: the input has no channels — the effect still runs, to play out its tail
+      if (input.length) {
+        L.set(input[0]);
+        R.set(input[1] || input[0]);
+      }
+      const seen = this.seen;
+      let moved = false;
+      for (let i = 0; i < auto.length; i++) {
+        const key = auto[i].key;
+        const v = parameters[key][0];
+        if (seen[key] !== v) { seen[key] = v; moved = true; }
+      }
+      if (moved) this.fx.set(seen);
+      const t = currentFrame / sampleRate;
+      if (this.next && t >= this.next.time) { this.at = this.next; this.next = null; }
+      const at = this.at;
+      this.fx.clock(at.beat + ((t - at.time) * at.bpm) / 60, at.bpm, at.playing);
+      this.fx.process(L, R, L.length);
+      return true;
+    }
+  }
+  registerProcessor(`gtd-fx-${type}`, StudioFxProcessor);
+}

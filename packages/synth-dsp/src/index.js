@@ -8,3 +8,4 @@ export * from './patch.js';
 export { halfbandCoefs, Decimator2, Interpolator2, fft, hash32 } from './util.js';
 export * from './filters.js';
 export * from './chaos.js';
+export { STUDIO_FX, renderEffect, StudioFx } from './effects/index.js';

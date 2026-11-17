@@ -5,7 +5,7 @@ import { sync } from './sync.js';
 import { ensureEngine, getEngine, onEngineReady } from '../audio/index.js';
 import { noteSampleRevs } from '../audio/engine.js';
 import { setPluginRegistry, preparePlugins, pluginsUsed } from '../audio/plugins.js';
-import { prepareGgs, usesGgs, ggsReady } from '../audio/ggs-synth/index.js';
+import { prepareGgs, usesWorklet, ggsReady } from '../audio/ggs-synth/index.js';
 import { APP_NAME } from '../lib/version.js';
 
 let playSeq = 0; // the latest play()/stop(): a play waiting for plugins only starts if nothing came after it
@@ -512,7 +512,7 @@ export const useStore = create((set, get) => ({
     // plugin modules/samples load once per audio context: wait for them (briefly) so the first notes aren't dropped.
     // A stop (or another play) during the wait cancels this one.
     const seq = ++playSeq;
-    if (pluginsUsed(get().project).length || (usesGgs(get().project) && !ggsReady(eng.ctx))) {
+    if (pluginsUsed(get().project).length || (usesWorklet(get().project) && !ggsReady(eng.ctx))) {
       set({ starting: true });
       await Promise.race([Promise.all([preparePlugins(eng.ctx, get().project), prepareGgs(eng.ctx, get().project)]), new Promise((r) => setTimeout(r, 3000))]);
       if (seq !== playSeq) return;
