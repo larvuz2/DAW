@@ -1,11 +1,12 @@
 // The studio's synth engines beside the GGS Synth: each class is the sound of one note (see base.js), hosted per note
 // in the audio worklet and usable in Node. SYNTH_ENGINES is the registry: instrument kind → class.
 import { Additive } from './additive.js';
+import { Modal } from './modal.js';
 
 export { SynthEngine, Adsr, velocityGain, velocityTimbre, keyHz } from './base.js';
-export { Additive };
+export { Additive, Modal };
 
-export const SYNTH_ENGINES = Object.fromEntries([Additive].map((e) => [e.type, e]));
+export const SYNTH_ENGINES = Object.fromEntries([Additive, Modal].map((e) => [e.type, e]));
 
 /**
  * Render notes of an engine in Node: { channels: [L, R] }.

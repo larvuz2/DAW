@@ -51,6 +51,19 @@ export function levelAt(x, hz, start, n, fs = FS) {
   return m;
 }
 
+/** Amplitude of the partial at exactly `hz` in n samples from `start`, under a Hann window (no bin to fall between). */
+export function toneAt(x, hz, start = 0, n = x.length - start, fs = FS) {
+  let re = 0;
+  let im = 0;
+  for (let i = 0; i < n; i++) {
+    const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / n);
+    const ph = (2 * Math.PI * hz * i) / fs;
+    re += x[start + i] * w * Math.cos(ph);
+    im += x[start + i] * w * Math.sin(ph);
+  }
+  return (4 * Math.hypot(re, im)) / n;
+}
+
 /** Run an effect class over stereo audio in blocks of 128, as the worklet does: { channels: [L, R], latency, meter, fx }. */
 export function run(Fx, params, [L, R], { fs = FS, bpm = 120, beat = 0, playing = true, tail = 0, block = 128 } = {}) {
   const fx = new Fx(fs);

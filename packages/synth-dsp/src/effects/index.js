@@ -2,11 +2,26 @@
 // run in Node. STUDIO_FX is the registry: type → class. The class carries its label, description and parameter
 // definitions, which the effect catalog (core/effects.js) and the worklet both read.
 import { Maximizer } from './maximizer.js';
+import { AlgoVerb } from './algoverb.js';
+import { Shimmer } from './shimmer.js';
+import { Ott } from './ott.js';
+import { TransientShaper } from './transient.js';
+import { TranceGate } from './trancegate.js';
+import { Disperser } from './disperser.js';
+import { FreqShifter } from './freqshift.js';
+import { Resonator } from './resonator.js';
+import { Lofi } from './lofi.js';
+import { Tremolo } from './tremolo.js';
+import { RingMod } from './ringmod.js';
+import { Flanger } from './flanger.js';
+import { Utility } from './utility.js';
 
 export * from './base.js';
-export { Maximizer };
+export { Maximizer, AlgoVerb, Shimmer, Ott, TransientShaper, TranceGate, Disperser, FreqShifter, Resonator, Lofi, Tremolo, RingMod, Flanger, Utility };
 
-export const STUDIO_FX = Object.fromEntries([Maximizer].map((fx) => [fx.type, fx]));
+/** In the order the mixer's effect menu shows them: dynamics, space, modulation, colour, tools. */
+const ALL = [Maximizer, Ott, TransientShaper, TranceGate, AlgoVerb, Shimmer, Resonator, Flanger, Tremolo, RingMod, FreqShifter, Disperser, Lofi, Utility];
+export const STUDIO_FX = Object.fromEntries(ALL.map((fx) => [fx.type, fx]));
 
 /** Run an effect over stereo audio in Node: { channels: [L, R], latency } (blocks of 128, as a worklet would). */
 export function renderEffect(type, params, [L, R], sampleRate, { bpm = 120, beat = 0, playing = true, tail = 0 } = {}) {
