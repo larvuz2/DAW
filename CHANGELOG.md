@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.14.0 — The synth on one screen
+
+**New tab in the GGS Synth editor: Overview.** The whole patch on one screen, drawn: each oscillator's wavetable as a
+stack of frames with the one being played lit, its unison copies fanned out by their law and stack, the sub and the
+noise, both filter curves (drag the handle), the **signal flow** (click a source to send it to another filter or
+straight to the amp, click *serial ⇄ parallel*), the amp envelope, the envelopes to shape by hand, the LFOs and chaos
+paths moving with the note, every modulation source with a trace of what it just did, the routes with their depths,
+the effects as pictures (drive curve, chorus, delay repeats, reverb tail) and a **scope** of the channel's sound
+(waveform and spectrum). The knobs are the same controls as in the other tabs (rings, live dots, drop a source on them).
+
+Every part is a **module**: *Arrange* to drag modules to new places, move them one place, make them 2–12 columns
+wide, hide them and add them back. Six ready-made layouts (*Whole patch*, *Oscillators*, *Filters, routing &
+envelopes*, *Modulation*, *Sound & scope*, *Minimal*) and your own, saved by name in the browser. *Full screen* shows
+only the modules, for recording a video. The other tabs have not changed.
+
+- The engine gives the editor an analyser on a channel (`channelAnalyser`): a side branch off the fader, made only
+  when the scope asks for it, never in an offline render. Nothing you hear changes.
+
 ## 0.13.3 — No sign-in on your own computer
 
 - **`NO_LOGIN=1`** (or **`npm run dev:local`**): no login screen, no admin setup, no "super admin" to manage. Every request

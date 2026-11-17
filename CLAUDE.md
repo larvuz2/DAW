@@ -80,7 +80,9 @@ client/src/
   components/         SampleLibrary.jsx (Samples tab: folders, search, select mode), WaveEditor.jsx + PitchView.jsx,
                       Harmony.jsx (chords that fit, the progression strip, the library, the tuning table),
                       Recorder.jsx, SynthEditor.jsx (GGS Synth, inside Channel settings) + synth/ (EnvelopeEditor,
-                      FilterGraph, PresetBrowser, WavetablePicker, ParamTable, SourceBar, StepEditor, modulation.js),
+                      FilterGraph, PresetBrowser, WavetablePicker, ParamTable, SourceBar, StepEditor, modulation.js;
+                      Overview.jsx = the one-screen tab of modules, displays.jsx = its pictures, overviewLayout.js =
+                      layouts as pure data: order, widths, hidden, saved in localStorage),
                       ExpressionLane.jsx (the piano roll's pitch / pressure / slide lane); ui/frames.js = the one
                       animation-frame loop for things that follow the audio thread (live dots, meters)
                       … one file per window (Playlist, ChannelRack, PianoRoll, Mixer, …) + ui/ primitives

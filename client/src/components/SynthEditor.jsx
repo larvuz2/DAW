@@ -22,8 +22,9 @@ import { SourceBar, SourceMeter } from './synth/SourceBar.jsx';
 import { StepEditor } from './synth/StepEditor.jsx';
 import { SOURCE_GROUPS, sourceFamily, sourceColor, ringsOf, liveTarget, liveSource } from './synth/modulation.js';
 import { createAutomationFor } from './AutomationEditor.jsx';
+import { Overview } from './synth/Overview.jsx';
 
-const TABS = [['osc', 'Oscillators'], ['filter', 'Filters'], ['mod', 'Modulators'], ['matrix', 'Matrix'], ['fx', 'Effects'], ['all', 'All parameters']];
+const TABS = [['osc', 'Oscillators'], ['filter', 'Filters'], ['mod', 'Modulators'], ['matrix', 'Matrix'], ['fx', 'Effects'], ['all', 'All parameters'], ['overview', 'Overview']];
 const FAMILY_LABEL = { env: 'Envelopes', lfo: 'LFOs', chaos: 'Chaos', note: 'The note (velocity, pressure, slide …)', macro: 'Macros' };
 const CHAOS_OPTIONS = CHAOS_TYPES.map((t) => ({ value: t, label: CHAOS_INFO[t].label }));
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -479,24 +480,35 @@ export function SynthEditor({ channel }) {
   const shownRoutes = routes.map((r) => ({ ...r, says: describeRoute(full, r) }))
     .filter((r) => words.every((w) => `${r.source} ${r.target} ${r.via || ''} ${sourceName(r.source)} ${r.says}`.toLowerCase().includes(w)));
 
+  const macroKnob = (i, size = 32) => C(`macro${i}`, {
+    label: macroNames[`macro${i}`], color: '#c86be0', size, live: true, className: macroUsed(full, i) ? '' : 'unused', menu: macroMenu(i),
+    title: `Macro ${i}${macroUsed(full, i) ? `: ${macroNames[`macro${i}`]}` : ' — free: drag its chip (M' + i + ') from the source bar onto a knob'}. Right-click to automate it in the playlist; the dot shows where automation has it.`
+  });
+  // what the Overview's modules use: the same controls and actions as the other tabs
+  const ed = {
+    channel, info, full, defaults: DEFAULTS, routes, used, usedSources, live, liveOf, sourceName, C, val, set, setMany, setDrag, macroKnob,
+    pickPreset, exportPatch, importPatch, showInMatrix, addRoute, removeRoute, TouchPad,
+    oscColors: OSC_COLORS, envColors: ENV_COLORS, filterOptions: FILTER_OPTIONS, chaosOptions: CHAOS_OPTIONS
+  };
+  const overview = tab === 'overview';
+
   return (
-    <div className="ggs">
+    <div className={`ggs ${overview ? 'ggs-overview' : ''}`}>
+      {!overview && (
       <fieldset className="param-group ggs-head">
         <legend>GGS Synth</legend>
         <div className="param-row">
           <PresetBrowser preset={channel.instrument.preset} onPick={pickPreset} />
-          {Array.from({ length: MACRO_COUNT }, (_, k) => k + 1).map((i) => C(`macro${i}`, {
-            label: macroNames[`macro${i}`], color: '#c86be0', size: 32, live: true, className: macroUsed(full, i) ? '' : 'unused', menu: macroMenu(i),
-            title: `Macro ${i}${macroUsed(full, i) ? `: ${macroNames[`macro${i}`]}` : ' — free: drag its chip (M' + i + ') from the source bar onto a knob'}. Right-click to automate it in the playlist; the dot shows where automation has it.`
-          }))}
+          {Array.from({ length: MACRO_COUNT }, (_, k) => macroKnob(k + 1))}
           {C('gain')}
           <button className="btn tiny" onClick={exportPatch} title="Save this patch as a .json document">Export</button>
           <button className="btn tiny" onClick={importPatch} title="Load a patch document">Import</button>
         </div>
         <p className="cs-desc">{info.description} <b>Touch:</b> {info.expression}</p>
       </fieldset>
+      )}
 
-      <SourceBar used={usedSources} live={live} names={Object.fromEntries(Object.keys(macroNames).map((k) => [k, sourceName(k)]))} onPick={showInMatrix} />
+      {!overview && <SourceBar used={usedSources} live={live} names={Object.fromEntries(Object.keys(macroNames).map((k) => [k, sourceName(k)]))} onPick={showInMatrix} />}
 
       <div className="ggs-tabs" role="tablist">
         {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}{id === 'matrix' ? ` (${routes.length})` : ''}</button>)}
@@ -595,7 +607,9 @@ export function SynthEditor({ channel }) {
 
       {tab === 'all' && <ParamTable params={full} onSet={set} />}
 
-      <TouchPad channel={channel} />
+      {overview && <Overview ed={ed} />}
+
+      {!overview && <TouchPad channel={channel} />}
     </div>
   );
 }

@@ -23,6 +23,7 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
 | Modulation in the editor: rings, live dots, source bar, drawn LFO | `client/src/components/ui/Knob.jsx` (`rings`, `live`, `onAltDrag`, `onDropSource`), `ui/frames.js`, `components/synth/{modulation.js,SourceBar.jsx,StepEditor.jsx}` |
 | Live values from the audio thread | `worklet.js` (`watch` → `{type:'mod'}`), `ggs-synth/index.js` (`GgsChannel.setWatch/live`), `engine.watchGgs/ggsLive` |
 | Editor | `client/src/components/SynthEditor.jsx` + `components/synth/` (EnvelopeEditor, FilterGraph, PresetBrowser, WavetablePicker, ParamTable) |
+| Overview tab (one screen, modules) | `components/synth/Overview.jsx` (modules get `ed`: the editor's own `C`, `val`, `set`… so a knob there is the same control), `displays.jsx` (canvas/SVG pictures; `useCanvas` redraws on inputs, resize and `live`), `overviewLayout.js` (a new module: add it to `MODULES` and `RENDER`, then to a built-in layout; `client/test/overviewLayout.test.js`), `engine.channelAnalyser` (the scope) |
 | Expression model / op | `packages/core/src/expression.js`, `ops.js` (`notes/expression`) |
 | Expression lane | `client/src/components/ExpressionLane.jsx`, `PianoRoll.jsx` |
 | MPE decoder / MIDI files | `packages/core/src/mpe.js`, `midi.js` |

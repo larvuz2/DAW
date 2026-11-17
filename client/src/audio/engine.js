@@ -336,6 +336,7 @@ export class AudioEngine {
     for (const [id, s] of this.strips) {
       if (!ids.has(id)) {
         try { s.pan.disconnect(); } catch { /* ignore */ }
+        if (s.scope) { try { s.vol.disconnect(s.scope); } catch { /* ignore */ } s.scope = null; }
         s.ggs?.dispose();
         this.strips.delete(id);
       }
@@ -811,6 +812,22 @@ export class AudioEngine {
   /** The synth editor opened (on = true) or closed on a GGS channel: its voices report their modulation while it is open. */
   watchGgs(channelId, on) {
     this.strips.get(channelId)?.ggs?.setWatch(on);
+  }
+
+  /**
+   * An AnalyserNode that listens to a channel after its fader (for the synth editor's scope), made on first use. It is a
+   * side branch off the fader: nothing it does reaches the sound, and offline renders never make one.
+   */
+  channelAnalyser(channelId) {
+    const s = this.strips.get(channelId);
+    if (!s) return null;
+    if (!s.scope) {
+      s.scope = this.ctx.createAnalyser();
+      s.scope.fftSize = 2048;
+      s.scope.smoothingTimeConstant = 0.6;
+      s.vol.connect(s.scope);
+    }
+    return s.scope;
   }
 
   /** Where the modulation of a GGS channel's newest note stands: Float32Array [sources…, targets…], or null. */

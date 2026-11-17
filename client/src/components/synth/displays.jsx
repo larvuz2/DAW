@@ -1,0 +1,597 @@
+// The pictures of the Overview tab: what each part of the patch is doing, drawn from the same maths the engine uses
+// (wavetables, unison laws, filter curves) or from what the voices and the channel report while a note sounds.
+// All canvas or SVG; a canvas follows its box's size and redraws when an input changes — and, given a `live`
+// getter, on every animation frame in which what it shows has moved.
+import { useEffect, useMemo, useRef } from 'react';
+import { wavetablePreview, getWavetable, unisonCents, stackSemis, UNISON_LAWS, UNISON_STACKS, BIPOLAR_SOURCES, chaosPreview } from '@greanteadawy/synth-dsp';
+import { onFrame } from '../ui/frames.js';
+import { liveSource } from './modulation.js';
+
+const GRID = 'rgba(255,255,255,0.07)';
+const DIM = 'rgba(255,255,255,0.32)';
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * A canvas that fills its box. `draw(g, w, h, now)` paints it; it runs when `deps` change, when the box is resized,
+ * and — with `live` — on each frame in which `live()` returns something new (that value is `now`).
+ */
+export function useCanvas(draw, deps, live = null) {
+  const wrap = useRef(null);
+  const canvas = useRef(null);
+  const paint = useRef(() => {});
+  const last = useRef(undefined);
+  paint.current = (now) => {
+    const cv = canvas.current;
+    const box = wrap.current;
+    if (!cv || !box) return;
+    const w = Math.max(10, box.clientWidth);
+    const h = Math.max(10, box.clientHeight);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+      cv.style.width = `${w}px`;
+      cv.style.height = `${h}px`;
+    }
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    draw(g, w, h, now);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { paint.current(live ? live() : null); }, deps);
+  useEffect(() => {
+    const box = wrap.current;
+    if (!box || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => paint.current(live ? live() : null));
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [live]);
+  useEffect(() => {
+    if (!live) return undefined;
+    return onFrame(() => {
+      const v = live();
+      const key = Array.isArray(v) || ArrayBuffer.isView(v) ? v : v === null || v === undefined ? null : Math.round(v * 400) / 400;
+      if (key === last.current && !ArrayBuffer.isView(key)) return;
+      last.current = key;
+      paint.current(v);
+    });
+  }, [live]);
+  return { wrap, canvas };
+}
+
+/** A box with a canvas in it (the size comes from CSS: `.ovw-display` and its modifiers). */
+export function Display({ draw, deps, live, className = '', label }) {
+  const { wrap, canvas } = useCanvas(draw, deps, live);
+  return <div ref={wrap} className={`ovw-display ${className}`}><canvas ref={canvas} role="img" aria-label={label} /></div>;
+}
+
+function stroke(g, pts, color, width = 1.5) {
+  g.beginPath();
+  pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+  g.strokeStyle = color;
+  g.lineWidth = width;
+  g.lineJoin = 'round';
+  g.stroke();
+}
+
+function text(g, s, x, y, { align = 'left', color = DIM, size = 9 } = {}) {
+  g.font = `600 ${size}px Inter, system-ui, sans-serif`;
+  g.textAlign = align;
+  g.fillStyle = color;
+  g.fillText(s, x, y);
+}
+
+const hexA = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
+
+// ---- the wavetable as a stack of frames ------------------------------------------------------------------------
+
+const STACK = 18;
+const POINTS = 96;
+const stacks = new Map();
+/** One cycle at each of STACK positions through the table (cached: tables never change). */
+function stackOf(table) {
+  let s = stacks.get(table);
+  if (!s) {
+    s = Array.from({ length: STACK }, (_, k) => normalize(wavetablePreview(table, k / (STACK - 1), POINTS)));
+    if (stacks.size > 60) stacks.delete(stacks.keys().next().value);
+    stacks.set(table, s);
+  }
+  return s;
+}
+function normalize(wave) {
+  let peak = 1e-6;
+  for (const v of wave) peak = Math.max(peak, Math.abs(v));
+  return Float32Array.from(wave, (v) => v / peak);
+}
+
+/**
+ * The wavetable drawn as a waterfall: every frame of the table in perspective, back to front, and the one the
+ * oscillator plays now lit in its colour (where the knob is, and — while a note sounds — where modulation took it).
+ */
+export function WavetableStack({ table, pos, color, on = true, live = null }) {
+  const frames = useMemo(() => stackOf(table), [table]);
+  const count = useMemo(() => getWavetable(table).frames, [table]);
+  return (
+    <Display className="tall" label={`Wavetable ${table} at position ${Math.round(pos * 100)}%`} live={live} deps={[table, Math.round(pos * 400), color, on]}
+      draw={(g, w, h, now) => {
+        const pad = 6;
+        const dx = w * 0.2;
+        const dy = h * 0.42;
+        const fw = w - dx - pad * 2;
+        const amp = ((h - dy - pad * 2) / 2) * 0.9;
+        const origin = (depth) => [pad + dx * depth, h - pad - amp - dy * depth];
+        const trace = (frame, depth) => {
+          const [ox, oy] = origin(depth);
+          g.beginPath();
+          for (let i = 0; i < frame.length; i++) {
+            const x = ox + (i / (frame.length - 1)) * fw;
+            const y = oy - frame[i] * amp;
+            if (i) g.lineTo(x, y); else g.moveTo(x, y);
+          }
+          return [ox, oy];
+        };
+        g.globalAlpha = on ? 1 : 0.4;
+        for (let k = STACK - 1; k >= 0; k--) {
+          const depth = k / (STACK - 1);
+          const [ox, oy] = trace(frames[k], depth);
+          g.lineTo(ox + fw, oy + amp + 2);
+          g.lineTo(ox, oy + amp + 2);
+          g.closePath();
+          g.fillStyle = 'rgba(18,20,26,0.84)';
+          g.fill();
+          trace(frames[k], depth);
+          g.strokeStyle = hexA(color, 0.18 + 0.42 * (1 - depth));
+          g.lineWidth = 1;
+          g.stroke();
+        }
+        const lit = (p, width, glow, fill) => {
+          const frame = normalize(wavetablePreview(table, p, POINTS));
+          const [ox, oy] = trace(frame, p);
+          if (fill) {
+            g.lineTo(ox + fw, oy);
+            g.lineTo(ox, oy);
+            g.closePath();
+            g.fillStyle = hexA(color, 0.16);
+            g.fill();
+            trace(frame, p);
+          }
+          g.shadowColor = glow ? color : 'transparent';
+          g.shadowBlur = glow ? 8 : 0;
+          g.strokeStyle = glow ? color : hexA(color, 0.55);
+          g.lineWidth = width;
+          g.stroke();
+          g.shadowBlur = 0;
+        };
+        const at = typeof now === 'number' ? clamp(now, 0, 1) : null;
+        if (at !== null && Math.abs(at - pos) > 0.004) {
+          lit(pos, 1, false, false);
+          lit(at, 1.8, true, true);
+        } else lit(pos, 1.8, true, true);
+        const [ax, ay] = origin(0);
+        const [bx, by] = origin(1);
+        g.strokeStyle = GRID;
+        g.beginPath();
+        g.moveTo(ax + fw + 3, ay + amp);
+        g.lineTo(bx + fw + 3, by + amp);
+        g.stroke();
+        const [mx, my] = origin(at ?? pos);
+        g.fillStyle = color;
+        g.beginPath();
+        g.arc(mx + fw + 3, my + amp, 2.6, 0, Math.PI * 2);
+        g.fill();
+        g.globalAlpha = 1;
+        text(g, `${Math.round((at ?? pos) * 100)}% · ${count} frames`, w - pad, pad + 8, { align: 'right' });
+      }} />
+  );
+}
+
+// ---- unison: where each copy sits in pitch and in the stereo field ---------------------------------------------
+
+/**
+ * Every copy of the oscillator as a line: across, how far it is detuned (the law decides the spacing); up, how
+ * loud it is (Blend); a dot underneath where it sits in the stereo field. Copies a stack moves up an octave or a
+ * fifth are drawn hollow and labelled.
+ */
+export function UnisonFan({ unison, detune, law, stack, blend, spread, color }) {
+  return (
+    <Display className="short" label={`${unison} unison copies, ${detune} cents, ${law} law${stack !== 'off' ? `, ${stack} stack` : ''}`}
+      deps={[unison, Math.round(detune * 10), law, stack, Math.round(blend * 100), Math.round(spread * 100), color]}
+      draw={(g, w, h) => {
+        const n = Math.max(1, Math.round(unison));
+        const li = Math.max(0, UNISON_LAWS.indexOf(law));
+        const si = Math.max(0, UNISON_STACKS.indexOf(stack));
+        const cents = Array.from({ length: n }, (_, u) => unisonCents(li, u, n, detune));
+        const span = Math.max(10, ...cents.map(Math.abs)) * 1.15;
+        const mid = w / 2;
+        const base = h - 14;
+        g.strokeStyle = GRID;
+        g.beginPath(); g.moveTo(4, base); g.lineTo(w - 4, base); g.moveTo(mid, 4); g.lineTo(mid, base); g.stroke();
+        for (let u = 0; u < n; u++) {
+          const d = n < 2 ? 0 : (u / (n - 1)) * 2 - 1;
+          const gain = Math.abs(d) < 0.34 || n < 3 ? 1 : blend;
+          const x = mid + (cents[u] / span) * (w / 2 - 8);
+          const top = base - 6 - gain * (base - 14);
+          const semis = stackSemis(si, u, n);
+          g.strokeStyle = semis ? hexA(color, 0.75) : color;
+          g.lineWidth = 2;
+          g.setLineDash(semis ? [3, 2] : []);
+          g.beginPath(); g.moveTo(x, base); g.lineTo(x, top); g.stroke();
+          g.setLineDash([]);
+          if (semis) text(g, `+${semis}`, x, top - 2, { align: 'center', color, size: 8 });
+          // the stereo position of this copy, under the line
+          const pan = clamp(d * spread, -1, 1);
+          g.fillStyle = hexA(color, 0.8);
+          g.beginPath(); g.arc(mid + pan * (w / 2 - 8), h - 5, 2, 0, Math.PI * 2); g.fill();
+        }
+        text(g, n < 2 ? 'one voice' : `±${Math.round(Math.max(...cents.map(Math.abs)))} ct`, 6, 12);
+        text(g, `${n}× ${law}`, w - 6, 12, { align: 'right' });
+      }} />
+  );
+}
+
+// ---- a sub oscillator wave and the colour of the noise ----------------------------------------------------------
+
+export function SubNoiseView({ wave, subLevel, noiseLevel, noiseColor, color = '#d9a85c' }) {
+  return (
+    <Display className="short" label="Sub oscillator wave and noise colour" deps={[wave, Math.round(subLevel * 100), Math.round(noiseLevel * 100), Math.round(noiseColor * 100)]}
+      draw={(g, w, h) => {
+        const half = w / 2 - 4;
+        const shape = (x) => (wave === 'square' ? (x < 0.5 ? 1 : -1) : wave === 'triangle' ? 1 - 4 * Math.abs(x - 0.5) : wave === 'saw' ? 1 - 2 * x : Math.sin(2 * Math.PI * x));
+        const amp = (h / 2 - 8) * clamp(subLevel, 0.1, 1);
+        stroke(g, Array.from({ length: 80 }, (_, i) => [4 + (i / 79) * half, h / 2 - shape((i / 79) * 2 % 1) * amp]), subLevel > 0 ? color : DIM, 1.6);
+        // noise: a slope across frequency — dark tips down to the right, thin tips up
+        const x0 = w / 2 + 4;
+        g.fillStyle = hexA('#a0a8b8', noiseLevel > 0 ? 0.5 : 0.15);
+        for (let i = 0; i < 28; i++) {
+          const f = i / 27;
+          const tilt = 1 + noiseColor * (f - 0.5) * 1.6;
+          const v = clamp((0.45 + 0.4 * Math.abs(Math.sin(i * 12.9898) * 0.6)) * tilt, 0.05, 1);
+          g.fillRect(x0 + f * (half - 4), h - 4 - v * (h - 12), Math.max(1, half / 30), v * (h - 12));
+        }
+        text(g, 'sub', 6, 11);
+        text(g, 'noise', w - 6, 11, { align: 'right' });
+      }} />
+  );
+}
+
+// ---- the signal flow: sources → filters → amp ------------------------------------------------------------------
+
+/**
+ * Where every source goes and how the two filters are connected, drawn as a signal-flow diagram. Click a source to
+ * send it to the next place (filter 1 → filter 2 → both → straight to the amp); click the filters' link to switch
+ * serial ↔ parallel.
+ */
+export function RoutingDiagram({ sources, f1On, f2On, route, onCycle, onRoute }) {
+  const W = 200;
+  const H = 150;
+  const ys = sources.map((_, i) => 14 + i * ((H - 28) / Math.max(1, sources.length - 1)));
+  const F1 = [104, 46];
+  const F2 = [104, 104];
+  const AMP = [176, 75];
+  const serial = route === 'serial';
+  const f2y = F2[1];
+  const curve = (x1, y1, x2, y2) => `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`;
+  const wires = [];
+  sources.forEach((s, i) => {
+    if (!s.on) return;
+    const from = [34, ys[i]];
+    const to = s.dest === 'f1' ? [F1] : s.dest === 'f2' ? [[F2[0], f2y]] : s.dest === 'both' ? [F1, [F2[0], f2y]] : [AMP];
+    for (const [x, y] of to) wires.push(<path key={`${s.id}-${x}-${y}`} d={curve(from[0], from[1], x - 16, y)} stroke={s.color} className="ovw-wire" />);
+  });
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="ovw-routing" role="img" aria-label={`Signal flow: filters in ${route}`}>
+      {wires}
+      {serial
+        ? <path d={curve(F1[0] + 16, F1[1], F2[0] + 16, f2y)} className={`ovw-wire link ${f1On ? '' : 'off'}`} />
+        : <path d={curve(F1[0] + 16, F1[1], AMP[0] - 14, AMP[1] - 6)} className={`ovw-wire link ${f1On ? '' : 'off'}`} />}
+      <path d={curve(F2[0] + 16, f2y, AMP[0] - 14, AMP[1] + 6)} className={`ovw-wire link ${f2On ? '' : 'off'}`} />
+      {sources.map((s, i) => (
+        <g key={s.id} className={`ovw-node src ${s.on ? '' : 'off'}`} data-source={s.id} onClick={() => onCycle(s.id)} role="button" tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCycle(s.id); } }}>
+          <title>{`${s.label} → ${s.dest === 'direct' ? 'straight to the amp' : s.dest === 'both' ? 'both filters' : s.dest === 'f1' ? 'filter 1' : 'filter 2'} (click to send it elsewhere)`}</title>
+          <rect x={2} y={ys[i] - 8} width={32} height={16} rx={4} style={{ stroke: s.color }} />
+          <text x={18} y={ys[i] + 3.5} style={{ fill: s.on ? s.color : undefined }}>{s.short}</text>
+        </g>
+      ))}
+      {[[F1, f1On, 'F1'], [[F2[0], f2y], f2On, 'F2']].map(([[x, y], on, label]) => (
+        <g key={label} className={`ovw-node filter ${on ? '' : 'off'}`}>
+          <rect x={x - 16} y={y - 11} width={32} height={22} rx={5} />
+          <text x={x} y={y + 4}>{label}</text>
+        </g>
+      ))}
+      <g className="ovw-node amp">
+        <path d={`M${AMP[0] - 14},${AMP[1] - 14} L${AMP[0] + 12},${AMP[1]} L${AMP[0] - 14},${AMP[1] + 14} Z`} />
+        <text x={AMP[0] - 4} y={AMP[1] + 28}>AMP</text>
+      </g>
+      <g className="ovw-route-toggle" onClick={onRoute} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRoute(); } }}>
+        <title>Click: filters in {serial ? 'parallel' : 'series'}</title>
+        <rect x={64} y={H - 20} width={80} height={16} rx={8} />
+        <text x={104} y={H - 8.5}>{serial ? 'serial ⇄' : 'parallel ⇄'}</text>
+      </g>
+    </svg>
+  );
+}
+
+// ---- an envelope, small (the amp module) -----------------------------------------------------------------------
+
+export function EnvelopeCurve({ env, color }) {
+  return (
+    <Display className="short" label="Amp envelope" deps={[JSON.stringify(env), color]}
+      draw={(g, w, h) => {
+        const total = Math.max(0.05, env.delay + env.attack + env.hold + env.decay + 0.5 + env.release);
+        const xs = (t) => 4 + (t / total) * (w - 8);
+        const ys = (v) => h - 4 - v * (h - 10);
+        let t = env.delay;
+        const pts = [[xs(0), ys(0)], [xs(t), ys(0)]];
+        t += env.attack; pts.push([xs(t), ys(1)]);
+        t += env.hold; pts.push([xs(t), ys(1)]);
+        const segs = 16;
+        for (let k = 1; k <= segs; k++) pts.push([xs(t + (env.decay * k) / segs), ys(env.sustain + (1 - env.sustain) * Math.exp((-5 * k) / segs))]);
+        t += env.decay + 0.5; pts.push([xs(t), ys(env.sustain)]);
+        for (let k = 1; k <= segs; k++) pts.push([xs(t + (env.release * k) / segs), ys(env.sustain * Math.exp((-5 * k) / segs))]);
+        g.beginPath();
+        pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.lineTo(pts[pts.length - 1][0], h - 4);
+        g.lineTo(pts[0][0], h - 4);
+        g.closePath();
+        g.fillStyle = hexA(color, 0.18);
+        g.fill();
+        stroke(g, pts, color, 1.6);
+      }} />
+  );
+}
+
+// ---- LFO and chaos, with where they stand right now ------------------------------------------------------------
+
+const RND = [0.3, -0.7, 0.9, -0.2, 0.6];
+function lfoAt(shape, ph) {
+  const x = ph - Math.floor(ph);
+  const cyc = Math.floor(ph);
+  return shape === 'triangle' ? (x < 0.25 ? 4 * x : x < 0.75 ? 2 - 4 * x : 4 * x - 4) : shape === 'saw' ? 1 - 2 * x : shape === 'ramp' ? 2 * x - 1
+    : shape === 'square' ? (x < 0.5 ? 1 : -1) : shape === 'sh' ? RND[((cyc % 5) + 5) % 5] : shape === 'smooth' ? RND[((cyc % 5) + 5) % 5] + (RND[(((cyc + 1) % 5) + 5) % 5] - RND[((cyc % 5) + 5) % 5]) * x * x * (3 - 2 * x)
+      : Math.sin(2 * Math.PI * x);
+}
+
+/** Two cycles of an LFO, and — while a note sounds — a line at the value it has now. */
+export function LfoGraph({ shape, phase, color = '#5ab8f0', live = null, source }) {
+  const getter = useMemo(() => (live ? () => liveSource(live(), source) : null), [live, source]);
+  return (
+    <Display className="mid" label={`LFO: ${shape}`} live={getter} deps={[shape, Math.round(phase * 100), color]}
+      draw={(g, w, h, now) => {
+        g.strokeStyle = GRID;
+        g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+        const pts = Array.from({ length: Math.round(w) + 1 }, (_, i) => [i, h / 2 - lfoAt(shape, (i / w) * 2 + phase) * (h / 2 - 6)]);
+        g.beginPath();
+        pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.lineTo(w, h / 2); g.lineTo(0, h / 2); g.closePath();
+        g.fillStyle = hexA(color, 0.12);
+        g.fill();
+        stroke(g, pts, color, 1.6);
+        if (typeof now === 'number') {
+          const y = h / 2 - clamp(now, -1, 1) * (h / 2 - 6);
+          g.strokeStyle = hexA(color, 0.5);
+          g.setLineDash([3, 3]);
+          g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+          g.setLineDash([]);
+          g.fillStyle = color;
+          g.shadowColor = color; g.shadowBlur = 8;
+          g.beginPath(); g.arc(w - 6, y, 3.5, 0, Math.PI * 2); g.fill();
+          g.shadowBlur = 0;
+        }
+      }} />
+  );
+}
+
+export function ChaosGraph({ type, character, steps, color = '#ef7fb0', live = null, source }) {
+  const getter = useMemo(() => (live ? () => liveSource(live(), source) : null), [live, source]);
+  return (
+    <Display className="mid" label={`Chaos: ${type}`} live={getter} deps={[type, Math.round(character * 100), steps]}
+      draw={(g, w, h, now) => {
+        g.strokeStyle = GRID;
+        g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+        const pts = chaosPreview({ type, character, steps }, Math.round(w), 12, 3);
+        stroke(g, Array.from(pts, (v, i) => [i, h / 2 - v * (h / 2 - 5)]), color, 1.4);
+        if (typeof now === 'number') {
+          const y = h / 2 - clamp(now, -1, 1) * (h / 2 - 5);
+          g.fillStyle = color;
+          g.shadowColor = color; g.shadowBlur = 8;
+          g.beginPath(); g.arc(w - 6, y, 3.5, 0, Math.PI * 2); g.fill();
+          g.shadowBlur = 0;
+        }
+      }} />
+  );
+}
+
+// ---- a source over the last seconds (the mod sources strip) ----------------------------------------------------
+
+/** A source's value over the last three seconds, scrolling; flat and dim while nothing sounds. */
+export function SourceSpark({ source, live, color }) {
+  const ref = useRef(null);
+  const both = BIPOLAR_SOURCES.has(source);
+  useEffect(() => {
+    const hist = new Float32Array(90);
+    let n = 0;
+    let at = 0;
+    let quiet = true;
+    let frames = 0;
+    return onFrame(() => {
+      const cv = ref.current;
+      if (!cv) return;
+      // ~30 points a second is plenty for a line 40 pixels wide
+      if (++frames % 2) return;
+      const raw = liveSource(live(), source);
+      const nowQuiet = raw === null || raw === undefined;
+      if (nowQuiet && quiet && n) return;
+      quiet = nowQuiet;
+      hist[at] = nowQuiet ? 0 : clamp(raw, -1, 1);
+      at = (at + 1) % hist.length;
+      n = Math.min(hist.length, n + 1);
+      const w = 40;
+      const h = 18;
+      if (cv.width !== w * 2) { cv.width = w * 2; cv.height = h * 2; }
+      const g = cv.getContext('2d');
+      g.setTransform(2, 0, 0, 2, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.beginPath();
+      for (let i = 0; i < hist.length; i++) {
+        const v = hist[(at + i) % hist.length];
+        const y = both ? h / 2 - v * (h / 2 - 2) : h - 2 - v * (h - 4);
+        const x = (i / (hist.length - 1)) * w;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.strokeStyle = quiet ? 'rgba(255,255,255,0.18)' : color;
+      g.lineWidth = 1.2;
+      g.stroke();
+    });
+  }, [source, live, color, both]);
+  return <canvas ref={ref} className="ovw-spark" style={{ width: 40, height: 18 }} aria-hidden="true" />;
+}
+
+// ---- the effects, each as a picture of what it does ------------------------------------------------------------
+
+/** What the drive does to a signal: its transfer curve (input across, output up). */
+export function DriveCurve({ amount, type, color }) {
+  return (
+    <Display className="fx" label={`Drive ${type}`} deps={[Math.round(amount * 100), type]}
+      draw={(g, w, h) => {
+        const pre = 1 + amount * amount * 30;
+        const post = 1 / Math.pow(pre, 0.6);
+        const soft = (x) => Math.tanh(x);
+        const f = (x) => {
+          const v = x * pre;
+          const y = type === 'hard' ? clamp(v, -1, 1) : type === 'tube' ? (v > 0 ? soft(v) : (soft(v * 0.6) / 0.6) * 0.8) : type === 'fold' ? Math.sin(v * 1.2) : soft(v);
+          return clamp(y * post * (amount > 0.001 ? 1.6 : 1), -1, 1);
+        };
+        g.strokeStyle = GRID;
+        g.beginPath(); g.moveTo(w / 2, 2); g.lineTo(w / 2, h - 2); g.moveTo(2, h / 2); g.lineTo(w - 2, h / 2); g.stroke();
+        stroke(g, Array.from({ length: 61 }, (_, i) => { const x = (i / 60) * 2 - 1; return [w / 2 + x * (w / 2 - 4), h / 2 - (amount > 0.001 ? f(x) : x) * (h / 2 - 4)]; }), amount > 0.001 ? color : DIM, 1.6);
+      }} />
+  );
+}
+
+/** The echoes of the delay: one bar per repeat, as loud as the feedback leaves it. */
+export function DelayTaps({ mix, feedback, pingPong, color }) {
+  return (
+    <Display className="fx" label="Delay repeats" deps={[Math.round(mix * 100), Math.round(feedback * 100), pingPong]}
+      draw={(g, w, h) => {
+        const n = 9;
+        for (let k = 0; k < n; k++) {
+          const v = k === 0 ? 1 : mix * Math.pow(Math.max(0.05, feedback), k - 1);
+          const x = 6 + (k / (n - 1)) * (w - 16);
+          const up = pingPong && k % 2 === 0;
+          g.fillStyle = k === 0 ? 'rgba(255,255,255,0.55)' : hexA(color, mix > 0 ? 0.85 : 0.2);
+          const bh = v * (h / 2 - 4);
+          g.fillRect(x, up ? h / 2 - bh : h / 2, 4, Math.max(1, bh));
+          if (!pingPong) g.fillRect(x, h / 2 - bh, 4, bh);
+        }
+      }} />
+  );
+}
+
+/** The reverb's tail: how it builds and how long it hangs on. */
+export function ReverbTail({ mix, size, damp, color }) {
+  return (
+    <Display className="fx" label="Reverb tail" deps={[Math.round(mix * 100), Math.round(size * 100), Math.round(damp * 100)]}
+      draw={(g, w, h) => {
+        const seconds = 0.4 + size * 11.6;
+        const span = Math.max(1, Math.min(14, seconds * 1.3));
+        let s = 7;
+        for (let i = 0; i < w - 4; i += 2) {
+          s = (Math.imul(s, 1664525) + 1013904223) | 0;
+          const t = (i / (w - 4)) * span;
+          const env = Math.min(1, t / 0.05) * Math.exp((-6.9 * t) / seconds);
+          const v = env * (0.4 + 0.6 * Math.abs(s / 2147483648)) * (1 - damp * 0.5 * (t / span));
+          g.fillStyle = hexA(color, mix > 0 ? 0.7 : 0.18);
+          g.fillRect(2 + i, h / 2 - v * (h / 2 - 3), 1.4, v * (h - 6));
+        }
+        text(g, `${seconds.toFixed(1)} s`, w - 4, 10, { align: 'right' });
+      }} />
+  );
+}
+
+/** The chorus: two copies whose delay wobbles against each other. */
+export function ChorusWobble({ mix, rate, depth, color }) {
+  return (
+    <Display className="fx" label="Chorus" deps={[Math.round(mix * 100), Math.round(rate * 100), Math.round(depth * 100)]}
+      draw={(g, w, h) => {
+        const cycles = clamp(rate, 0.1, 5);
+        const a = (0.2 + depth * 0.8) * (h / 2 - 4);
+        for (const [off, alpha] of [[0, 0.9], [Math.PI * 0.5, 0.5]]) {
+          stroke(g, Array.from({ length: 61 }, (_, i) => [2 + (i / 60) * (w - 4), h / 2 - Math.sin((i / 60) * Math.PI * 2 * cycles + off) * a]), hexA(color, mix > 0 ? alpha : 0.2), 1.4);
+        }
+      }} />
+  );
+}
+
+// ---- the channel's output: waveform and spectrum ---------------------------------------------------------------
+
+/**
+ * The sound of this channel right now, as a waveform and a spectrum, from an analyser on the channel strip (a side
+ * branch: what is heard does not change). Quiet when nothing plays.
+ */
+export function OutputScope({ analyser, color = '#f59f42' }) {
+  const wrap = useRef(null);
+  const canvas = useRef(null);
+  useEffect(() => {
+    const an = analyser();
+    const time = new Float32Array(2048);
+    const freq = new Float32Array(1024);
+    let frames = 0;
+    let quiet = false;
+    return onFrame(() => {
+      const cv = canvas.current;
+      const box = wrap.current;
+      const node = an || analyser();
+      if (!cv || !box || !node || ++frames % 2) return;
+      // silence is drawn once, not 30 times a second
+      node.getFloatTimeDomainData(time);
+      let loud = 0;
+      for (let i = 0; i < 2048; i += 8) loud = Math.max(loud, Math.abs(time[i]));
+      if (loud < 1e-4 && quiet && cv.width === Math.round(box.clientWidth * Math.min(2, window.devicePixelRatio || 1))) return;
+      quiet = loud < 1e-4;
+      const w = Math.max(10, box.clientWidth);
+      const h = Math.max(10, box.clientHeight);
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.width = `${w}px`; cv.style.height = `${h}px`; }
+      const g = cv.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      const top = h * 0.5;
+      // start at a rising zero crossing, so a steady note stands still
+      let start = 0;
+      for (let i = 1; i < 1024; i++) if (time[i - 1] < 0 && time[i] >= 0) { start = i; break; }
+      let peak = 0.02;
+      for (let i = 0; i < 1024; i++) peak = Math.max(peak, Math.abs(time[start + i]));
+      g.strokeStyle = GRID;
+      g.beginPath(); g.moveTo(0, top / 2); g.lineTo(w, top / 2); g.moveTo(0, top + 1); g.lineTo(w, top + 1); g.stroke();
+      const pts = [];
+      for (let i = 0; i < 1024; i += 2) pts.push([(i / 1023) * w, top / 2 - (time[start + i] / peak) * (top / 2 - 4) * Math.min(1, peak * 4)]);
+      stroke(g, pts, color, 1.4);
+      node.getFloatFrequencyData(freq);
+      const sr = node.context.sampleRate;
+      const bins = freq.length;
+      const xOf = (hz) => (Math.log2(hz / 30) / Math.log2(18000 / 30)) * w;
+      g.beginPath();
+      g.moveTo(0, h);
+      for (let x = 0; x <= w; x += 2) {
+        const hz = 30 * Math.pow(18000 / 30, x / w);
+        const k = Math.min(bins - 1, Math.round((hz / (sr / 2)) * bins));
+        const db = clamp(freq[k], -100, -10);
+        g.lineTo(x, h - ((db + 100) / 90) * (h - top - 6));
+      }
+      g.lineTo(w, h);
+      g.closePath();
+      g.fillStyle = hexA(color, 0.25);
+      g.fill();
+      g.strokeStyle = hexA(color, 0.8);
+      g.lineWidth = 1;
+      g.stroke();
+      for (const hz of [100, 1000, 10000]) text(g, hz >= 1000 ? `${hz / 1000}k` : String(hz), xOf(hz), h - 2, { align: 'center', size: 8 });
+    });
+  }, [analyser, color]);
+  return <div ref={wrap} className="ovw-display scope"><canvas ref={canvas} role="img" aria-label="Output waveform and spectrum of this channel" /></div>;
+}

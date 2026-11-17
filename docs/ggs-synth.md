@@ -195,6 +195,38 @@ The header also has the eight macros with their names, gain, and **Export / Impo
 The **touch pad** at the bottom plays the patch the way an MPE controller would: hold it to sound the step note,
 move up for pressure and right for slide.
 
+### Overview: the whole patch on one screen
+
+The last tab, **Overview**, shows the patch as pictures, every part in a module of its own — made for looking at a
+sound, and for recording it (a screen video, a clip for social media). The other tabs are unchanged; the Overview uses
+the same controls, so a knob there has its rings, its live dot and its modulation menu, takes a dragged source and is
+undone like any other.
+
+[![The Overview tab](screenshots/ggs-overview.png)](screenshots/ggs-overview.png)
+
+| Module | What it shows |
+|---|---|
+| Preset & macros | the preset browser, the eight macros, level, gain, the voice (poly / mono, glide), Export / Import |
+| Oscillator A · B · C | the wavetable as a stack of frames, the frame being played lit (it moves when the position is modulated); the unison copies spread by their law and stack; position, level, detune, warp, FM |
+| Sub & noise | the sub's wave next to the noise's colour (its spectrum tilt) |
+| Filter 1 · 2 | the measured response, with the handle to drag |
+| Routing | the signal flow: each source wired to filter 1, filter 2, both or straight to the amp. **Click a source** to send it to the next place, **click serial ⇄ parallel** to connect the filters the other way |
+| Amp & voice | the amp envelope (envelope 1), velocity, glide, polyphony, mono / legato, quality |
+| Envelopes · LFOs · Chaos | one at a time (chips 1–4, dimmed when not routed): the envelope to shape by hand, the LFO and the chaos path moving with the note that sounds |
+| Mod sources | every source as a draggable chip with its last moments drawn as a small trace |
+| Mod matrix | the routes, each with its depth as a slider |
+| Effects | drive (its curve), chorus (the two wobbling copies), delay (the repeats fading), reverb (the tail) |
+| Output scope | the channel's sound right now: waveform and spectrum (an analyser off the channel's fader; it does not change what you hear) |
+| Touch pad | the pad, to play the patch from the screen |
+
+**Arranging.** Press **Arrange**: each module gets a grip to drag it to another place (it goes before the module it is
+dropped on, or at the end), ◀ ▶ to move it one place, − + to make it narrower or wider (2 to 12 columns of a
+12-column grid) and × to hide it; **+ Add a module** brings a hidden one back. **Layout** has ready-made arrangements
+(*Whole patch*, *Oscillators*, *Filters, routing & envelopes*, *Modulation*, *Sound & scope*, *Minimal*) and the ones you
+save with **Save as…** (kept in this browser, with the arrangement you were using). **Full screen** shows only the
+modules, bigger, with the toolbar out of the way until you point at it — Esc to leave. In a narrow window the modules
+fall into two columns, then one.
+
 A knob turned while notes sound changes them immediately. Changes to what a voice is made of — switching an
 oscillator, picking another wavetable or filter model, changing the routing — are **click-free**: that part of the
 voice fades out for 4 ms, is swapped while silent and fades back in. A drag on a graph is one undo step. Everything

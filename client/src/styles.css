@@ -326,6 +326,144 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .ggs-pad-y { left: 6px; top: 3px; }
 .ggs-pad i { position: absolute; width: 14px; height: 14px; margin: 0 0 -7px -7px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px var(--accent-2); pointer-events: none; }
 
+/* GGS Synth, Overview tab: the whole patch on one screen, as a grid of modules that can be rearranged */
+.ovw { container-type: inline-size; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ovw-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 0; }
+.ovw-bar-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.ovw-bar .ui-select { max-width: 220px; }
+.ovw-bar-gap { flex: 1; }
+.ovw-bar .btn.on { background: rgba(245, 159, 66, 0.2); border-color: var(--accent); color: var(--accent); }
+.ovw-changed { font-size: 10px; color: var(--accent); }
+.ovw-grid { display: grid; grid-template-columns: repeat(var(--cols, 12), minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+.ovw-mod {
+  display: flex; flex-direction: column; min-width: 0; border-radius: 8px; padding: 6px 8px 8px;
+  background: linear-gradient(180deg, #232a32, #1b2026); border: 1px solid var(--line); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+.ovw-mod-head { display: flex; align-items: center; gap: 6px; min-height: 20px; margin-bottom: 6px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ovw-mod-head b { font-weight: 700; color: var(--text); }
+.ovw-mod-head > span:not(.ovw-mod-tools):not(.ovw-grip) { color: var(--faint); text-transform: none; letter-spacing: 0; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovw-mod-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 1px; }
+.ovw-mod-tools .tbtn { min-width: 18px; height: 18px; padding: 0 3px; font-size: 10px; }
+.ovw-width { font: 9.5px var(--mono); color: var(--muted); min-width: 14px; text-align: center; }
+.ovw-grip { cursor: grab; color: var(--muted); font-size: 13px; line-height: 1; padding: 0 2px; user-select: none; }
+.ovw-grip:active { cursor: grabbing; }
+.ovw.arranging .ovw-mod { border-style: dashed; border-color: var(--panel-4); }
+.ovw-mod.drop { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ovw-mod.lifted { opacity: 0.45; }
+.ovw-end { border: 1px dashed var(--panel-4); border-radius: 8px; padding: 10px; text-align: center; color: var(--faint); font-size: 11px; }
+.ovw-end.drop { border-color: var(--accent); color: var(--accent); }
+.ovw-empty { grid-column: 1 / -1; color: var(--muted); font-size: 12px; padding: 20px; text-align: center; }
+.ovw-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.ovw-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.ovw-row.spread { justify-content: space-between; }
+.ovw-knobs { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 8px; }
+.ovw-knobs .knob-label, .ovw-knobs .knob-value { font-size: 9px; }
+.ovw-sub { font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 4px; }
+.ovw-desc { margin: 0; font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+.ovw-desc b { color: var(--text); font-weight: 600; }
+.ovw .off .ovw-display, .ovw .off .ovw-graph { opacity: 0.5; }
+
+/* the pictures */
+.ovw-display { position: relative; width: 100%; height: 90px; border-radius: 6px; background: radial-gradient(120% 100% at 50% 0%, #141a20, #0c0f13); border: 1px solid var(--border); overflow: hidden; flex: none; }
+.ovw-display canvas { position: absolute; inset: 0; display: block; }
+.ovw-display.tall { height: 128px; }
+.ovw-display.mid { height: 96px; }
+.ovw-display.short { height: 64px; }
+.ovw-display.fx { height: 54px; }
+.ovw-display.scope { height: auto; min-height: 150px; flex: 1; }
+.ovw-scope { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.ovw-graph { width: 100%; min-width: 0; }
+.ovw-graph .ggs-fgraph { margin: 0; }
+.ovw-graph canvas { width: 100% !important; height: auto; border-radius: 6px; background: #0c0f13; border: 1px solid var(--border); }
+.ovw-spark { display: block; }
+
+/* the signal flow */
+.ovw-routing-box { display: flex; align-items: center; justify-content: center; flex: 1; }
+.ovw-routing { width: 100%; max-height: 220px; }
+.ovw-wire { fill: none; stroke-width: 1.8; opacity: 0.85; }
+.ovw-wire.link { stroke: var(--muted); stroke-dasharray: none; }
+.ovw-wire.off { opacity: 0.25; stroke-dasharray: 3 3; }
+.ovw-node rect, .ovw-node path { fill: #11161b; stroke: var(--line); stroke-width: 1.2; }
+.ovw-node text { fill: var(--muted); font: 600 9px var(--mono); text-anchor: middle; }
+.ovw-node.src { cursor: pointer; outline: none; }
+.ovw-node.src:hover rect, .ovw-node.src:focus-visible rect { fill: #1c242c; }
+.ovw-node.src.off { opacity: 0.4; }
+.ovw-node.filter rect { stroke: var(--accent); fill: rgba(245, 159, 66, 0.1); }
+.ovw-node.filter text { fill: var(--accent); }
+.ovw-node.filter.off { opacity: 0.4; }
+.ovw-node.amp path { stroke: var(--accent-2); fill: rgba(154, 217, 79, 0.12); }
+.ovw-node.amp text { fill: var(--accent-2); }
+.ovw-route-toggle { cursor: pointer; outline: none; }
+.ovw-route-toggle rect { fill: #11161b; stroke: var(--panel-4); }
+.ovw-route-toggle:hover rect, .ovw-route-toggle:focus-visible rect { stroke: var(--accent); }
+.ovw-route-toggle text { fill: var(--text); font: 9px var(--mono); text-anchor: middle; }
+
+/* the header: preset, macros, voice */
+.ovw-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.ovw-header .ovw-desc { flex: 1 1 100%; }
+.ovw-header .macros { gap: 4px 10px; }
+.ovw-voice { display: flex; flex-direction: column; gap: 1px; font: 10px var(--mono); color: var(--muted); }
+.ovw-voice b { color: var(--text); font-size: 11px; }
+.ovw-header-buttons { display: flex; gap: 4px; margin-left: auto; }
+
+/* chips that pick one of several (ENV 1–4, LFO 1–4, Chaos 1–2) */
+.ovw-pick { display: flex; flex-wrap: wrap; gap: 3px; }
+.ovw-pick button { padding: 2px 7px; border-radius: 10px; font: 600 9.5px var(--mono); color: var(--muted); border: 1px solid var(--line); background: #141a20; }
+.ovw-pick button.dim { opacity: 0.55; }
+.ovw-pick button:hover { color: var(--text); }
+.ovw-pick button.on { color: #101418; background: var(--c); border-color: var(--c); opacity: 1; }
+.ovw-env .ggs-envedit { margin: 0; }
+.ovw-env .ggs-envedit svg { width: 100%; max-height: 260px; }
+.ovw .ggs-steps { max-width: 100%; }
+
+/* modulation sources with their recent movement */
+.ovw-sources { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.ovw-src-group { display: flex; flex-wrap: wrap; gap: 4px; }
+.ovw-src {
+  display: inline-flex; flex-direction: column; align-items: stretch; gap: 1px; padding: 2px 4px 3px; border-radius: 5px; cursor: grab;
+  background: #12171c; border: 1px solid var(--line); color: var(--muted); font: 600 9px var(--mono);
+}
+.ovw-src span { display: flex; justify-content: space-between; gap: 4px; }
+.ovw-src i { font-style: normal; color: #101418; background: var(--c); border-radius: 6px; padding: 0 3px; font-size: 8px; }
+.ovw-src.used { border-color: var(--c); color: var(--c); }
+.ovw-src:hover { background: #1a2128; }
+
+/* the matrix, compact */
+.ovw-matrix ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
+.ovw-matrix li { display: grid; grid-template-columns: 10px minmax(0, 1fr) minmax(0, 1.3fr) minmax(60px, 1fr) 40px 18px; align-items: center; gap: 6px; font-size: 10.5px; padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+.ovw-matrix li .from, .ovw-matrix li .to { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovw-matrix li .to { color: var(--text); }
+.ovw-matrix li .amt { font: 10px var(--mono); text-align: right; }
+.ovw-matrix input[type='range'] { width: 100%; accent-color: var(--c); }
+.ovw-count { font: 10px var(--mono); color: var(--muted); }
+
+/* effects */
+.ovw-fxrack { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.ovw-fx { display: flex; flex-direction: column; gap: 5px; padding: 6px; border-radius: 6px; background: #161b21; border: 1px solid rgba(255, 255, 255, 0.04); }
+.ovw-fx-head { display: flex; align-items: center; gap: 5px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.ovw-fx-head i { width: 7px; height: 7px; border-radius: 50%; background: var(--panel-4); }
+.ovw-fx.on .ovw-fx-head { color: var(--text); }
+.ovw-fx.on .ovw-fx-head i { background: var(--led); box-shadow: 0 0 5px var(--led); }
+.ovw-fx:not(.on) .ovw-display { opacity: 0.45; }
+.ovw-pad .ggs-pad { height: 100%; min-height: 110px; }
+.ovw-pad { flex: 1; display: flex; flex-direction: column; }
+.ovw-osc.off .ovw-knobs { opacity: 0.6; }
+
+/* narrow windows: modules wrap to half and then full width */
+@container (max-width: 760px) { .ovw-grid > .ovw-mod { grid-column: span 6 !important; } .ovw-grid > .ovw-mod[data-module='header'], .ovw-grid > .ovw-mod[data-module='sources'] { grid-column: span 12 !important; } }
+@container (max-width: 480px) { .ovw-grid > .ovw-mod { grid-column: span 12 !important; } }
+
+/* full screen (for recording a video): only the modules, bigger, the toolbar on hover */
+.ovw:fullscreen { background: var(--bg); padding: 18px 22px; overflow: auto; }
+.ovw:fullscreen .ovw-bar { position: fixed; top: 6px; right: 12px; z-index: 5; opacity: 0; transition: opacity 0.2s; background: rgba(19, 23, 28, 0.92); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); }
+.ovw:fullscreen .ovw-bar:hover, .ovw:fullscreen .ovw-bar:has(:focus-visible) { opacity: 1; }
+.ovw:fullscreen .ovw-grid { gap: 12px; }
+.ovw:fullscreen .ovw-mod { padding: 10px 12px 12px; border-radius: 10px; }
+.ovw:fullscreen .ovw-display.tall { height: 170px; }
+.ovw:fullscreen .ovw-display.mid { height: 130px; }
+.ovw:fullscreen .ovw-display.short { height: 84px; }
+.ovw:fullscreen .ovw-display.scope { min-height: 210px; }
+
 /* GGS Synth: envelope editor, filter curve, preset browser, wavetable grid, parameter table */
 .ggs-envedit { margin-bottom: 6px; }
 .ggs-envedit svg { display: block; width: 330px; max-width: 100%; height: auto; border-radius: 4px; background: #101418; border: 1px solid var(--border); touch-action: none; }

@@ -327,6 +327,14 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await page.locator('.ggs-wt-panel').scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${OUT}/ggs-wavetables.png`, clip });
   await page.keyboard.press('Escape');
+  // the Overview tab: the whole patch on one screen, as pictures (a wider window: it is a 12-column grid)
+  await layout(page, { channelSettings: [10, 10, 1580, 880] });
+  await tab('Overview');
+  await hold();
+  await page.locator('.ggs-tabs').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/ggs-overview.png`, clip: { x: 0, y: 44, width: 1600, height: 846 } });
+  await page.mouse.up();
   // the piano roll: pitch curves over the notes, the pitch lane underneath
   await layout(page, { pianoRoll: [10, 10, 1580, 600] });
   await page.locator('.pr-lane').selectOption('pitch');
