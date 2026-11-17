@@ -387,16 +387,33 @@ export function AmpModule({ ed, tools }) {
 
 // ---- modulators --------------------------------------------------------------------------------------------------
 
+/** The size of a box, followed as it changes. */
+function useSize() {
+  const ref = useRef(null);
+  const [size, setSize] = useState({ w: 330, h: 108 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, size];
+}
+
 export function EnvelopesModule({ ed, tools }) {
   const [i, setI] = useState(1);
+  const [box, size] = useSize();
+  // the editor draws 108 units tall: as many wide as the box's shape asks for, so it fills it
+  const width = Math.max(220, Math.round((108 * size.w) / Math.max(40, size.h)));
   const { C, full } = ed;
   const k = (key, opts = {}) => C(key, { look: 'panel', color: SP.env, ringColor, ...opts });
   const items = [1, 2, 3, 4].map((n) => ({ id: n, text: n === 1 ? 'ENV 1 · Amp' : `ENV ${n}`, used: n === 1 || ed.used(`env${n}`) }));
   return (
     <Module id="envelopes" title="Envelopes" tools={tools} header={<ModTabs items={items} value={i} onPick={setI} color={SP.env} label="Envelope" />}
       actions={<SourceChip source={`env${i}`} ed={ed} />} bodyClass="sp-env">
-      <div className="sp-screen sp-envgraph" style={{ '--c': SP.env }}>
-        <EnvelopeEditor env={paramsToSection(full, 'envelope', i)} defaults={paramsToSection(ed.defaults, 'envelope', i)} color={SP.env} label={`Envelope ${i}`}
+      <div ref={box} className="sp-screen sp-envgraph" style={{ '--c': SP.env }}>
+        <EnvelopeEditor width={width} env={paramsToSection(full, 'envelope', i)} defaults={paramsToSection(ed.defaults, 'envelope', i)} color={SP.env} label={`Envelope ${i}`}
           onChange={(f) => ed.setDrag(sectionToParams('envelope', i, f), `env${i}:${Object.keys(f).sort().join('+')}`)} />
       </div>
       <div className="sp-grid3">

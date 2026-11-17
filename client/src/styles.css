@@ -548,6 +548,10 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .sp-dock.open .sp-dock-body { padding: 8px 10px; }
 .sp-dock-over { position: absolute; z-index: 30; left: 6px; right: 6px; bottom: 6px; display: flex; height: max(340px, calc(100% - 392px)); }
 .sp-dock .ggs-matrix, .sp-dock .ggs-ptable { color: var(--sp-fg); }
+.sp-dock .ggs-amt input { accent-color: var(--sp-accent); }
+.sp-dock .btn { background: var(--sp-control); border: 0; color: var(--sp-fg); }
+.sp-dock .btn:hover { background: var(--sp-control-hover); }
+.sp-dock input[type='search'] { background: var(--sp-base); border-color: var(--sp-line); color: var(--sp-fg); }
 .sp-rack { display: flex; align-items: stretch; gap: 6px; height: 100%; padding: 6px; box-sizing: border-box; }
 .sp-rack-in { display: flex; flex: none; align-items: center; justify-content: center; width: 11px; }
 .sp-rack-in span { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 7.5px; font-weight: 600; letter-spacing: 0.14em; color: var(--sp-fg3); text-transform: uppercase; white-space: nowrap; }

@@ -216,10 +216,9 @@ export function SynthPage({ ed }) {
   };
   const tools = (id, it, r, i) => (
     <div className="gsp-tools" data-nodrag>
-      <span className="gsp-grip" draggable title="Drag to move" aria-hidden="true"
+      <span className="gsp-grip" draggable title={`Drag ${MODULES[id].label} to move it`} aria-hidden="true"
         onDragStart={(e) => { e.dataTransfer.setData(MODULE_MIME, id); e.dataTransfer.effectAllowed = 'move'; setDragging(id); }}
         onDragEnd={() => { setDragging(null); setOver(null); }}>⠿</span>
-      <b>{MODULES[id].label}</b>
       <button type="button" aria-label={`Move ${MODULES[id].label} earlier`} title="Earlier in its row" disabled={i === 0} onClick={() => change((l) => nudgeModule(l, id, -1))}>◀</button>
       <button type="button" aria-label={`Move ${MODULES[id].label} later`} title="Later in its row" disabled={i === layout.rows[r].length - 1} onClick={() => change((l) => nudgeModule(l, id, 1))}>▶</button>
       <button type="button" aria-label={`Move ${MODULES[id].label} up`} title="To the row above" disabled={r === 0} onClick={() => change((l) => shiftRow(l, id, -1))}>▲</button>
@@ -269,7 +268,7 @@ export function SynthPage({ ed }) {
             {arranging && <div className={`gsp-row-end ${over === `row${r}` ? 'drop' : ''}`} onDragOver={overAt(`row${r}`)} onDragLeave={() => setOver(null)} onDrop={dropAt({ row: r })} title="Drop: at the end of this row" />}
           </div>
         ))}
-        {arranging && (
+        {arranging && dragging && (
           <div className={`gsp-newrow ${over === 'new' ? 'drop' : ''}`} onDragOver={overAt('new')} onDragLeave={() => setOver(null)} onDrop={dropAt({ row: layout.rows.length })}>
             Drop here: a new row
           </div>

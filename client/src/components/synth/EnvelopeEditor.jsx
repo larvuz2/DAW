@@ -6,7 +6,7 @@ import { envShape, envCurveK, ENV_CURVE_SCALE } from '@greanteadawy/synth-dsp';
 import { formatValue } from '../ui/Knob.jsx';
 import { DragNumber } from '../ui/Controls.jsx';
 
-const W = 330;
+const WIDTH = 330; // the drawing's width in graph units (a wider box can ask for more: `width`)
 const H = 108;
 const PAD = 9;
 const SUSTAIN_W = 44; // the sustain stage has no length of its own: it is drawn as a fixed stretch
@@ -20,7 +20,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const y = (v) => H - PAD - v * (H - 2 * PAD);
 
 /** Stage widths grow with the square root of their time, so a 5 ms attack and a 4 s release are both grabbable. */
-function layout(env, k) {
+function layout(env, k, W = WIDTH) {
   const root = Object.fromEntries(STAGES.map((s) => [s, Math.sqrt(Math.max(0, env[s]))]));
   const scale = k ?? (W - 2 * PAD - SUSTAIN_W) / Math.max(0.3, STAGES.reduce((sum, s) => sum + root[s], 0));
   const x = { start: PAD };
@@ -58,12 +58,13 @@ function curveFromHandle(f, height) {
 }
 const round3 = (v) => Math.round(v * 1000) / 1000;
 
-export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-2)', label = 'Envelope' }) {
+export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-2)', label = 'Envelope', width = WIDTH }) {
+  const W = width;
   const ref = useRef(null);
   const drag = useRef(null);
   const lastDown = useRef({ id: null, at: 0 });
   const [active, setActive] = useState(null);
-  const { x, scale } = layout(env, drag.current?.scale);
+  const { x, scale } = layout(env, drag.current?.scale, W);
   const s = env.sustain;
   const half = (curve) => envShape(0.5, envCurveK(curve));
 
@@ -106,7 +107,7 @@ export function EnvelopeEditor({ env, defaults, onChange, color = 'var(--accent-
       const w = Math.max(0, px - from) / k;
       return clamp(Math.round(w * w * 10000) / 10000, lo, hi);
     };
-    const before = layout(d.env, k).x; // positions of the stages to the left stay where they were when the drag began
+    const before = layout(d.env, k, W).x; // positions of the stages to the left stay where they were when the drag began
     switch (id) {
       case 'delay': onChange({ delay: time('delay', before.start) }); break;
       case 'attack': onChange({ attack: time('attack', before.delay) }); break;
