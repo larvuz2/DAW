@@ -53,6 +53,16 @@ export class GgsFx {
     this.down = new Decimator2();
     this.upL = new Float32Array(CHUNK * 2);
     this.upR = new Float32Array(CHUNK * 2);
+    // two more doublings for the drive at 4× and 8× (each stage is the same half-band pair, run once more)
+    this.up2 = new Interpolator2();
+    this.down2 = new Decimator2();
+    this.up3 = new Interpolator2();
+    this.down3 = new Decimator2();
+    this.u2L = new Float32Array(CHUNK * 4);
+    this.u2R = new Float32Array(CHUNK * 4);
+    this.u3L = new Float32Array(CHUNK * 8);
+    this.u3R = new Float32Array(CHUNK * 8);
+    this.driveStages = 1;
     this.dcL = 0; this.dcR = 0; this.dcXL = 0; this.dcXR = 0;
     this.chorus = [new DelayLine(sampleRate * 0.05), new DelayLine(sampleRate * 0.05)];
     this.chPhase = 0;
@@ -85,6 +95,12 @@ export class GgsFx {
     const p = this.p;
     const fs = this.fs;
     this.driveOn = p.driveAmt > 0.001;
+    const stages = p.driveOs === '8x' ? 3 : p.driveOs === '4x' ? 2 : 1;
+    if (stages !== this.driveStages) {
+      // (a stage that comes into use starts from rest, not from what it held the last time it ran)
+      this.up2.reset(); this.down2.reset(); this.up3.reset(); this.down3.reset();
+      this.driveStages = stages;
+    }
     this.chorusOn = p.chorusMix > 0.001;
     this.delayOn = p.delayMix > 0.001;
     this.reverbOn = p.reverbMix > 0.001;
@@ -158,17 +174,24 @@ export class GgsFx {
     this.dcL = this.dcR = this.dcXL = this.dcXR = 0;
   }
 
-  /** Waveshaper at twice the sample rate (its new harmonics would otherwise fold back as aliasing). */
+  /**
+   * Waveshaper at 2, 4 or 8 times the sample rate: its new harmonics would otherwise fold back as aliasing. Each
+   * doubling moves the fold twice as far up, where the shaper's harmonics are weaker.
+   */
   drive(L, R, o, n) {
     const p = this.p;
     const type = p.driveType;
     const pre = 1 + p.driveAmt * p.driveAmt * 30;
     const post = 1 / Math.pow(pre, 0.6);
-    const uL = this.upL;
-    const uR = this.upR;
+    const stages = this.driveStages;
     if (o) { L = L.subarray(o, o + n); R = R.subarray(o, o + n); }
-    this.up.process(L, R, uL, uR, n);
-    for (let i = 0; i < n * 2; i++) {
+    this.up.process(L, R, this.upL, this.upR, n);
+    if (stages > 1) this.up2.process(this.upL, this.upR, this.u2L, this.u2R, n * 2);
+    if (stages > 2) this.up3.process(this.u2L, this.u2R, this.u3L, this.u3R, n * 4);
+    const uL = stages > 2 ? this.u3L : stages > 1 ? this.u2L : this.upL;
+    const uR = stages > 2 ? this.u3R : stages > 1 ? this.u2R : this.upR;
+    const len = n << stages;
+    for (let i = 0; i < len; i++) {
       let l = uL[i] * pre;
       let r = uR[i] * pre;
       if (type === 'hard') { l = clamp(l, -1, 1); r = clamp(r, -1, 1); }
@@ -178,7 +201,9 @@ export class GgsFx {
       uL[i] = l * post;
       uR[i] = r * post;
     }
-    this.down.process(uL, uR, L, R, n);
+    if (stages > 2) this.down3.process(this.u3L, this.u3R, this.u2L, this.u2R, n * 4);
+    if (stages > 1) this.down2.process(this.u2L, this.u2R, this.upL, this.upR, n * 2);
+    this.down.process(this.upL, this.upR, L, R, n);
     // asymmetric shapes add DC: a 10 Hz high-pass takes it out
     const k = 1 - (TAU * 10) / this.fs;
     for (let i = 0; i < n; i++) {

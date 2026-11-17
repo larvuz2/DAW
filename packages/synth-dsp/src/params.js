@@ -25,6 +25,8 @@ export const LFO_STEPS = 16;
 export const LFO_SYNC = ['off', '8bar', '4bar', '2bar', '1bar', '1/2', '1/4', '1/8', '1/16', '1/32', '1/2t', '1/4t', '1/8t', '1/16t', '1/4d', '1/8d', '1/16d'];
 export const LFO_TRIGGERS = ['note', 'free'];
 export const DRIVE_TYPES = ['soft', 'hard', 'tube', 'fold'];
+/** How many times the sample rate the drive runs at. */
+export const DRIVE_RATES = ['2x', '4x', '8x'];
 export const DELAY_SYNC = ['free', '1/32', '1/16', '1/16d', '1/8t', '1/8', '1/8d', '1/4t', '1/4', '1/4d', '1/2'];
 export const QUALITIES = ['eco', 'auto', 'high'];
 export const ENV_COUNT = 4;
@@ -308,6 +310,7 @@ export const GGS_PARAMS = [
   n('gain', 'Gain', 0, 2, 0.55, voice('Output level of the channel after the effects. Presets are levelled with it so that swapping them does not upset a mix.')),
   n('driveAmt', 'Amount', 0, 1, 0, fx('Drive', 'Distortion on the whole channel (all notes together, so chords intermodulate).')),
   sel('driveType', 'Type', DRIVE_TYPES, 'soft', fx('Drive', 'soft = warm saturation, hard = clipping, tube = asymmetric and thick, fold = wave folding (metallic).')),
+  sel('driveOs', 'Oversampling', DRIVE_RATES, '2x', fx('Drive', 'The rate the distortion runs at. Distortion makes new overtones, and those above the reach of the sample rate fold back as tones that do not belong to the note (aliasing: a rough, inharmonic grit, worst on high notes and with hard or fold). 2x is right for bass and gentle drive. On a bright, hard-driven sound 4x takes the fold-back down by 12 dB (hard), 16 dB (tube) or 40 dB (soft) and 8x by another 12 dB for hard and tube — for two and four times the cost of the drive.')),
   n('chorusMix', 'Mix', 0, 1, 0, fx('Chorus', 'Amount of chorus: width and shimmer from slowly detuned copies.')),
   n('chorusRate', 'Rate', 0.05, 5, 0.6, { unit: 'Hz', curve: 'log', ...fx('Chorus', 'Speed of the chorus movement.') }),
   n('chorusDepth', 'Depth', 0, 1, 0.5, fx('Chorus', 'How far the chorus copies are detuned.')),

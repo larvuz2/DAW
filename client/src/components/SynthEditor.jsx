@@ -583,7 +583,7 @@ export function SynthEditor({ channel }) {
 
       {tab === 'fx' && (
         <div className="ggs-grid">
-          <fieldset className="param-group"><legend>Drive</legend><div className="param-row">{C('driveAmt')}{C('driveType')}</div></fieldset>
+          <fieldset className="param-group"><legend>Drive</legend><div className="param-row">{C('driveAmt')}{C('driveType')}{C('driveOs')}</div></fieldset>
           <fieldset className="param-group"><legend>Chorus</legend><div className="param-row">{C('chorusMix')}{C('chorusRate')}{C('chorusDepth')}</div></fieldset>
           <fieldset className="param-group">
             <legend>Delay</legend>
