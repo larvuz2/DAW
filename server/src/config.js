@@ -49,6 +49,9 @@ export function loadConfig(env = process.env) {
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     sessionTtlDays: envInt(env.SESSION_TTL_DAYS, 30, 1, 3650),
     publicUrl: env.PUBLIC_URL || '',
+    // Switches the browser Origin check (CSRF protection) off: for testing on your own machine, through a preview
+    // pane or a tunnel whose address the server does not know. Never on a server other people can reach.
+    allowAnyOrigin: /^(1|true|yes|on)$/i.test(env.ALLOW_ANY_ORIGIN || ''),
     // First-run setup code for servers reachable from other machines (auto-generated if empty)
     setupCode: env.SETUP_CODE || '',
     // ffmpeg for MP3/AAC/Ogg/Opus/FLAC/ALAC/AIFF exports: a path, empty = "ffmpeg" on the PATH, "off" = disabled

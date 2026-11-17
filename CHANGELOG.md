@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.2 — `npm run dev` works again
+
+- **First-run setup, login and every save in `npm run dev` were refused as "Cross-origin request blocked".** Vite's
+  proxy rewrote the Host to the server's (`127.0.0.1:3001`) while the browser's Origin was `localhost:5173`, and the
+  server compares the two (CSRF protection). The proxy now keeps the browser's Host. A page on another site is
+  still refused (checked through the proxy), and a test guards the setting. The production build, which the server
+  serves itself, was never affected.
+- **`ALLOW_ANY_ORIGIN=1`** switches the Origin check off, for testing on your own machine behind something the server
+  does not know — a preview pane, a tunnel. The server says so in its log. Off by default; never on a shared server.
+
 ## 0.13.1 — A song that tours the new sounds, and fixes from the review of 0.13.0
 
 **New template: Effects & Engines Tour** — forty bars in A minor (just intonation on A, every chord beatless) that

@@ -12,11 +12,14 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(version) },
   server: {
     port: 5173,
+    // changeOrigin stays false on purpose: the server compares a request's Origin with its Host (CSRF protection), and
+    // Vite's string shorthand rewrites the Host to the target's — "localhost:5173" would then never match
+    // "127.0.0.1:3001" and every save, login and first-run setup in `npm run dev` would be refused as cross-origin.
     proxy: {
-      '/api': target,
-      '/mcp': target,
-      '/sandbox': target, // the generator plugin sandbox page (served by the server with its own CSP)
-      '/ws': { target: target.replace(/^http/, 'ws'), ws: true }
+      '/api': { target, changeOrigin: false },
+      '/mcp': { target, changeOrigin: false },
+      '/sandbox': { target, changeOrigin: false }, // the generator plugin sandbox page (served by the server with its own CSP)
+      '/ws': { target: target.replace(/^http/, 'ws'), ws: true, changeOrigin: false }
     }
   },
   build: {

@@ -45,7 +45,7 @@ team. This page describes the model and a checklist for exposing it.
 
 ## Web hardening
 
-- **CSRF**: state-changing requests with an `Origin` must match the `Host` (or `PUBLIC_URL`); WebSocket upgrades are
+- **CSRF**: state-changing requests with an `Origin` must match the `Host` (or `PUBLIC_URL`) — `ALLOW_ANY_ORIGIN=1` switches this off, for testing on your own machine only (the server says so in its log); WebSocket upgrades are
   checked the same way. Cookies are SameSite=Lax.
 - **DNS rebinding**: `Host` header allow-list (`ALLOWED_HOSTS`, defaults to localhost names on loopback).
 - **Headers**: Content-Security-Policy (`script-src 'self'` — no `eval`; the studio can't be framed, and may only frame

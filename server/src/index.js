@@ -118,7 +118,7 @@ export async function createServer(config = loadConfig()) {
     app.use((req, res, next) => (req.path === '/api/health' ? next() : validHost(req, res, next)));
   }
   // CSRF protection: browsers send Origin on cross-site requests; only same-origin (or PUBLIC_URL) may change state
-  const originOk = originChecker(config.publicUrl);
+  const originOk = config.allowAnyOrigin ? () => true : originChecker(config.publicUrl);
   app.use((req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' || originOk(req)) return next();
     res.status(403).json({ error: 'Cross-origin request blocked' });
@@ -183,6 +183,7 @@ async function main() {
     writeLock(config.dataDir, config.port, config.host);
     const url = config.publicUrl || `http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
     console.log(`\n  GreanTeaDawy  ${url}`);
+    if (config.allowAnyOrigin) console.log('  WARNING: ALLOW_ANY_ORIGIN is on — the browser Origin check is off. Use it only for testing on your own machine.');
     console.log(`  MCP (Streamable HTTP): ${url}/mcp  (${users.settings.mcpWithoutToken ? 'token optional' : 'API token required'})`);
     console.log(`  Data: ${config.dataDir}`);
     if (!users.count()) {
