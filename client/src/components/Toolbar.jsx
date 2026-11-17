@@ -83,7 +83,8 @@ export function Toolbar() {
   const midiStatus = useStore((s) => s.midiStatus);
   const st = useStore.getState();
 
-  const fileMenu = (e) => st.showContextMenu(e, [
+  // (the state when the menu opens: this component doesn't re-render for the ticks below)
+  const fileMenu = (e) => { const now = useStore.getState(); st.showContextMenu(e, [
     { header: 'Project' },
     { label: 'New from template', submenu: Object.entries(TEMPLATES).map(([key, t]) => ({ label: t.label, onClick: async () => {
       const name = await st.prompt({ title: 'New project', value: key === 'empty' || key === 'default' ? 'Untitled' : t.label.split(' (')[0] });
@@ -125,11 +126,16 @@ export function Toolbar() {
     '-',
     { label: 'Settings…', onClick: () => st.openWindow('settings') },
     { label: 'Connect Claude (API token & MCP)…', onClick: () => { useStore.setState({ settingsTab: 'api' }); st.openWindow('settings'); } },
-    { label: 'Follow Claude (auto-open its projects)', checked: st.followClaude, onClick: () => st.setPref('followClaude', !st.followClaude) },
+    { label: 'Follow Claude (auto-open its projects)', checked: now.followClaude, onClick: () => st.setPref('followClaude', !now.followClaude) },
+    {
+      label: `Send to visuals${now.avStatus?.osc ? ` (OSC → ${now.avStatus.osc})` : ' (OSC / WebSocket)'}`, checked: now.avBridge,
+      title: 'Levels, spectrum, notes, transport, markers, automation and the visual lanes of what this tab plays, ~60 times a second, for TouchDesigner, Blender, Unreal… (docs/av-bridge.md)',
+      onClick: () => st.setAvBridge(!now.avBridge)
+    },
     { label: 'Reset window layout', onClick: st.resetLayout },
     { label: 'Keyboard shortcuts & help', onClick: () => st.openWindow('help') },
     { label: `About ${APP_NAME}…`, onClick: () => st.showAbout() }
-  ]);
+  ]); };
 
   const user = useStore.getState().auth.user;
   const noLogin = !!useStore.getState().auth.noLogin;

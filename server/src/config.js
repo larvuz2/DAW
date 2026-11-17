@@ -61,6 +61,9 @@ export function loadConfig(env = process.env) {
     ffmpegPath: env.FFMPEG_PATH || '',
     ffmpegTimeoutSec: envInt(env.FFMPEG_TIMEOUT_SEC, 300, 5, 24 * 3600),
     ffmpegMaxJobs: envInt(env.FFMPEG_MAX_JOBS, 2, 1, 64),
+    // the audio → visual bridge: where the playing tab's frames go as OSC over UDP ("host:port", "off"; empty = 127.0.0.1:7000
+    // when HOST is this computer, off otherwise) — see server/src/av.js
+    avOsc: env.AV_OSC || '',
     // users may install plugins (admins can still switch it off in Settings → Server); "false" disables them entirely
     pluginsEnabled: !/^(false|0|off|no)$/i.test(env.PLUGINS_ENABLED || 'true')
   };

@@ -31,6 +31,8 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
   src/diff.js         diffProjects: what changed between two project states, in words (diff_versions, dry runs,
                       the Versions window)      src/suggest.js  nearest / didYouMean for error messages
   src/renders.js      audioFingerprint, nullTest (subtract two renders), maskingReport (Bark bands), compareRenders
+  src/av.js           audio → visual bridge: channel slugs, avMap, automation/visual-lane values at a tick, spectrum
+                      features, onset detector, avFrameToOsc (the OSC address map: add, never rename), encodeOsc/decodeOsc
   src/builders.js     chord/bass/melody/roll generators
   src/templates.js    genre starter projects: build() + the menu order; each genre is src/templates/<id>.js { label, spec }
   src/analysis.js     LUFS/peak/spectrum/tempo/key/pitch + createLevelMeter (streaming, used for render stems)
@@ -54,6 +56,7 @@ server/src/
   hub.js              WebSocket live sync, activity log, transport relay, browser "jobs" (render/analyse/generate)
   api.js              REST routes          backend.js  local/remote backend used by MCP tools
   ffmpeg.js           optional ffmpeg detection + safe conversions (MP3/AAC/Ogg/Opus/FLAC/ALAC/AIFF)
+  av.js               audio → visual bridge: AV_OSC, the one-tab OSC lock (admins only), UDP sender (hub: 'av', 'subscribe-av')
   plugins.js zip.js sandbox.js   user plugins: store + worklet harness, hardened zip reader, generator sandbox page
   synth-worker.js     renders + analyses GGS notes in a worker thread (analyze_synth_patch: no browser needed)
   mcp/                tools.js (server factory: every call goes through `call` — validation, dryRun, `batch`),
@@ -74,6 +77,7 @@ client/src/
                       module.js = the one Vite-specific import of the worklet URL),
                       editWorker.js (slow sample edits, pitch analysis/correction off the main thread)
   lib/                actions.js, jobs.js (browser jobs for MCP), sandbox.js (generator iframe), keyboard.js, hooks.js,
+                      avBridge.js (Send to visuals: 60 fps frames from the playing tab; engine.noteTap, side-branch meters),
                       version.js (app name + version from client/package.json, shown in the About dialog),
                       audioEdit.js (decode at native rate, worker calls, WAV save/replace, the sample-edit job),
                       recorder.js (MicSession: getUserMedia → AudioWorklet capture, meter, monitor)
@@ -89,6 +93,7 @@ client/src/
                       … one file per window (Playlist, ChannelRack, PianoRoll, Mixer, …) + ui/ primitives
 client/public/        recorder-worklet.js (served as /recorder-worklet.js: CSP script-src 'self' allows addModule)
 e2e/                  Playwright specs (real browser + MCP client acting as Claude)
+fixtures/av/          audio → visual test song + a real capture of the bridge (npm run fixture:av / av:replay)
 plugins/examples/     example plugins (npm run plugin:pack -- --examples → plugins/dist/*.zip)
 skills/               music-production skills for Claude Desktop / claude.ai users (npm run skills:pack)
 docs/                 user & developer docs; docs/MCP.md is generated
@@ -108,6 +113,8 @@ npm run test:e2e     # builds the client, runs Playwright against a throwaway se
 npm run screenshots  # regenerates docs/screenshots/*.png
 npm run docs:mcp     # regenerates docs/MCP.md from the live tool definitions
 npm run docs:av      # regenerates docs/av-bible.pdf (audio → visual bible, Spanish) from the catalogs (needs Chromium)
+npm run fixture:av   # rebuilds fixtures/av (test song + a real capture of the bridge's OSC; stems to --stems); needs a build
+npm run av:replay    # plays fixtures/av/osc-capture.jsonl.gz to 127.0.0.1:7000 (-- --to host:port --loop --speed 1)
 npm run plugin:pack -- <folder> | --examples   # validate + zip a plugin
 npm run skills:pack  # zips skills/* for upload to Claude Desktop / claude.ai (skills/dist)
 npm start            # production server (serves client/dist)
@@ -198,6 +205,11 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   ever. Every claim in a description is a test (`test/fx-*.test.js`, `engine-*.test.js`; `basicChecks` /
   `engineChecks` are the ones all must pass). An effect that syncs to the song reads the position it is told
   (`clock`), never its own count of samples. See `docs/effects-and-instruments.md`.
+- **Audio → visual bridge** (`docs/av-bridge.md`): the OSC addresses are a contract with the visual side — add
+  addresses, never rename or change argument types; keep a frame's order (transport → events, offs before notes →
+  continuous → latency → map). Notes go out when they sound (the engine calls `noteTap.on/off`; nothing per sample),
+  meters exist only while the bridge is on, and nothing in it may change the sound or offline renders. Automation
+  `{ type: 'user', index: 1…8 }` is a visual lane: `resolveTarget` ignores it on purpose.
 - **Spatial**: an insert with `spatial.enabled` is a 3D object; the `SpatialRig` (not the stereo router) connects it.
   Exports are rendered by the `spatial` job; positions automate `spatialX/Y/Z`. See `docs/spatial.md`.
 - **Samples**: a sample's audio can be replaced (wave editor "Replace original", `edit_sample saveAs=replace`): the id stays,

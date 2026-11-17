@@ -1,6 +1,9 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+/** Where the e2e server sends the audio → visual bridge's OSC (serve.mjs: E2E_PORT + 7). */
+export const OSC_PORT = Number(process.env.E2E_PORT || 3199) + 7;
+
 export const ADMIN = { username: 'producer', password: 'correct-horse-42', displayName: 'Pat Producer' };
 
 /**

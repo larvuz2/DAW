@@ -5,9 +5,12 @@ import { WebSocketServer } from 'ws';
 import { uid } from '@greanteadawy/core';
 import { httpError } from './errors.js';
 import { activeProjectId } from './backend.js';
+import { MAX_FRAME_BYTES } from './av.js';
 
 export class Hub {
-  constructor({ store, samples, users, sessions = null }) {
+  /** av: the audio → visual bridge (server/src/av.js), which sends the playing tab's frames over OSC */
+  constructor({ store, samples, users, sessions = null, av = null }) {
+    this.av = av;
     this.store = store;
     this.samples = samples;
     this.users = users;
@@ -86,6 +89,7 @@ export class Hub {
     ws.on('pong', () => { client.alive = true; });
     ws.on('close', () => {
       this.clients.delete(client);
+      this.av?.gone(client);
       for (const [jobId, job] of this.jobs) {
         if (job.client === client) this.finishJob(jobId, null, httpError(503, 'The browser tab running the job was closed. Keep the studio open and try again.'));
       }
@@ -94,6 +98,7 @@ export class Hub {
       let msg;
       try { msg = JSON.parse(data.toString()); } catch { return; }
       if (!msg || typeof msg !== 'object' || Array.isArray(msg) || typeof msg.type !== 'string') return;
+      if (msg.type === 'av' && data.length > MAX_FRAME_BYTES) return;
       client.lastSeen = Date.now();
       try {
         await this.onMessage(client, msg);
@@ -204,7 +209,33 @@ export class Hub {
       case 'ping':
         send(client.ws, { type: 'pong', t: msg.t });
         return;
+      case 'av':
+        this.avFrame(client, msg.frame);
+        return;
+      case 'subscribe-av':
+        // a visual app on a WebSocket (with the account's API token): it gets the frames of this account's playing tab
+        client.avListener = msg.on !== false;
+        send(client.ws, { type: 'av-status', listening: client.avListener, osc: this.av?.oscTarget ?? null });
+        return;
       default:
+    }
+  }
+
+  /** A frame of the audio → visual bridge from a playing tab: out over OSC, and to this account's listeners. */
+  avFrame(client, frame) {
+    if (!frame || typeof frame !== 'object' || Array.isArray(frame)) return;
+    const r = this.av ? this.av.frame(client, this.users.get(client.userId), frame) : { osc: false, reason: 'off' };
+    let text = null;
+    for (const c of this.clients) {
+      if (c === client || c.userId !== client.userId || !c.avListener || c.ws.readyState !== 1) continue;
+      text ??= JSON.stringify({ type: 'av', frame });
+      c.ws.send(text);
+    }
+    // the tab shows where its frames go: tell it when that changes (not 60 times a second)
+    const state = r.osc ? 'osc' : r.reason === 'rate' ? client.avState : r.reason;
+    if (state !== client.avState) {
+      client.avState = state;
+      send(client.ws, { type: 'av-status', state, osc: this.av?.oscTarget ?? null });
     }
   }
 

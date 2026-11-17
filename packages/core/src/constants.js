@@ -58,3 +58,6 @@ export function num(v, fallback, lo = -Infinity, hi = Infinity) {
   if (!Number.isFinite(n)) return fallback;
   return clamp(n, lo, hi);
 }
+
+/** Free values for visuals (/gtd/user/1…8 over the audio → visual bridge), drawn as automation lanes. */
+export const AV_USER_LANES = 8;

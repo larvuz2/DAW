@@ -186,6 +186,14 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   renders: keep object stems peaking under -1 dBFS (the report lists channel peaks). lfe 0.1–0.3 only for big
   low elements in objects (the bed's low end stays in L/R).
 
+## Visuals (audio → visual bridge)
+- When the user has "Send to visuals" on, the tab that plays sends what is heard ~60 times a second to their visual
+  app (TouchDesigner, Blender, Unreal) as OSC: transport, notes per channel (named by slug: "Lead Synth" → lead_synth),
+  levels, bands, spectrum, onsets, markers, automation values. Markers become scene cues: name the sections.
+- Eight free lanes drive visuals and nothing in the sound: add_automation target { type: "user", lane: 1..8 } (values
+  0..1, sent as /gtd/user/<lane>; after a clip the lane holds its last value). Ask the user what each lane controls in
+  their scene; name the automation after it ("Glow", "Camera orbit").
+
 ## Exporting
 - list_export_formats says what this server can make (WAV always; MP3, AAC, Ogg, Opus, FLAC, ALAC, AIFF with ffmpeg).
   export_audio renders and converts (bitrate for lossy formats, title/artist tags) and returns the download link.
@@ -911,13 +919,13 @@ Rename, recolor or mute a playlist track (1-based).
 
 ### `add_automation`
 
-Automate a parameter over time with an automation clip in the playlist (song mode). Targets: channel (volume|pan|pitch|filterCutoff|filterRes, and macro1..macro8 on a GGS Synth channel — a macro moves whatever the patch routes it to), mixer insert (volume|pan), effect (automatable param, e.g. filter cutoff, reverb mix, delay feedback), master (volume|pan). Point values are 0..1 across the parameter range (filterCutoff is log-scaled: 0 = 20 Hz, 0.5 ≈ 630 Hz, 1 = 20 kHz; pan 0.5 = center; pitch 0.5 = no shift; volume: 0.8 = unity gain (0 dB), 0.64 = the default insert fader, 0.62 ≈ the default channel volume, 1 = +1.9 dB).
+Automate a parameter over time with an automation clip in the playlist (song mode). Targets: channel (volume|pan|pitch|filterCutoff|filterRes, and macro1..macro8 on a GGS Synth channel — a macro moves whatever the patch routes it to), mixer insert (volume|pan), effect (automatable param, e.g. filter cutoff, reverb mix, delay feedback), master (volume|pan), and user (lane 1..8: a free value for visuals that moves nothing in the sound — the audio → visual bridge sends it as /gtd/user/<lane>, holding its last value after the clip). Point values are 0..1 across the parameter range (filterCutoff is log-scaled: 0 = 20 Hz, 0.5 ≈ 630 Hz, 1 = 20 kHz; pan 0.5 = center; pitch 0.5 = no shift; volume: 0.8 = unity gain (0 dB), 0.64 = the default insert fader, 0.62 ≈ the default channel volume, 1 = +1.9 dB).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `name` | string |  |  |
-| `target` | { type, channel, insert, effectId, param } | yes |  |
+| `target` | { type, channel, insert, effectId, lane, param } | yes |  |
 | `points` | { bar, value }[] | yes |  |
 | `startBar` | number | yes | 1-based bar where the automation clip starts |
 | `bars` | number |  | Clip length in bars (default: up to the last point) |

@@ -21,6 +21,7 @@ import { isLargeBodyRoute } from './api.js';
 import { runningServer, writeLock } from './lockfile.js';
 import { createLocalBackend } from './backend.js';
 import { createFfmpeg } from './ffmpeg.js';
+import { AvBridge, parseAvTarget } from './av.js';
 import { PluginStore } from './plugins.js';
 import { sandboxRoutes } from './sandbox.js';
 
@@ -72,7 +73,8 @@ export async function createServer(config = loadConfig()) {
   const auth = createAuth({ users, sessions, ttlDays: config.sessionTtlDays, localUser: config.noLogin ? () => localUser : null });
   const store = await new ProjectStore(config.dataDir).init();
   const samples = await new SampleLibrary(config.dataDir).init();
-  const hub = new Hub({ store, samples, users, sessions });
+  const av = new AvBridge({ target: parseAvTarget(config.avOsc, { loopback }) });
+  const hub = new Hub({ store, samples, users, sessions, av });
   const ffmpeg = createFfmpeg({ path: config.ffmpegPath, timeoutSec: config.ffmpegTimeoutSec, maxJobs: config.ffmpegMaxJobs });
   const plugins = await new PluginStore(config.dataDir).init();
   const publicUrl = config.publicUrl || `http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
@@ -186,7 +188,7 @@ async function main() {
   loadDotEnv();
   process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
   const ctx = await createServer();
-  const { server, config, store, sessions, users, setupCode } = ctx;
+  const { server, config, store, sessions, users, setupCode, hub } = ctx;
   const running = await runningServer(config.dataDir);
   if (running) {
     console.error(`Another GreanTeaDawy server (pid ${running.pid}, port ${running.port}) is using ${config.dataDir}. Stop it or use another DATA_DIR.`);
@@ -202,6 +204,7 @@ async function main() {
     if (config.allowAnyOrigin) console.log('  WARNING: ALLOW_ANY_ORIGIN is on — the browser Origin check is off. Use it only for testing on your own machine.');
     console.log(`  MCP (Streamable HTTP): ${url}/mcp  (${users.settings.mcpWithoutToken ? 'token optional' : 'API token required'})`);
     console.log(`  Data: ${config.dataDir}`);
+    console.log(`  Visuals: ${hub.av?.oscTarget ? `OSC to ${hub.av.oscTarget} while a tab has "Send to visuals" on` : 'OSC off (AV_OSC=host:port turns it on)'}`);
     if (!users.count()) {
       console.log('  First run: open the studio to create the admin account.');
       console.log(`  Setup code (needed when setting up from another computer or through a proxy): ${setupCode}`);

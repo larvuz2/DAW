@@ -1,6 +1,6 @@
 import {
   PPQ, STEP, DEFAULT_BPM, DEFAULT_TRACK_COUNT, DEFAULT_INSERT_COUNT, COLORS, MIN_BPM, MAX_BPM,
-  ticksPerBar, clamp, num, MAX_TRACKS, MAX_PATTERN_BARS
+  ticksPerBar, clamp, num, MAX_TRACKS, MAX_PATTERN_BARS, AV_USER_LANES
 } from './constants.js';
 import { SCALES } from './music.js';
 import { uid } from './ids.js';
@@ -329,6 +329,7 @@ function validAutomationTarget(p, t) {
     if (fx?.type === 'plugin') return typeof fx.params[t.param] === 'number';
     return !!fx && !!EFFECTS[fx.type]?.params.find((x) => x.key === t.param && x.automatable);
   }
+  if (t.type === 'user') return Number.isInteger(t.index) && t.index >= 1 && t.index <= AV_USER_LANES;
   return false;
 }
 

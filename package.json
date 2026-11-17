@@ -1,6 +1,6 @@
 {
   "name": "greanteadawy",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
   "description": "GreanTeaDawy - a browser-based, pattern-and-playlist DAW (Node.js + React) with an MCP server so Claude can make beats with you.",
   "license": "MIT",
@@ -28,7 +28,9 @@
     "reset-password": "node server/src/cli/reset-password.js",
     "plugin:pack": "node scripts/pack-plugin.mjs",
     "skills:pack": "node scripts/pack-skills.mjs",
-    "bench:synth": "node packages/synth-dsp/scripts/bench.mjs"
+    "bench:synth": "node packages/synth-dsp/scripts/bench.mjs",
+    "fixture:av": "node scripts/av-fixture.mjs",
+    "av:replay": "node scripts/av-replay.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

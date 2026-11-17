@@ -7,6 +7,7 @@ import { noteSampleRevs } from '../audio/engine.js';
 import { setPluginRegistry, preparePlugins, pluginsUsed } from '../audio/plugins.js';
 import { prepareGgs, usesWorklet, ggsReady } from '../audio/ggs-synth/index.js';
 import { APP_NAME } from '../lib/version.js';
+import { setAvBridge } from '../lib/avBridge.js';
 
 let playSeq = 0; // the latest play()/stop(): a play waiting for plugins only starts if nothing came after it
 
@@ -28,7 +29,8 @@ function saveUiPrefs(state) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
       windows: state.windows, snap: state.snap, followClaude: state.followClaude, metronome: state.metronome,
-      browserOpen: state.browserOpen, kbOctave: state.kbOctave, recordQuantize: state.recordQuantize, synthView: state.synthView
+      browserOpen: state.browserOpen, kbOctave: state.kbOctave, recordQuantize: state.recordQuantize, synthView: state.synthView,
+      avBridge: state.avBridge
     }));
   } catch { /* storage unavailable */ }
 }
@@ -125,6 +127,8 @@ export const useStore = create((set, get) => ({
   kbOctave: prefs.kbOctave ?? 4,
   recordQuantize: prefs.recordQuantize ?? true,
   synthView: prefs.synthView === 'classic' ? 'classic' : 'page', // the GGS Synth editor: one page, or the classic tabs
+  avBridge: prefs.avBridge === true, // "Send to visuals": this tab measures what it plays and sends it (lib/avBridge.js)
+  avStatus: null, // where the frames go, as the server last said: { state: 'osc' | 'off' | 'admin' | 'busy', osc }
   toasts: [],
   activity: [],
   contextMenu: null,
@@ -444,6 +448,16 @@ export const useStore = create((set, get) => ({
     saveUiPrefs(get());
   },
 
+  /** "Send to visuals": the bridge needs the audio engine (a menu click may start it) and says where frames go. */
+  async setAvBridge(on) {
+    get().setPref('avBridge', !!on);
+    if (!on) return;
+    await ensureEngine().catch(() => null);
+    const status = await api.status().catch(() => null);
+    const osc = status?.av?.osc;
+    get().toast(osc ? `Sending to visuals: OSC to ${osc}, about 60 times a second` : 'Sending to visuals over the WebSocket only: this server has OSC off (AV_OSC)', 'info');
+  },
+
   openPianoRoll(channelId) {
     set({ pianoRollChannelId: channelId, selectedChannelId: channelId });
     get().openWindow('pianoRoll');
@@ -704,7 +718,12 @@ onEngineReady((eng) => {
   eng.metronome = useStore.getState().metronome;
   eng.onSampleLoaded = () => useStore.setState((s) => ({ sampleBuffersRev: s.sampleBuffersRev + 1 }));
   eng.ctx.addEventListener?.('statechange', () => useStore.setState({ audioReady: eng.ctx.state === 'running' }));
+  if (useStore.getState().avBridge) switchAvBridge(true);
 });
+
+function switchAvBridge(on) {
+  setAvBridge(on, { engine: getEngine(), getState: () => useStore.getState(), send: (frame) => sync.send({ type: 'av', frame }) });
+}
 setUnauthorizedHandler(() => useStore.getState().authLost());
 
 useStore.subscribe((state, prev) => {
@@ -714,6 +733,10 @@ useStore.subscribe((state, prev) => {
     } catch (e) {
       console.error('audio engine sync failed', e);
     }
+  }
+  if (state.avBridge !== prev.avBridge) {
+    if (!state.avBridge) useStore.setState({ avStatus: null });
+    switchAvBridge(state.avBridge);
   }
   if (state.samples !== prev.samples) {
     noteSampleRevs(state.samples); // even before the audio engine exists (browser jobs fetch sample files too)

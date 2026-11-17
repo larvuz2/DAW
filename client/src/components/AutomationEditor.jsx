@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { EFFECTS, uid, ticksPerBar, STEP } from '@greanteadawy/core';
+import { EFFECTS, uid, ticksPerBar, STEP, AV_USER_LANES } from '@greanteadawy/core';
 import { GGS_PRESET_INFO, MACRO_COUNT, macroLabel, ggsDefaults } from '@greanteadawy/synth-dsp';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
@@ -39,6 +39,7 @@ export function describeTarget(project, t) {
     const fx = project.mixer[t.index]?.effects.find((e) => e.id === t.effectId);
     return `${project.mixer[t.index]?.name || ''} ${fx ? EFFECTS[fx.type].label : 'effect'} · ${t.param}`;
   }
+  if (t.type === 'user') return `Visual lane ${t.index} · /gtd/user/${t.index} (no sound)`;
   return '';
 }
 
@@ -82,7 +83,12 @@ export function AutomationCreateMenu() {
           label: d.label,
           onClick: () => createAutomationFor({ type: 'effect', index: i, effectId: fx.id, param: d.key }, normalize(fx.params[d.key], d), `${EFFECTS[fx.type].label} ${d.label}`)
         }))
-      }))) }
+      }))) },
+      // free values for the visuals: they move nothing in the sound; the audio → visual bridge sends them
+      { label: 'Visual lanes', submenu: Array.from({ length: AV_USER_LANES }, (_, k) => ({
+        label: `Lane ${k + 1} → /gtd/user/${k + 1}`,
+        onClick: () => createAutomationFor({ type: 'user', index: k + 1 }, 0, `Visual ${k + 1}`)
+      })) }
     ];
     st.showContextMenu(e, items);
   };

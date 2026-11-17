@@ -72,6 +72,7 @@ export class AudioEngine {
     this.automated = new Set();
     this.sampleFailed = new Set();
     this.metronome = false;
+    this.noteTap = null; // the audio → visual bridge listens to notes while it is on (lib/avBridge.js)
 
     this.out = ctx.createGain();
     this.analyser = ctx.createAnalyser();
@@ -337,6 +338,7 @@ export class AudioEngine {
       if (!ids.has(id)) {
         try { s.pan.disconnect(); } catch { /* ignore */ }
         if (s.scope) { try { s.vol.disconnect(s.scope); } catch { /* ignore */ } s.scope = null; }
+        if (s.avMeter) { try { s.vol.disconnect(s.avMeter); } catch { /* ignore */ } s.avMeter = null; }
         s.ggs?.dispose();
         this.strips.delete(id);
       }
@@ -473,6 +475,7 @@ export class AudioEngine {
       if (dest !== bus) { try { dest.disconnect(); } catch { /* ignore */ } }
     };
     if (p.mono) this.monoLast.set(channelId, v);
+    this.noteTap?.on(channelId, k, velocity, time, duration, v);
     return v;
   }
 
@@ -521,6 +524,7 @@ export class AudioEngine {
     if (releaseVelocity !== null) voice.expr?.setReleaseVelocity?.(releaseVelocity);
     voice.noteEnd = this.ctx.currentTime;
     voice.release(this.ctx.currentTime);
+    this.noteTap?.off(voice, releaseVelocity);
   }
 
   /**
@@ -836,6 +840,35 @@ export class AudioEngine {
     if (!s?.scope) return;
     try { s.vol.disconnect(s.scope); } catch { /* ignore */ }
     s.scope = null;
+  }
+
+  /**
+   * A channel's peak after its fader over the last ~23 ms (linear), for the audio → visual bridge: its meter is made on
+   * first use — a side branch, like the scope — and dropped by releaseChannelMeters when the bridge goes off.
+   */
+  channelPeak(channelId, buf) {
+    const s = this.strips.get(channelId);
+    if (!s) return 0;
+    if (!s.avMeter) {
+      s.avMeter = this.ctx.createAnalyser();
+      s.avMeter.fftSize = buf.length;
+      s.vol.connect(s.avMeter);
+    }
+    s.avMeter.getFloatTimeDomainData(buf);
+    let peak = 0;
+    for (let i = 0; i < buf.length; i++) {
+      const a = Math.abs(buf[i]);
+      if (a > peak) peak = a;
+    }
+    return peak;
+  }
+
+  releaseChannelMeters() {
+    for (const s of this.strips.values()) {
+      if (!s.avMeter) continue;
+      try { s.vol.disconnect(s.avMeter); } catch { /* ignore */ }
+      s.avMeter = null;
+    }
   }
 
   /** How many notes a GGS channel is sounding right now (its voices, releases included), or null without a rig. */

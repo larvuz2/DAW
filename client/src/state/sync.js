@@ -4,6 +4,11 @@ import { uid, applyOps } from '@greanteadawy/core';
 import { api } from './api.js';
 import { runJob } from '../lib/jobs.js';
 
+const AV_WHY = {
+  busy: 'Another studio tab is sending to the visuals: this one takes over a second after it stops',
+  admin: "Only an admin's tab sends OSC on this server (WebSocket listeners on your account still get the frames)"
+};
+
 class Sync {
   constructor() {
     this.ws = null;
@@ -240,6 +245,14 @@ class Sync {
       case 'plugins-changed':
         st.loadPlugins();
         break;
+      case 'av-status': {
+        // where the audio → visual frames of this tab go (OSC on the server's computer, or why not)
+        if (!st.avBridge || !msg.state) break;
+        const before = st.avStatus?.state;
+        this.store.setState({ avStatus: { state: msg.state, osc: msg.osc ?? null } });
+        if (before !== msg.state && AV_WHY[msg.state]) st.toast(AV_WHY[msg.state], 'info');
+        break;
+      }
       case 'versions-changed':
         if (msg.projectId === st.project?.id) this.store.setState((s) => ({ versionsRev: (s.versionsRev || 0) + 1 }));
         break;

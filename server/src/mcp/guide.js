@@ -183,6 +183,14 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   renders: keep object stems peaking under -1 dBFS (the report lists channel peaks). lfe 0.1–0.3 only for big
   low elements in objects (the bed's low end stays in L/R).
 
+## Visuals (audio → visual bridge)
+- When the user has "Send to visuals" on, the tab that plays sends what is heard ~60 times a second to their visual
+  app (TouchDesigner, Blender, Unreal) as OSC: transport, notes per channel (named by slug: "Lead Synth" → lead_synth),
+  levels, bands, spectrum, onsets, markers, automation values. Markers become scene cues: name the sections.
+- Eight free lanes drive visuals and nothing in the sound: add_automation target { type: "user", lane: 1..8 } (values
+  0..1, sent as /gtd/user/<lane>; after a clip the lane holds its last value). Ask the user what each lane controls in
+  their scene; name the automation after it ("Glow", "Camera orbit").
+
 ## Exporting
 - list_export_formats says what this server can make (WAV always; MP3, AAC, Ogg, Opus, FLAC, ALAC, AIFF with ffmpeg).
   export_audio renders and converts (bitrate for lossy formats, title/artist tags) and returns the download link.

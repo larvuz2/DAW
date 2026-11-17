@@ -26,7 +26,9 @@ GreanTeaDawy patterns are the building blocks and the playlist is the timeline.
 5. Into hooks and drops: `add_transition` — riser (4–8 bars) + `snare_build` (2 bars) + `impact` or `crash` on the
    downbeat, and a `dropout` fill in the bar before. Out of big sections: `downlifter`; 808 tracks: `sub_drop`.
 6. Movement inside sections: `add_automation` (filter cutoff opening over an intro, reverb mix rising into a
-   breakdown, volume swells).
+   breakdown, volume swells). For audio-reactive visuals, the markers are the scene cues, and
+   `add_automation target={type:"user", lane:1..8}` draws a curve the visuals follow (`/gtd/user/<lane>`) without
+   touching the sound — e.g. a lane that rises with the riser into the drop.
 7. `render_mix` (song mode) — check **loudness per section**: each step up in energy should measure 1–3 dB louder,
    breakdowns quieter. Flat numbers = not enough contrast.
 8. `play mode=song` and walk the user through the sections by bar.

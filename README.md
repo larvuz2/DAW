@@ -77,6 +77,10 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
 - **Spatial (Dolby Atmos-style) mixing** — make inserts 3D objects in a room (x/y/height, LFE send), move them with
   automation, monitor **binaurally** on headphones, and export binaural, **5.1 / 7.1 / 7.1.4** WAVs, object stems with
   position data or an experimental **ADM BWF** ([docs/spatial.md](docs/spatial.md)).
+- **Send to visuals** — what the studio plays, as **OSC** for TouchDesigner, Blender, Unreal (to `127.0.0.1:7000`,
+  ~60 times a second): transport, every note as it sounds, levels, bands, spectrum, onsets, sections, automation and
+  eight **visual lanes** you draw like automation. A recorded test song replays without the studio
+  (`npm run av:replay`) — [docs/av-bridge.md](docs/av-bridge.md).
 - **Export formats** — WAV (16/24-bit), and with ffmpeg on the server MP3, AAC, Ogg Vorbis, Opus, FLAC, Apple
   Lossless, AIFF (Settings → Audio export shows what's available).
 - **Plugins** — add your own **instruments** (DSP code or multisampled), **effects** and **note generators** as `.zip`
@@ -250,7 +254,8 @@ Add HTTPS for other computers with the bundled Caddy profile (`docker compose --
 | [Making music with Claude](docs/claude-mcp.md) | connecting, tokens, `render_mix`, tips |
 | [MCP reference](docs/MCP.md) | all tools and parameters (generated) |
 | [GGS Synth](docs/ggs-synth.md) | the wavetable/FM synth: signal path, modulation, presets, patch documents |
-| [Audio → visual bible](docs/av-bible.pdf) (PDF, Spanish) | everything the studio can send to TouchDesigner / Blender / Unreal: live WebSocket, REST, exports, every variable with its range, and a proposed OSC bridge (`npm run docs:av` regenerates it) |
+| [Audio → visual bridge](docs/av-bridge.md) | *Send to visuals*: every OSC address, `AV_OSC`, the WebSocket feed, visual lanes, the test fixture and replay |
+| [Audio → visual bible](docs/av-bible.pdf) (PDF, Spanish) | everything the studio can send to TouchDesigner / Blender / Unreal: the OSC bridge, live WebSocket, REST, exports, every variable with its range (`npm run docs:av` regenerates it) |
 | [Per-note expression](docs/expression-engine.md) | pitch / pressure / slide curves, the expression lane, MPE input, MIDI |
 | [Audio benchmarks](docs/audio-benchmarks.md) | measured aliasing, tuning, CPU and the loudness policy of the synth |
 | [Spatial mixing](docs/spatial.md) | 3D objects, binaural, 5.1 / 7.1.4, ADM |

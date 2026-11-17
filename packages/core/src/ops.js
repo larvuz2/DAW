@@ -1,7 +1,7 @@
 // Every edit to a project - from the browser UI or from Claude via MCP - is an "op".
 // Ops are plain JSON, applied deterministically by applyOps() on both server and client.
 import { produce, isDraft, original } from 'immer';
-import { clamp, num, MIN_BPM, MAX_BPM, MAX_INSERTS, MAX_TRACKS, MAX_EFFECTS_PER_INSERT, MAX_VOLUME, STEP, COLORS, maxPatternLength } from './constants.js';
+import { clamp, num, MIN_BPM, MAX_BPM, MAX_INSERTS, MAX_TRACKS, MAX_EFFECTS_PER_INSERT, MAX_VOLUME, STEP, COLORS, maxPatternLength, AV_USER_LANES } from './constants.js';
 import { uid } from './ids.js';
 import { INSTRUMENTS, makeInstrument, sanitizeParams } from './instruments.js';
 import { EFFECTS, createEffect } from './effects.js';
@@ -220,6 +220,11 @@ function sanitizeTarget(d, t) {
   if (type === 'master') {
     req(['volume', 'pan'].includes(t.param), 'Master automation param must be volume or pan');
     return { type, param: t.param };
+  }
+  if (type === 'user') {
+    // a lane for visuals only: it moves nothing in the sound, the audio → visual bridge sends it as /gtd/user/<index>
+    req(Number.isInteger(t.index) && t.index >= 1 && t.index <= AV_USER_LANES, `Visual lane index must be 1..${AV_USER_LANES}`);
+    return { type, index: t.index };
   }
   throw new Error(`Invalid automation target type "${type}"`);
 }

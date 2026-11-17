@@ -111,7 +111,7 @@ export function ContextMenu() {
         <button className={`cm-item ${it.danger ? 'danger' : ''} ${it.checked ? 'checked' : ''} ${open ? 'open' : ''}`} disabled={it.disabled}
           role={it.checked !== undefined ? 'menuitemcheckbox' : 'menuitem'} aria-checked={it.checked !== undefined ? !!it.checked : undefined}
           aria-haspopup={it.submenu ? 'menu' : undefined} aria-expanded={it.submenu ? open : undefined}
-          data-depth={depth} data-index={i}
+          data-depth={depth} data-index={i} title={it.title}
           onClick={() => (it.submenu ? openAt(depth, i) : runItem(it, hide))}>
           <span className="cm-check">{it.checked ? '✓' : ''}</span>
           <span className="cm-label">{it.label}</span>

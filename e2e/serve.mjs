@@ -9,7 +9,9 @@ const port = Number(process.env.E2E_PORT || 3199);
 const dataDir = path.join(os.tmpdir(), `greanteadawy-e2e-${port}`);
 fs.rmSync(dataDir, { recursive: true, force: true });
 
-const { server } = await createServer({ ...loadConfig({ ...process.env, HOST: '127.0.0.1', PORT: String(port) }), dataDir });
+// the audio → visual bridge sends its OSC where workflow-visuals.spec.js listens (helpers.js: OSC_PORT)
+const AV_OSC = process.env.AV_OSC || `127.0.0.1:${port + 7}`;
+const { server } = await createServer({ ...loadConfig({ ...process.env, HOST: '127.0.0.1', PORT: String(port), AV_OSC }), dataDir });
 server.listen(port, '127.0.0.1', () => console.log(`e2e server on http://127.0.0.1:${port} (data: ${dataDir})`));
 
 const stop = () => {

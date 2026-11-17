@@ -1,5 +1,5 @@
 // Playlist arrangement, tracks, automation, transport and MIDI export.
-import { STEP, ticksPerBar, uid, findChannel, findPattern, findAutomation, patternLength, songLength, MAX_TRACKS } from '@greanteadawy/core';
+import { STEP, ticksPerBar, uid, findChannel, findPattern, findAutomation, patternLength, songLength, MAX_TRACKS, AV_USER_LANES } from '@greanteadawy/core';
 import { z, ok, projectIdArg, annotations as A, pickTrack, findEffect, barsOf } from '../util.js';
 import { requirePlugin } from './plugins.js';
 
@@ -269,16 +269,17 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   // ---------------------------------------------------------------- automation
   tool('add_automation', {
     title: 'Add automation clip',
-    description: 'Automate a parameter over time with an automation clip in the playlist (song mode). Targets: channel (volume|pan|pitch|filterCutoff|filterRes, and macro1..macro8 on a GGS Synth channel — a macro moves whatever the patch routes it to), mixer insert (volume|pan), effect (automatable param, e.g. filter cutoff, reverb mix, delay feedback), master (volume|pan). Point values are 0..1 across the parameter range (filterCutoff is log-scaled: 0 = 20 Hz, 0.5 ≈ 630 Hz, 1 = 20 kHz; pan 0.5 = center; pitch 0.5 = no shift; volume: 0.8 = unity gain (0 dB), 0.64 = the default insert fader, 0.62 ≈ the default channel volume, 1 = +1.9 dB).',
+    description: 'Automate a parameter over time with an automation clip in the playlist (song mode). Targets: channel (volume|pan|pitch|filterCutoff|filterRes, and macro1..macro8 on a GGS Synth channel — a macro moves whatever the patch routes it to), mixer insert (volume|pan), effect (automatable param, e.g. filter cutoff, reverb mix, delay feedback), master (volume|pan), and user (lane 1..8: a free value for visuals that moves nothing in the sound — the audio → visual bridge sends it as /gtd/user/<lane>, holding its last value after the clip). Point values are 0..1 across the parameter range (filterCutoff is log-scaled: 0 = 20 Hz, 0.5 ≈ 630 Hz, 1 = 20 kHz; pan 0.5 = center; pitch 0.5 = no shift; volume: 0.8 = unity gain (0 dB), 0.64 = the default insert fader, 0.62 ≈ the default channel volume, 1 = +1.9 dB).',
     inputSchema: {
       projectId: projectIdArg,
       name: z.string().max(64).optional(),
       target: z.object({
-        type: z.enum(['channel', 'mixer', 'effect', 'master']),
+        type: z.enum(['channel', 'mixer', 'effect', 'master', 'user']),
         channel: z.string().optional().describe('For type=channel: channel id or name'),
         insert: z.number().int().min(0).optional().describe('For type=mixer/effect'),
         effectId: z.string().optional().describe('For type=effect: effect id (or type)'),
-        param: z.string()
+        lane: z.number().int().min(1).max(AV_USER_LANES).optional().describe(`For type=user: the visual lane 1..${AV_USER_LANES} (sent as /gtd/user/<lane>)`),
+        param: z.string().optional().describe('The parameter (not for type=user)')
       }),
       points: z.array(z.object({ bar: z.number().min(0).describe('Position in bars from the clip start (0-based, fractional ok)'), value: z.number().min(0).max(1) })).min(1).max(512),
       startBar: z.number().min(1).describe('1-based bar where the automation clip starts'),
@@ -290,7 +291,11 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
     const p = await load(projectId);
     const bar = ticksPerBar(p);
     let t;
-    if (target.type === 'channel') t = { type: 'channel', id: findChannel(p, target.channel).id, param: target.param };
+    if (target.type === 'user') {
+      if (!target.lane) throw new Error(`target.lane is required for type=user: the visual lane 1..${AV_USER_LANES}`);
+      t = { type: 'user', index: target.lane };
+    } else if (!target.param) throw new Error(`target.param is required for type=${target.type}`);
+    else if (target.type === 'channel') t = { type: 'channel', id: findChannel(p, target.channel).id, param: target.param };
     else if (target.type === 'mixer') t = { type: 'mixer', index: target.insert, param: target.param };
     else if (target.type === 'effect') {
       const fx = findEffect(p, target.insert, target.effectId);
@@ -308,7 +313,7 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
     if (pts[pts.length - 1].t > length) throw new Error(`A point at bar ${pts[pts.length - 1].t / bar} lies beyond the clip length (${bars} bars) — lengthen bars or move the point`);
     const id = uid('auto');
     const clipId = uid('clip');
-    const autoName = name || `${target.type} ${target.param}`;
+    const autoName = name || (target.type === 'user' ? `Visual ${target.lane}` : `${target.type} ${target.param}`);
     const trk = track ? track - 1 : pickTrack(p, id);
     const ops = [];
     if (trk >= p.playlist.tracks.length) ops.push({ type: 'track/add', count: trk - p.playlist.tracks.length + 1 });

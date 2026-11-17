@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.16.0 — Send to visuals
+
+**The studio now talks to visual apps.** With *☰ → Send to visuals* on, the tab that plays measures what is heard
+about 60 times a second and the server sends it as OSC to `127.0.0.1:7000` — TouchDesigner, Blender, Unreal, Max or
+anything that reads OSC — and as JSON to WebSocket listeners. The addresses are the ones agreed with the visual side
+(the audio → visual bible, chapter 7, and `docs/av-bridge.md`).
+
+- **What goes out:** the transport (playing, bpm, tick, beat, bar, the phase in the beat and in the bar, the audio
+  clock), every note **at the moment it sounds** (not when it is scheduled 120 ms ahead) with its key, velocity,
+  duration and exact time, note ends (before the notes of the same frame, so a key struck again is never cut), the
+  section a marker starts, master peak and RMS, six bands, a 32-band spectrum, the spectral centroid, onsets, the peak
+  of every mixer insert in use and of every channel, every automation value, eight **visual lanes**, the output
+  latency, and a map of the project (channels by name with colour, instrument and insert; buses; markers).
+- **Visual lanes** `/gtd/user/1…8`: automation that moves nothing in the sound — draw a curve for a glow or a camera
+  in *Playlist → Auto + → Visual lanes*, or ask Claude (`add_automation target={type:"user", lane:n}`). They hold
+  their last value after their clip, like all automation.
+- **Where it goes:** `AV_OSC` on the server — `host:port`, or `off`; by default `127.0.0.1:7000` when the studio runs
+  on your own computer and off on a server. One tab sends at a time; on a shared server, only an admin's tab drives
+  the OSC port. A program with your API token can also listen on the WebSocket (`subscribe-av`).
+- **A test fixture:** `fixtures/av/` holds a 16-bar song made for testing a visual setup (intro → build → drop →
+  outro, a strobe lane, a lead circling the room), its MIDI, and a capture of what the real bridge sent while it
+  played. `npm run av:replay` plays the capture to port 7000 with its original timing, so a scene can be built
+  without the studio; `npm run fixture:av` makes it all again, with stems and a mix.
+- **The bible** (`docs/av-bible.pdf`, Spanish) now documents the bridge as built: how to switch it on, the confirmed
+  conventions, the address map, the visual lanes, the fixture, and what phases 2 and 3 add. Corrected: the GGS Synth
+  has 39 modulation targets (not 40); the 51 instrument kinds are 50 instruments and the plugin slot.
+- Fixed: the ☰ menu's ticks (*Follow Claude*) could show a stale state.
+- Nothing here changes the sound: the bridge's meters are side branches made only while it is on, and offline
+  renders never use it.
+
 ## 0.15.0 — The synth page
 
 **The GGS Synth editor now opens on one page laid out like the /synth editor**, in its colours (deep-space panels,
