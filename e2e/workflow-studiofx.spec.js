@@ -165,9 +165,19 @@ test('GGS Synth: the unison law, the stack and the drive rate are in the editor 
   // the editor shows them
   await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.selectChannel(st.project.channels.find((c) => c.name === 'Super').id); st.openWindow('channelSettings'); });
   const editor = page.locator('[data-window="channelSettings"]');
+  // on the synth page: the law and the stack beside the unison picture, the spread over the table as "Pos sprd",
+  // the drive's rate in the FX rack
+  const oscA = editor.locator('[data-module=oscA]');
+  await expect(oscA.locator('.sp-stack select').first()).toHaveValue('super');
+  await expect(oscA.locator('.sp-stack select').nth(1)).toHaveValue('octave');
+  await expect(oscA.getByRole('slider', { name: 'Pos sprd', exact: true })).toHaveAttribute('aria-valuenow', '0.25');
+  await expect(editor.locator('[data-fx=drive] select').nth(1)).toHaveValue('8x');
+  // and in the classic tabs
+  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'classic'));
   await expect(editor).toContainText('Uni law');
   await expect(editor).toContainText('Stack');
   await expect(editor).toContainText('Uni table');
+  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'page'));
 });
 
 test('found by the review: the first note played by hand sounds, and an effect switched back on has let go of its tail', async ({ browser, baseURL }) => {
