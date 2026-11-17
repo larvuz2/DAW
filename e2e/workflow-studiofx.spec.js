@@ -87,7 +87,8 @@ test('every studio effect runs in the worklet: a render with it is sound, and ea
     expect(Math.abs(wet.lufs - dry.lufs) + Math.abs(wet.peak - dry.peak), `${type} changes the render: ${JSON.stringify(wet)} against ${JSON.stringify(dry)}`).toBeGreaterThan(0.15);
     await claude.call('remove_effect', { insert: 0, effectId: id });
   }
-  expect((await project()).mixer[0].effects.map((e) => e.type).filter((t) => STUDIO.includes(t))).toEqual([]);
+  // (the last removal reaches this tab over the socket a moment after the tool call has answered)
+  await expect.poll(async () => (await project()).mixer[0].effects.map((e) => e.type).filter((t) => STUDIO.includes(t))).toEqual([]);
   // taken away again, the render is what it was
   const again = levels(await claude.call('render_mix', { stems: false }));
   expect(Math.abs(again.lufs - dry.lufs)).toBeLessThan(0.15);
