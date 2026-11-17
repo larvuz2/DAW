@@ -250,6 +250,7 @@ Add HTTPS for other computers with the bundled Caddy profile (`docker compose --
 | [Per-note expression](docs/expression-engine.md) | pitch / pressure / slide curves, the expression lane, MPE input, MIDI |
 | [Audio benchmarks](docs/audio-benchmarks.md) | measured aliasing, tuning, CPU and the loudness policy of the synth |
 | [Spatial mixing](docs/spatial.md) | 3D objects, binaural, 5.1 / 7.1.4, ADM |
+| [Studio effects and instruments](docs/effects-and-instruments.md) | the fourteen DSP effects, Analog / Additive / Modal, unison laws and the oversampled drive — with measurements |
 | [Plugins](docs/plugins.md) | write, pack and install instruments, effects, generators |
 | [Docker](docs/docker.md) | image, compose, HTTPS, backups |
 | [Deployment](docs/deployment.md) | Docker, proxies, env vars, backups |
