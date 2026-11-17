@@ -1,9 +1,9 @@
 // The frequency response of a filter, measured from the real filter model (filterResponse runs the same code the
 // voices do), and a handle on it: drag left/right for the cutoff, up/down for the resonance.
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { filterResponse } from '@greanteadawy/synth-dsp';
 import { formatValue } from '../ui/Knob.jsx';
-import { pixelRatio } from './displays.jsx';
+import { pixelRatio, SCALE_EVENT } from './displays.jsx';
 
 const F_MIN = 20;
 const F_MAX = 20000;
@@ -14,6 +14,13 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 /** `look="page"`: the synth page's colours (violet curve with a gradient under it, labelled grid, glowing handle). */
 export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, onChange, width = 236, height = 96, look }) {
   const page = look === 'page';
+  // (the synth page rescaled: draw again at the new pixel ratio, or the curve goes soft)
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const again = () => redraw((n) => n + 1);
+    globalThis.addEventListener?.(SCALE_EVENT, again);
+    return () => globalThis.removeEventListener?.(SCALE_EVENT, again);
+  }, []);
   const ref = useRef(null);
   const drag = useRef(null);
   const xOf = (hz) => (Math.log(hz / F_MIN) / Math.log(F_MAX / F_MIN)) * width;

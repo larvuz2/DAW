@@ -3,12 +3,14 @@
 import { useRef } from 'react';
 import { stepShape } from '@greanteadawy/synth-dsp';
 
-const W = 300;
-const H = 64;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const y = (v) => H / 2 - v * (H / 2 - 3);
 
-export function StepEditor({ steps, smooth, onDraw, color = '#5ab8f0', label = 'LFO' }) {
+/**
+ * width × height: the drawing's size in its own units. A box of another shape should pass its own proportions, so the
+ * drawing fills it and the pointer lands where it points (the synth page measures its box).
+ */
+export function StepEditor({ steps, smooth, onDraw, color = '#5ab8f0', label = 'LFO', width: W = 300, height: H = 64 }) {
+  const y = (v) => H / 2 - v * (H / 2 - 3);
   const ref = useRef(null);
   const drawing = useRef(false);
   const n = steps.length;

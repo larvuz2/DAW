@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MODULES, MODULE_IDS, BUILT_IN_LAYOUTS, MIN_W, MAX_W, MAX_SAVED, STORAGE_KEY, GAP, PAD, normalizeLayout, defaultLayout, modulesOf, hiddenModules,
-  moveModule, nudgeModule, shiftRow, resizeModule, hideModule, showModule, sameRows, rowHeight, naturalSize, fitScale, fromGrid, loadLayouts, storeLayouts, saveAs
+  moveModule, nudgeModule, shiftRow, resizeModule, hideModule, showModule, sameRows, rowHeight, naturalSize, fitScale, moduleWidth, fromGrid, loadLayouts, storeLayouts, saveAs
 } from '../src/components/synth/pageLayout.js';
 
 const ids = (l) => l.rows.map((row) => row.map((it) => it.id));
@@ -35,9 +35,21 @@ test('fitScale: the page fills a window without scrolling, whichever side is sho
   assert.equal(fitScale(l, n.width, n.height), 1);
   assert.ok(Math.abs(fitScale(l, n.width / 2, 2000) - 0.5) < 1e-9, 'a narrow window scales to its width');
   assert.ok(Math.abs(fitScale(l, 5000, n.height * 0.8) - 0.8) < 1e-9, 'a short window scales to its height');
-  assert.equal(fitScale(l, 100, 100), 0.3, 'never smaller than 0.3');
+  assert.ok(Math.abs(fitScale(l, 100, 100) - 100 / n.width) < 1e-9, 'as small as it takes: nothing is ever cut off');
   assert.equal(fitScale(l, 10000, 10000), 1.75, 'never larger than 1.75');
   assert.equal(fitScale(l, 0, 0), 1);
+});
+
+test('narrower never goes below the width the controls of a module need', () => {
+  for (const id of MODULE_IDS) {
+    const m = MODULES[id];
+    const w = moduleWidth({ id, w: MIN_W });
+    if (m.px) assert.ok(w.px >= m.min, id);
+    else assert.equal(w.min, m.min, id);
+  }
+  // and the page is never drawn narrower than its widest row needs, however its modules are sized
+  const squeezed = resizeModule(resizeModule(defaultLayout(), 'oscA', -9), 'chaos', -9);
+  assert.equal(naturalSize(squeezed).width, naturalSize(defaultLayout()).width);
 });
 
 test('normalizeLayout repairs whatever it is given', () => {
@@ -91,6 +103,9 @@ test('0.14 layouts (a 12-column grid) become rows', () => {
   const back = loadLayouts(store);
   assert.deepEqual(back.saved.map((l) => l.name), ['Clip']);
   assert.deepEqual(ids(back.current), ids(defaultLayout()), 'the page starts on its own layout');
+  // a 0.14 layout called like a new built-in one is kept under another name
+  const same = memory({ 'gtd.ggs.overview': JSON.stringify({ saved: [{ name: 'Synth', items: [{ id: 'oscA', w: 12 }] }] }) });
+  assert.deepEqual(loadLayouts(same).saved.map((x) => x.name), ['Synth (0.14)']);
 });
 
 test('saved layouts: a name is needed, built-in names are refused, at most 30, nothing empty', () => {

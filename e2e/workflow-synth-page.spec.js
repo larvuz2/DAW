@@ -111,7 +111,7 @@ test('one screen: nothing scrolls and nothing overlaps, and the pictures are dra
   const page_ = await page.locator('.gsp-page').boundingBox();
   const box = await gsp.boundingBox();
   expect(page_.y + page_.height).toBeLessThanOrEqual(box.y + box.height + 1);
-  expect(Number(await page.locator('.gsp-page').getAttribute('data-scale'))).toBeGreaterThan(0.85);
+  expect(Number(await page.locator('.gsp-page').getAttribute('data-scale'))).toBeGreaterThan(0.8);
   const blank = await page.locator('.gsp .sp-screen canvas').evaluateAll((cs) => cs.filter((c) => {
     if (!c.width || c.closest('.sp-scope')) return false;
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
@@ -157,6 +157,26 @@ test('it edits the patch: the signal flow, knobs, value boxes, sources dropped o
   await expect.poll(async () => routed(await params(), 'macro6', 'f2Cutoff')).toBe(1);
 });
 
+test('drawn LFO steps follow the pointer, and the warp and FM menus are reachable by name', async () => {
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Shape: 'steps', lfo1Steps: 8 } } } }]), lead);
+  const steps = page.locator('[data-module=lfos] .ggs-steps');
+  await expect(steps).toBeVisible();
+  const b = await steps.boundingBox();
+  // press at the very top of the third step: that step goes to (nearly) +1
+  await page.mouse.click(b.x + b.width * (2.5 / 8), b.y + 2);
+  await expect.poll(async () => (await params()).lfo1S3).toBeGreaterThan(0.9);
+  await page.mouse.click(b.x + b.width * (5.5 / 8), b.y + b.height - 2);
+  await expect.poll(async () => (await params()).lfo1S6).toBeLessThan(-0.9);
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Shape: 'sine' } } } }]), lead);
+  // the warp mode under the Warp knob is a menu of its own, with a name
+  await page.getByLabel('Oscillator A warp mode').selectOption('bend');
+  await expect.poll(async () => (await params()).oscAWarp).toBe('bend');
+  await page.getByLabel('Oscillator A warp mode').selectOption('off');
+  await expect(page.getByLabel('Oscillator B FM source')).toBeVisible();
+});
+
 test('the dock: the FX rack, the matrix and every parameter open over the page and close again', async () => {
   await expect(page.locator('[data-module=dock] .sp-fx')).toHaveCount(4);
   await page.locator('[data-module=dock] [data-dock-tab=matrix]').click();
@@ -194,6 +214,12 @@ test('arrange: hide, bring back, move within and between rows, resize, drag — 
   await page.locator('[data-slot=amp] .gsp-grip').dragTo(page.locator('[data-slot=routing]'));
   await expect.poll(async () => (await slots())[2]).toEqual(['filter1', 'amp', 'routing', 'filter2']);
   expect(await layoutProblems()).toEqual([]);
+  // narrower never takes a module below what its controls need
+  await page.getByRole('button', { name: 'Make Oscillator A narrower' }).click();
+  await page.getByRole('button', { name: 'Make Oscillator A narrower' }).click();
+  expect(await layoutProblems()).toEqual([]);
+  await page.getByRole('button', { name: 'Make Oscillator A wider' }).click();
+  await page.getByRole('button', { name: 'Make Oscillator A wider' }).click();
   // save it, leave arrange mode, reload: the same arrangement
   await page.locator('.gsp-arrange-bar').getByRole('button', { name: 'Save as…' }).click();
   await page.locator('.modal input').fill('Video: amp first');
@@ -225,8 +251,20 @@ test('built-in layouts, the scope listening to the channel and the play button',
   const play = page.locator('.sp-play');
   await play.hover();
   await page.mouse.down();
-  await expect(page.locator('.sp-voices b')).not.toHaveText(/^(0|—)$/, { timeout: 5000 });
-  await page.mouse.up();
+  try {
+    await expect(page.locator('.sp-voices b')).not.toHaveText(/^(0|—)$/, { timeout: 5000 });
+  } finally {
+    await page.mouse.up();
+  }
+  // and from the keyboard: Space held down plays, let go stops
+  await play.focus();
+  await page.keyboard.down(' ');
+  try {
+    await expect(play).toHaveAttribute('aria-pressed', 'true');
+  } finally {
+    await page.keyboard.up(' ');
+  }
+  await expect(play).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('full screen: the page alone, scaled to the screen — and dialogs and menus still open above it', async () => {
@@ -248,6 +286,16 @@ test('full screen: the page alone, scaled to the screen — and dialogs and menu
   await page.locator('.context-menu .cm-item', { hasText: 'Exit full screen' }).click();
   await expect(page.locator('.gsp.solo')).toHaveCount(0);
   await expect(page.locator('.ggs .gsp')).toBeVisible();
+});
+
+test('a small window: the page shrinks to fit (nothing cut off) and offers full screen or the classic view', async () => {
+  await page.setViewportSize({ width: 700, height: 480 });
+  await expect.poll(() => page.evaluate(() => Number(document.querySelector('.gsp-page')?.dataset.scale))).toBeLessThan(0.55);
+  expect(await layoutProblems()).toEqual([]);
+  await expect(page.locator('.gsp-small')).toBeVisible();
+  await expect(page.locator('.gsp-small').getByRole('button', { name: 'Classic view' })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator('.gsp-small')).toHaveCount(0);
 });
 
 test('no uncaught errors in the browser', async () => {

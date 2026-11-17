@@ -1,4 +1,4 @@
-// The pictures of the Overview tab: what each part of the patch is doing, drawn from the same maths the engine uses
+// The pictures of the synth page: what each part of the patch is doing, drawn from the same maths the engine uses
 // (wavetables, unison laws, filter curves) or from what the voices and the channel report while a note sounds.
 // All canvas or SVG; a canvas follows its box's size and redraws when an input changes — and, given a `live`
 // getter, on every animation frame in which what it shows has moved.
@@ -11,7 +11,7 @@ const GRID = 'rgba(255,255,255,0.07)';
 
 // The synth page is drawn at one size and scaled to its window: canvases draw at that scale too, so they stay sharp.
 let displayScale = 1;
-const SCALE_EVENT = 'gtd-display-scale';
+export const SCALE_EVENT = 'gtd-display-scale';
 export function setDisplayScale(s) {
   if (!(s > 0) || Math.abs(s - displayScale) < 0.01) return;
   displayScale = s;
@@ -109,15 +109,6 @@ export function useCanvas(draw, deps, live = null, still = null) {
 export function Display({ draw, still, deps, live, className = '', label }) {
   const { wrap, canvas } = useCanvas(draw, deps, live, still);
   return <div ref={wrap} className={`ovw-display ${className}`}><canvas ref={canvas} role="img" aria-label={label} /></div>;
-}
-
-function stroke(g, pts, color, width = 1.5) {
-  g.beginPath();
-  pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-  g.strokeStyle = color;
-  g.lineWidth = width;
-  g.lineJoin = 'round';
-  g.stroke();
 }
 
 function text(g, s, x, y, { align = 'left', color = DIM, size = 9 } = {}) {
@@ -290,117 +281,11 @@ export function UnisonFan({ unison, detune, law, stack, blend, spread, color, cl
 
 // ---- a sub oscillator wave and the colour of the noise ----------------------------------------------------------
 
-export function SubNoiseView({ wave, subLevel, noiseLevel, noiseColor, color = '#d9a85c' }) {
-  return (
-    <Display className="short" label="Sub oscillator wave and noise colour" deps={[wave, Math.round(subLevel * 100), Math.round(noiseLevel * 100), Math.round(noiseColor * 100)]}
-      draw={(g, w, h) => {
-        const half = w / 2 - 4;
-        const shape = (x) => (wave === 'square' ? (x < 0.5 ? 1 : -1) : wave === 'triangle' ? 1 - 4 * Math.abs(x - 0.5) : wave === 'saw' ? 1 - 2 * x : Math.sin(2 * Math.PI * x));
-        const amp = (h / 2 - 8) * clamp(subLevel, 0.1, 1);
-        stroke(g, Array.from({ length: 80 }, (_, i) => [4 + (i / 79) * half, h / 2 - shape((i / 79) * 2 % 1) * amp]), subLevel > 0 ? color : DIM, 1.6);
-        // noise: a slope across frequency — dark tips down to the right, thin tips up
-        const x0 = w / 2 + 4;
-        g.fillStyle = hexA('#a0a8b8', noiseLevel > 0 ? 0.5 : 0.15);
-        for (let i = 0; i < 28; i++) {
-          const f = i / 27;
-          const tilt = 1 + noiseColor * (f - 0.5) * 1.6;
-          const v = clamp((0.45 + 0.4 * Math.abs(Math.sin(i * 12.9898) * 0.6)) * tilt, 0.05, 1);
-          g.fillRect(x0 + f * (half - 4), h - 4 - v * (h - 12), Math.max(1, half / 30), v * (h - 12));
-        }
-        text(g, 'sub', 6, 11);
-        text(g, 'noise', w - 6, 11, { align: 'right' });
-      }} />
-  );
-}
 
 // ---- the signal flow: sources → filters → amp ------------------------------------------------------------------
 
-/**
- * Where every source goes and how the two filters are connected, drawn as a signal-flow diagram. Click a source to
- * send it to the next place (filter 1 → filter 2 → both → straight to the amp); click the filters' link to switch
- * serial ↔ parallel.
- */
-export function RoutingDiagram({ sources, f1On, f2On, route, onCycle, onRoute }) {
-  const W = 200;
-  const H = 150;
-  const ys = sources.map((_, i) => 14 + i * ((H - 28) / Math.max(1, sources.length - 1)));
-  const F1 = [104, 46];
-  const F2 = [104, 104];
-  const AMP = [176, 75];
-  const serial = route === 'serial';
-  const f2y = F2[1];
-  const curve = (x1, y1, x2, y2) => `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`;
-  const wires = [];
-  sources.forEach((s, i) => {
-    if (!s.on) return;
-    const from = [34, ys[i]];
-    const to = s.dest === 'f1' ? [F1] : s.dest === 'f2' ? [[F2[0], f2y]] : s.dest === 'both' ? [F1, [F2[0], f2y]] : [AMP];
-    for (const [x, y] of to) wires.push(<path key={`${s.id}-${x}-${y}`} d={curve(from[0], from[1], x - 16, y)} stroke={s.color} className="ovw-wire" />);
-  });
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="ovw-routing" role="group" aria-label={`Signal flow: filters in ${route}`}>
-      {wires}
-      {serial
-        ? <path d={curve(F1[0] + 16, F1[1], F2[0] + 16, f2y)} className={`ovw-wire link ${f1On ? '' : 'off'}`} />
-        : <path d={curve(F1[0] + 16, F1[1], AMP[0] - 14, AMP[1] - 6)} className={`ovw-wire link ${f1On ? '' : 'off'}`} />}
-      <path d={curve(F2[0] + 16, f2y, AMP[0] - 14, AMP[1] + 6)} className={`ovw-wire link ${f2On ? '' : 'off'}`} />
-      {sources.map((s, i) => (
-        <g key={s.id} className={`ovw-node src ${s.on ? '' : 'off'}`} data-source={s.id} onClick={() => onCycle(s.id)} role="button" tabIndex={0}
-          aria-label={`${s.label} goes to ${s.dest === 'direct' ? 'the amp' : s.dest === 'both' ? 'both filters' : s.dest === 'f1' ? 'filter 1' : 'filter 2'}: change`}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCycle(s.id); } }}>
-          <title>{`${s.label} → ${s.dest === 'direct' ? 'straight to the amp' : s.dest === 'both' ? 'both filters' : s.dest === 'f1' ? 'filter 1' : 'filter 2'} (click to send it elsewhere)`}</title>
-          <rect x={2} y={ys[i] - 8} width={32} height={16} rx={4} style={{ stroke: s.color }} />
-          <text x={18} y={ys[i] + 3.5} style={{ fill: s.on ? s.color : undefined }}>{s.short}</text>
-        </g>
-      ))}
-      {[[F1, f1On, 'F1'], [[F2[0], f2y], f2On, 'F2']].map(([[x, y], on, label]) => (
-        <g key={label} className={`ovw-node filter ${on ? '' : 'off'}`}>
-          <rect x={x - 16} y={y - 11} width={32} height={22} rx={5} />
-          <text x={x} y={y + 4}>{label}</text>
-        </g>
-      ))}
-      <g className="ovw-node amp">
-        <path d={`M${AMP[0] - 14},${AMP[1] - 14} L${AMP[0] + 12},${AMP[1]} L${AMP[0] - 14},${AMP[1] + 14} Z`} />
-        <text x={AMP[0] - 4} y={AMP[1] + 28}>AMP</text>
-      </g>
-      <g className="ovw-route-toggle" onClick={onRoute} role="button" tabIndex={0} aria-label={`Filters in ${route}: switch to ${serial ? 'parallel' : 'serial'}`}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onRoute(); } }}>
-        <title>Click: filters in {serial ? 'parallel' : 'series'}</title>
-        <rect x={64} y={H - 20} width={80} height={16} rx={8} />
-        <text x={104} y={H - 8.5}>{serial ? 'serial ⇄' : 'parallel ⇄'}</text>
-      </g>
-    </svg>
-  );
-}
-
 // ---- an envelope, small (the amp module) -----------------------------------------------------------------------
 
-export function EnvelopeCurve({ env, color }) {
-  return (
-    <Display className="short" label="Amp envelope" deps={[JSON.stringify(env), color]}
-      draw={(g, w, h) => {
-        const total = Math.max(0.05, env.delay + env.attack + env.hold + env.decay + 0.5 + env.release);
-        const xs = (t) => 4 + (t / total) * (w - 8);
-        const ys = (v) => h - 4 - v * (h - 10);
-        let t = env.delay;
-        const pts = [[xs(0), ys(0)], [xs(t), ys(0)]];
-        t += env.attack; pts.push([xs(t), ys(1)]);
-        t += env.hold; pts.push([xs(t), ys(1)]);
-        const segs = 16;
-        for (let k = 1; k <= segs; k++) pts.push([xs(t + (env.decay * k) / segs), ys(env.sustain + (1 - env.sustain) * Math.exp((-5 * k) / segs))]);
-        t += env.decay + 0.5; pts.push([xs(t), ys(env.sustain)]);
-        for (let k = 1; k <= segs; k++) pts.push([xs(t + (env.release * k) / segs), ys(env.sustain * Math.exp((-5 * k) / segs))]);
-        g.beginPath();
-        pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-        g.lineTo(pts[pts.length - 1][0], h - 4);
-        g.lineTo(pts[0][0], h - 4);
-        g.closePath();
-        g.fillStyle = hexA(color, 0.18);
-        g.fill();
-        stroke(g, pts, color, 1.6);
-      }} />
-  );
-}
 
 // ---- LFO and chaos, with where they stand right now ------------------------------------------------------------
 
@@ -544,80 +429,6 @@ export function SourceSpark({ source, live, color, width = 40, height = 18 }) {
 }
 
 // ---- the effects, each as a picture of what it does ------------------------------------------------------------
-
-/** What the drive does to a signal: its transfer curve (input across, output up). */
-export function DriveCurve({ amount, type, color }) {
-  return (
-    <Display className="fx" label={`Drive ${type}`} deps={[Math.round(amount * 100), type]}
-      draw={(g, w, h) => {
-        const pre = 1 + amount * amount * 30;
-        const post = 1 / Math.pow(pre, 0.6);
-        const soft = (x) => Math.tanh(x);
-        const f = (x) => {
-          const v = x * pre;
-          const y = type === 'hard' ? clamp(v, -1, 1) : type === 'tube' ? (v > 0 ? soft(v) : (soft(v * 0.6) / 0.6) * 0.8) : type === 'fold' ? Math.sin(v * 1.2) : soft(v);
-          return clamp(y * post * (amount > 0.001 ? 1.6 : 1), -1, 1);
-        };
-        g.strokeStyle = GRID;
-        g.beginPath(); g.moveTo(w / 2, 2); g.lineTo(w / 2, h - 2); g.moveTo(2, h / 2); g.lineTo(w - 2, h / 2); g.stroke();
-        stroke(g, Array.from({ length: 61 }, (_, i) => { const x = (i / 60) * 2 - 1; return [w / 2 + x * (w / 2 - 4), h / 2 - (amount > 0.001 ? f(x) : x) * (h / 2 - 4)]; }), amount > 0.001 ? color : DIM, 1.6);
-      }} />
-  );
-}
-
-/** The echoes of the delay: one bar per repeat, as loud as the feedback leaves it. */
-export function DelayTaps({ mix, feedback, pingPong, color }) {
-  return (
-    <Display className="fx" label="Delay repeats" deps={[Math.round(mix * 100), Math.round(feedback * 100), pingPong]}
-      draw={(g, w, h) => {
-        const n = 9;
-        for (let k = 0; k < n; k++) {
-          const v = k === 0 ? 1 : mix * Math.pow(Math.max(0.05, feedback), k - 1);
-          const x = 6 + (k / (n - 1)) * (w - 16);
-          const up = pingPong && k % 2 === 0;
-          g.fillStyle = k === 0 ? 'rgba(255,255,255,0.55)' : hexA(color, mix > 0 ? 0.85 : 0.2);
-          const bh = v * (h / 2 - 4);
-          g.fillRect(x, up ? h / 2 - bh : h / 2, 4, Math.max(1, bh));
-          if (!pingPong) g.fillRect(x, h / 2 - bh, 4, bh);
-        }
-      }} />
-  );
-}
-
-/** The reverb's tail: how it builds and how long it hangs on. */
-export function ReverbTail({ mix, size, damp, color }) {
-  return (
-    <Display className="fx" label="Reverb tail" deps={[Math.round(mix * 100), Math.round(size * 100), Math.round(damp * 100)]}
-      draw={(g, w, h) => {
-        const seconds = 0.4 + size * 11.6;
-        const span = Math.max(1, Math.min(14, seconds * 1.3));
-        let s = 7;
-        for (let i = 0; i < w - 4; i += 2) {
-          s = (Math.imul(s, 1664525) + 1013904223) | 0;
-          const t = (i / (w - 4)) * span;
-          const env = Math.min(1, t / 0.05) * Math.exp((-6.9 * t) / seconds);
-          const v = env * (0.4 + 0.6 * Math.abs(s / 2147483648)) * (1 - damp * 0.5 * (t / span));
-          g.fillStyle = hexA(color, mix > 0 ? 0.7 : 0.18);
-          g.fillRect(2 + i, h / 2 - v * (h / 2 - 3), 1.4, v * (h - 6));
-        }
-        text(g, `${seconds.toFixed(1)} s`, w - 4, 10, { align: 'right' });
-      }} />
-  );
-}
-
-/** The chorus: two copies whose delay wobbles against each other. */
-export function ChorusWobble({ mix, rate, depth, color }) {
-  return (
-    <Display className="fx" label="Chorus" deps={[Math.round(mix * 100), Math.round(rate * 100), Math.round(depth * 100)]}
-      draw={(g, w, h) => {
-        const cycles = clamp(rate, 0.1, 5);
-        const a = (0.2 + depth * 0.8) * (h / 2 - 4);
-        for (const [off, alpha] of [[0, 0.9], [Math.PI * 0.5, 0.5]]) {
-          stroke(g, Array.from({ length: 61 }, (_, i) => [2 + (i / 60) * (w - 4), h / 2 - Math.sin((i / 60) * Math.PI * 2 * cycles + off) * a]), hexA(color, mix > 0 ? alpha : 0.2), 1.4);
-        }
-      }} />
-  );
-}
 
 // ---- the channel's output: waveform and spectrum ---------------------------------------------------------------
 

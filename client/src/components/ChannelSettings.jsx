@@ -73,11 +73,17 @@ export function ChannelSettings() {
     if (!isGgs) return;
     const s = useStore.getState();
     const w = s.windows.channelSettings;
-    if (!w.open || w.max) return;
-    // the synth page is drawn for a big window (it scales to any size, but reads best large)
-    if (s.synthView === 'page' && (w.w < 1000 || w.h < 600)) s.openWindow('channelSettings', { x: 8, y: 8, w: Math.max(w.w, window.innerWidth - 16), h: Math.max(w.h, window.innerHeight - 70) });
-    else if (w.w < 700) s.openWindow('channelSettings', { w: Math.min(820, Math.max(700, window.innerWidth - 300)), h: Math.max(w.h, Math.min(640, window.innerHeight - 90)), x: Math.max(8, Math.min(w.x, window.innerWidth - 1100)) });
+    if (!w.open || w.max || s.synthView === 'page' || w.w >= 700) return;
+    s.openWindow('channelSettings', { w: Math.min(820, Math.max(700, window.innerWidth - 300)), h: Math.max(w.h, Math.min(640, window.innerHeight - 90)), x: Math.max(8, Math.min(w.x, window.innerWidth - 1100)) });
   }, [isGgs, ch?.id, synthView]);
+  // the synth page is drawn for a big window (it scales to any size, but reads best large): enlarge it once when the
+  // page appears — not again on every channel switch, so a smaller window stays as the user left it
+  useEffect(() => {
+    if (!isGgs || synthView !== 'page') return;
+    const s = useStore.getState();
+    const w = s.windows.channelSettings;
+    if (w.open && !w.max && (w.w < 1000 || w.h < 600)) s.openWindow('channelSettings', { x: 8, y: 8, w: Math.max(w.w, window.innerWidth - 16), h: Math.max(w.h, window.innerHeight - 70) });
+  }, [isGgs, synthView]);
   if (!ch) {
     return <Window name="channelSettings" title="Channel settings" icon="sliders"><p className="empty-hint">No channel selected.</p></Window>;
   }

@@ -2,10 +2,7 @@
 // (Shift = fine), wheel, arrow keys, double-click for the default. A bar along the bottom shows where the value sits
 // in its range, and one thin bar per modulation route above it. It takes dropped modulation sources like a knob.
 import { useRef, useState } from 'react';
-import { formatValue, useRafCallback, SOURCE_MIME } from './Knob.jsx';
-
-const toNorm = (v, min, max, curve) => (curve === 'log' && min > 0 ? Math.log(v / min) / Math.log(max / min) : curve === 'cube' ? Math.cbrt((v - min) / (max - min)) : (v - min) / (max - min));
-const fromNorm = (n, min, max, curve) => (curve === 'log' && min > 0 ? min * Math.pow(max / min, n) : curve === 'cube' ? min + (max - min) * n * n * n : min + (max - min) * n);
+import { formatValue, useRafCallback, SOURCE_MIME, toNorm, fromNorm } from './Knob.jsx';
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 export function ValueBox({

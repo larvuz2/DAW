@@ -19,7 +19,7 @@ import {
 } from './pageModules.jsx';
 import {
   MODULES, BUILT_IN_LAYOUTS, STORAGE_KEY, normalizeLayout, hiddenModules, moveModule, nudgeModule, shiftRow, resizeModule, hideModule, showModule,
-  sameRows, rowHeight, naturalSize, fitScale, loadLayouts, storeLayouts, saveAs, GAP, PAD, MIN_W, MAX_W
+  sameRows, rowHeight, naturalSize, fitScale, moduleWidth, loadLayouts, storeLayouts, saveAs, GAP, PAD, MIN_W, MAX_W, SMALL_SCALE
 } from './pageLayout.js';
 
 const MODULE_MIME = 'application/x-gtd-module';
@@ -29,12 +29,14 @@ function Dock({ ed, tab, setTab, compact }) {
   const counts = { fx: 4, matrix: ed.routes.length, params: Object.keys(ed.full).length };
   return (
     <section className={`sp-dock ${compact ? '' : 'open'}`} data-module="dock" data-dock={tab}>
-      <div className="sp-dock-tabs" role="tablist" aria-label="Editor views">
-        {DOCK_TABS.map(([id, label]) => (
-          <button key={id} type="button" role="tab" aria-selected={tab === id} data-dock-tab={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
-            {label}<span className="sp-badge">{counts[id]}</span>
-          </button>
-        ))}
+      <div className="sp-dock-tabs">
+        <div role="tablist" aria-label="Editor views" className="sp-dock-tablist">
+          {DOCK_TABS.map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} data-dock-tab={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
+              {label}<span className="sp-badge">{counts[id]}</span>
+            </button>
+          ))}
+        </div>
         {tab !== 'fx' && <button type="button" className="sp-dock-close" aria-label="Back to the FX rack" title="Back to the FX rack" onClick={() => setTab('fx')}>×</button>}
         {tab === 'matrix' && <span className="sp-dock-note">{ed.routes.length} / {MOD_SLOTS} routes</span>}
       </div>
@@ -104,22 +106,33 @@ export function SynthPage({ ed }) {
   useEffect(() => () => setDisplayScale(1), []);
 
   // ---- remembered in this browser; layouts saved in another tab show up here too
-  const loaded = useRef(true);
+  // (what came from storage — this page's start, another tab's save — is not written back: another tab's current
+  // layout must not be overwritten by this one's)
+  const fromStorage = useRef(true);
   useEffect(() => {
-    if (loaded.current) { loaded.current = false; return; }
+    if (fromStorage.current) { fromStorage.current = false; return; }
     storeLayouts(layouts);
   }, [layouts]);
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key !== STORAGE_KEY) return;
       const { saved } = loadLayouts();
-      setLayouts((s) => (JSON.stringify(s.saved) === JSON.stringify(saved) ? s : { ...s, saved }));
+      setLayouts((s) => {
+        if (JSON.stringify(s.saved) === JSON.stringify(saved)) return s;
+        fromStorage.current = true;
+        return { ...s, saved };
+      });
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
   // the editor asks for the matrix (a knob's "Show in the matrix", a source chip)
-  useEffect(() => { if (ed.dockRequest) setDock(ed.dockRequest.tab); }, [ed.dockRequest]);
+  const handled = useRef(ed.dockRequest?.n);
+  useEffect(() => {
+    if (!ed.dockRequest || ed.dockRequest.n === handled.current) return;
+    handled.current = ed.dockRequest.n;
+    setDock(ed.dockRequest.tab);
+  }, [ed.dockRequest]);
 
   const change = (fn) => setLayouts((s) => {
     const next = fn(s.current);
@@ -166,7 +179,10 @@ export function SynthPage({ ed }) {
     const onChange = () => { if (!document.fullscreenElement && entered.current) { entered.current = false; setSolo(false); } };
     const onKey = (e) => {
       const now = useStore.getState();
-      if (e.key === 'Escape' && !now.modal && !now.contextMenu) { e.stopPropagation(); leave(); }
+      if (e.key !== 'Escape' || now.modal || now.contextMenu) return;
+      if (e.target?.closest?.('input, textarea, select, .ggs-browser, .ggs-wt-panel, .sp-dock-over')) return;
+      e.stopPropagation();
+      leave();
     };
     document.addEventListener('fullscreenchange', onChange);
     window.addEventListener('keydown', onKey, true);
@@ -236,8 +252,8 @@ export function SynthPage({ ed }) {
     return hasDock ? { flex: `0 0 ${h}px`, height: h } : { flex: `${h} 1 ${h}px`, minHeight: h };
   };
   const slotStyle = (it) => {
-    const m = MODULES[it.id];
-    return m.px ? { flex: `0 0 ${m.px * it.w}px`, width: m.px * it.w } : { flex: `${m.grow * it.w} 1 0`, minWidth: m.min * Math.min(1, it.w) };
+    const w = moduleWidth(it);
+    return w.px ? { flex: `0 0 ${w.px}px`, width: w.px } : { flex: `${w.grow} 1 0`, minWidth: w.min };
   };
 
   const view = (
@@ -260,12 +276,13 @@ export function SynthPage({ ed }) {
           <div key={r} className="gsp-row" style={{ ...rowStyle(row), gap: GAP }} data-row={r}>
             {row.map((it, i) => (
               <div key={it.id} className={`gsp-slot ${over === it.id && dragging !== it.id ? 'drop' : ''} ${dragging === it.id ? 'lifted' : ''}`} style={slotStyle(it)} data-slot={it.id}
+                data-low={r > 0 && r >= layout.rows.length / 2 ? '' : undefined}
                 onDragOver={overAt(it.id)} onDragLeave={() => over === it.id && setOver(null)} onDrop={dropAt({ before: it.id })}>
                 <ModuleBody id={it.id} ed={ed} x={extra} />
                 {arranging && tools(it.id, it, r, i)}
               </div>
             ))}
-            {arranging && <div className={`gsp-row-end ${over === `row${r}` ? 'drop' : ''}`} onDragOver={overAt(`row${r}`)} onDragLeave={() => setOver(null)} onDrop={dropAt({ row: r })} title="Drop: at the end of this row" />}
+            {arranging && dragging && <div className={`gsp-row-end ${over === `row${r}` ? 'drop' : ''}`} onDragOver={overAt(`row${r}`)} onDragLeave={() => setOver(null)} onDrop={dropAt({ row: r })} title="Drop: at the end of this row" />}
           </div>
         ))}
         {arranging && dragging && (
@@ -276,6 +293,13 @@ export function SynthPage({ ed }) {
         {!layout.rows.length && <p className="gsp-empty">Every module is hidden. Open ⋯ → Arrange modules to add some, or pick a layout.</p>}
         {!layout.rows.some((row) => row.some((it) => it.id === 'header')) && (
           <button type="button" className="sp-menu-btn floating" aria-label="Patch, layout and view" title="Layouts, arrange, full screen, classic view" onClick={menu}>⋯</button>
+        )}
+        {scale < SMALL_SCALE && (
+          <div className="gsp-small" role="status" style={{ transform: `scale(${1 / scale})` }}>
+            This window is small for the synth page.
+            <button type="button" className="sp-btn" onClick={fullScreen}>Full screen</button>
+            <button type="button" className="sp-btn" onClick={() => ed.setView('classic')}>Classic view</button>
+          </div>
         )}
         {dock !== 'fx' && (
           <div className="sp-dock-over">

@@ -31,7 +31,7 @@ const DEST_LABEL = { f1: 'F1', f2: 'F2', both: 'Both', direct: 'Direct' };
 // ---- the frame ---------------------------------------------------------------------------------------------------
 
 /** A module: a hairline frame, a title strip (switch, title, menus, actions on the right) and a body. */
-export function Module({ id, title, lead, header, actions, off, children, bodyClass = '', tools }) {
+export function Module({ id, title, lead, header, actions, off, children, bodyClass = '' }) {
   return (
     <section className={`sp-mod ${off ? 'off' : ''}`} data-module={id}>
       <header className="sp-mod-head">
@@ -39,7 +39,6 @@ export function Module({ id, title, lead, header, actions, off, children, bodyCl
         <h3>{title}</h3>
         {header}
         <div className="sp-mod-actions">{actions}</div>
-        {tools}
       </header>
       <div className={`sp-mod-body ${bodyClass}`}>{children}</div>
     </section>
@@ -59,7 +58,7 @@ function SourceChip({ source, ed, className = '' }) {
     <span className={`sp-chip ${className}`} draggable role="button" tabIndex={0} data-source={source} style={{ '--c': color }}
       title={`${ed.sourceName(source)}: ${MOD_SOURCE_INFO[source]}.\nDrag onto a knob to modulate it${n ? ` · ${n} route${n > 1 ? 's' : ''}` : ''}`}
       onDragStart={(e) => { e.dataTransfer.setData(SOURCE_MIME, source); e.dataTransfer.setData('text/plain', source); e.dataTransfer.effectAllowed = 'link'; }}
-      onClick={() => n && ed.showInMatrix(source)}>
+      onClick={() => n && ed.showInMatrix(source)} onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && n) { e.preventDefault(); ed.showInMatrix(source); } }}>
       <i />{ed.sourceName(source).replace(/\s*\(.*\)$/, '').replace(/^Envelope /, 'ENV ').replace(/^Chaos /, 'CHAOS ')}
     </span>
   );
@@ -91,22 +90,28 @@ function PlayButton({ channel }) {
     setDown(false);
     if (v) { v.noteEnd = v.ctx.currentTime; v.release(v.ctx.currentTime); }
   };
-  useEffect(() => stop, []);
+  useEffect(() => () => { from.current = null; stop(); }, []);
+  const start = async () => {
+    setDown(true);
+    const eng = await useStore.getState().unlockAudio();
+    if (!eng || held.current || !from.current) return;
+    const v = eng.noteOn(channel.id, channel.rootKey, 0.8);
+    if (!v) return;
+    held.current = v;
+    v.expr?.timbre.setValueAtTime(0.5, eng.ctx.currentTime);
+    v.expr?.pressure.setValueAtTime(0.5, eng.ctx.currentTime);
+  };
   return (
     <button type="button" className={`sp-play ${down ? 'on' : ''}`} aria-pressed={down} data-nodrag
+      onKeyDown={(e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); e.stopPropagation(); from.current = { x: 0, y: 0 }; start(); } }}
+      onKeyUp={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); from.current = null; stop(); } }}
+      onBlur={() => { if (held.current) { from.current = null; stop(); } }}
       aria-label="Hold to play the step note: drag up for pressure, sideways for slide" title="Hold to play the step note — drag up for pressure, sideways for slide"
-      onPointerDown={async (e) => {
+      onPointerDown={(e) => {
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
         from.current = { x: e.clientX, y: e.clientY };
-        setDown(true);
-        const eng = await useStore.getState().unlockAudio();
-        if (!eng || held.current || !from.current) return;
-        const v = eng.noteOn(channel.id, channel.rootKey, 0.8);
-        if (!v) return;
-        held.current = v;
-        v.expr?.timbre.setValueAtTime(0.5, eng.ctx.currentTime);
-        v.expr?.pressure.setValueAtTime(0.5, eng.ctx.currentTime);
+        start();
       }}
       onPointerMove={(e) => {
         const v = held.current;
@@ -206,7 +211,7 @@ export function HeaderModule({ ed, menu }) {
 
 // ---- sources -----------------------------------------------------------------------------------------------------
 
-export function OscModule({ ed, x, tools }) {
+export function OscModule({ ed, x }) {
   const { C, val, set } = ed;
   const on = !!val(`osc${x}On`);
   const k = (key, opts = {}) => C(key, { look: 'panel', ringColor, ...opts });
@@ -214,7 +219,7 @@ export function OscModule({ ed, x, tools }) {
   const fmFrom = val(`osc${x}FmFrom`);
   const modulated = ed.routes.some((r) => r.target === `osc${x}Pos`);
   return (
-    <Module id={`osc${x}`} title={`Osc ${x}`} off={!on} tools={tools}
+    <Module id={`osc${x}`} title={`Osc ${x}`} off={!on}
       lead={C(`osc${x}On`, { look: 'led', label: null })}
       header={<WavetablePicker value={val(`osc${x}Table`)} color={SP.accent} label="" onPick={(v) => set(`osc${x}Table`, v)} />}
       bodyClass="sp-osc">
@@ -235,7 +240,7 @@ export function OscModule({ ed, x, tools }) {
         <Cap>Wavetable</Cap>
         <Cell>{k(`osc${x}Pos`, { label: 'Position' })}</Cell>
         <Cell>{k(`osc${x}UniPos`, { label: 'Pos sprd' })}</Cell>
-        <Cell>{k(`osc${x}WarpAmt`, { label: 'Warp', labelSlot: <AttachSelect ed={ed} param={`osc${x}Warp`} value={warp} off="Warp off" /> })}</Cell>
+        <Cell><div className="sp-attached">{k(`osc${x}WarpAmt`, { label: 'Warp', bare: true })}<AttachSelect ed={ed} param={`osc${x}Warp`} value={warp} off="Warp off" label={`Oscillator ${x} warp mode`} /></div></Cell>
         <div className="sp-right">
           <Cap>Mix</Cap>
           <Cell>{k(`osc${x}Level`)}</Cell>
@@ -260,7 +265,7 @@ export function OscModule({ ed, x, tools }) {
         <Cell>{k(`osc${x}Spread`, { label: 'Spread' })}</Cell>
         <div className="sp-right">
           <Cap>FM</Cap>
-          <Cell>{k(`osc${x}Fm`, { label: 'FM', labelSlot: <AttachSelect ed={ed} param={`osc${x}FmFrom`} value={fmFrom} off="FM off" /> })}</Cell>
+          <Cell><div className="sp-attached">{k(`osc${x}Fm`, { label: 'FM', bare: true })}<AttachSelect ed={ed} param={`osc${x}FmFrom`} value={fmFrom} off="FM off" label={`Oscillator ${x} FM source`} /></div></Cell>
         </div>
       </div>
     </Module>
@@ -268,20 +273,20 @@ export function OscModule({ ed, x, tools }) {
 }
 const STACK_OPTIONS = [{ value: 'off', label: 'No stack' }, { value: 'octave', label: 'Octave' }, { value: 'fifth', label: 'Fifth' }, { value: 'octave+fifth', label: 'Oct + 5th' }];
 
-/** The menu under a knob that picks what the knob works on (the warp mode, the FM source) — as small as a label. */
-function AttachSelect({ ed, param, value, off }) {
+/** The menu under a knob that picks what the knob works on (the warp mode, the FM source) — where its label would be. */
+function AttachSelect({ ed, param, value, off, label }) {
   const d = ed.paramDef(param);
   const options = d.options;
   return (
     <span className="sp-attach">
-      <select value={value} aria-label={param} onChange={(e) => ed.set(param, e.target.value)} onKeyDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} title={d?.desc}>
+      <select value={value} aria-label={label} onChange={(e) => ed.set(param, e.target.value)} onKeyDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} title={d?.desc}>
         {options.map((o) => <option key={o} value={o}>{o === 'off' || o === 'none' ? off : o}</option>)}
       </select>
     </span>
   );
 }
 
-export function SubNoiseModule({ ed, tools }) {
+export function SubNoiseModule({ ed }) {
   const { C, val } = ed;
   const k = (key, opts = {}) => C(key, { look: 'panel', ringColor, ...opts });
   const route = (key) => C(key, { look: 'box', label: 'To', width: 64, options: SOURCE_DESTS.map((d) => ({ value: d, label: DEST_LABEL[d] })) });
@@ -289,7 +294,7 @@ export function SubNoiseModule({ ed, tools }) {
   const noiseOn = val('noiseLevel') > 0;
   return (
     <div className="sp-col" data-module="subnoise">
-      <Module id="sub" title="Sub" off={!subOn} tools={tools} header={C('subWave', { look: 'panel', label: null, width: 84 })} bodyClass="sp-small">
+      <Module id="sub" title="Sub" off={!subOn} header={C('subWave', { look: 'panel', label: null, width: 84 })} bodyClass="sp-small">
         <div className="sp-screen flex"><SubWave wave={val('subWave')} on={subOn} color={SP.accent} /></div>
         <div className="sp-row">
           <div className="sp-boxcell">{C('subOct', { look: 'box', label: 'Oct', width: 48 })}</div>
@@ -325,7 +330,7 @@ function useWidth(fallback) {
   return [ref, width];
 }
 
-export function FilterModule({ ed, i, tools }) {
+export function FilterModule({ ed, i }) {
   const { C, val } = ed;
   const [box, width] = useWidth(180);
   const type = val(`f${i}Type`);
@@ -333,7 +338,7 @@ export function FilterModule({ ed, i, tools }) {
   const on = !!val(`f${i}On`);
   const k = (key, opts = {}) => C(key, { look: 'panel', ringColor, ...opts });
   return (
-    <Module id={`filter${i}`} title={`Filter ${i}`} off={!on} tools={tools} lead={C(`f${i}On`, { look: 'led', label: null })}
+    <Module id={`filter${i}`} title={`Filter ${i}`} off={!on} lead={C(`f${i}On`, { look: 'led', label: null })}
       header={C(`f${i}Type`, { look: 'panel', label: null, width: 170, options: ed.filterOptions, title: fi.desc })} bodyClass="sp-filter">
       <div ref={box} className="sp-screen">
         <FilterGraph look="page" type={type} cutoff={val(`f${i}Cutoff`)} resonance={val(`f${i}Res`)} drive={val(`f${i}Drive`)} morph={val(`f${i}Morph`)} on={on}
@@ -352,7 +357,7 @@ export function FilterModule({ ed, i, tools }) {
   );
 }
 
-export function RoutingModule({ ed, tools }) {
+export function RoutingModule({ ed }) {
   const { val, set } = ed;
   const next = (d) => SOURCE_DESTS[(SOURCE_DESTS.indexOf(d) + 1) % SOURCE_DESTS.length];
   const sources = [
@@ -362,7 +367,7 @@ export function RoutingModule({ ed, tools }) {
   ];
   const route = val('filterRoute');
   return (
-    <Module id="routing" title="Routing" tools={tools} bodyClass="sp-routing"
+    <Module id="routing" title="Routing" bodyClass="sp-routing"
       actions={<button type="button" className="sp-route-toggle" onClick={() => set('filterRoute', route === 'serial' ? 'parallel' : 'serial')}
         aria-label={`Filters in ${route}: switch to ${route === 'serial' ? 'parallel' : 'serial'}`} title="Click: filters in series ⇄ side by side">{route} ⇄</button>}>
       <SignalFlow sources={sources} f1On={!!val('f1On')} f2On={!!val('f2On')} route={route}
@@ -371,11 +376,11 @@ export function RoutingModule({ ed, tools }) {
   );
 }
 
-export function AmpModule({ ed, tools }) {
+export function AmpModule({ ed }) {
   const { C, val } = ed;
   const k = (key, opts = {}) => C(key, { look: 'panel', ringColor, ...opts });
   return (
-    <Module id="amp" title="Amp" tools={tools} actions={<span className="sp-note env">ENV 1 × velocity</span>} bodyClass="sp-amp">
+    <Module id="amp" title="Amp" actions={<span className="sp-note env">ENV 1 × velocity</span>} bodyClass="sp-amp">
       <div className="sp-screen sp-vel"><VelocityCurve sens={val('velSens')} level={val('level')} color={SP.env} /></div>
       <Cap>Amp</Cap>
       <Cell>{k('level')}</Cell>
@@ -401,7 +406,7 @@ function useSize() {
   return [ref, size];
 }
 
-export function EnvelopesModule({ ed, tools }) {
+export function EnvelopesModule({ ed }) {
   const [i, setI] = useState(1);
   const [box, size] = useSize();
   // the editor draws 108 units tall: as many wide as the box's shape asks for, so it fills it
@@ -410,7 +415,7 @@ export function EnvelopesModule({ ed, tools }) {
   const k = (key, opts = {}) => C(key, { look: 'panel', color: SP.env, ringColor, ...opts });
   const items = [1, 2, 3, 4].map((n) => ({ id: n, text: n === 1 ? 'ENV 1 · Amp' : `ENV ${n}`, used: n === 1 || ed.used(`env${n}`) }));
   return (
-    <Module id="envelopes" title="Envelopes" tools={tools} header={<ModTabs items={items} value={i} onPick={setI} color={SP.env} label="Envelope" />}
+    <Module id="envelopes" title="Envelopes" header={<ModTabs items={items} value={i} onPick={setI} color={SP.env} label="Envelope" />}
       actions={<SourceChip source={`env${i}`} ed={ed} />} bodyClass="sp-env">
       <div ref={box} className="sp-screen sp-envgraph" style={{ '--c': SP.env }}>
         <EnvelopeEditor width={width} env={paramsToSection(full, 'envelope', i)} defaults={paramsToSection(ed.defaults, 'envelope', i)} color={SP.env} label={`Envelope ${i}`}
@@ -428,8 +433,9 @@ export function EnvelopesModule({ ed, tools }) {
   );
 }
 
-export function LfosModule({ ed, tools }) {
+export function LfosModule({ ed }) {
   const [i, setI] = useState(1);
+  const [box, size] = useSize();
   const { C, val } = ed;
   const k = (key, opts = {}) => C(key, { look: 'panel', color: SP.lfo, ringColor, ...opts });
   const drawn = val(`lfo${i}Shape`) === 'steps';
@@ -438,11 +444,12 @@ export function LfosModule({ ed, tools }) {
   const steps = drawn ? Array.from({ length: val(`lfo${i}Steps`) }, (_, n) => val(`lfo${i}S${n + 1}`)) : null;
   const items = [1, 2, 3, 4].map((n) => ({ id: n, text: `LFO ${n}`, used: ed.used(`lfo${n}`) }));
   return (
-    <Module id="lfos" title="LFOs" tools={tools} header={<ModTabs items={items} value={i} onPick={setI} color={SP.lfo} label="LFO" />}
+    <Module id="lfos" title="LFOs" header={<ModTabs items={items} value={i} onPick={setI} color={SP.lfo} label="LFO" />}
       actions={<SourceChip source={`lfo${i}`} ed={ed} />} bodyClass="sp-lfo">
-      <div className="sp-screen">
+      <div ref={box} className="sp-screen">
         {drawn
-          ? <StepEditor steps={steps} smooth={val(`lfo${i}Smooth`)} color={SP.lfo} label={`LFO ${i}`} onDraw={(n, v) => ed.setDrag({ [`lfo${i}S${n + 1}`]: v }, `lfo${i}:draw`)} />
+          ? <StepEditor steps={steps} smooth={val(`lfo${i}Smooth`)} color={SP.lfo} label={`LFO ${i}`} width={Math.max(120, Math.round((64 * size.w) / Math.max(30, size.h)))} height={64}
+            onDraw={(n, v) => ed.setDrag({ [`lfo${i}S${n + 1}`]: v }, `lfo${i}:draw`)} />
           : <LfoGraph shape={val(`lfo${i}Shape`)} phase={val(`lfo${i}Phase`)} color={SP.lfo} live={ed.live} source={`lfo${i}`} className="fill" label={rate} />}
       </div>
       <div className="sp-selcol">
@@ -460,7 +467,7 @@ export function LfosModule({ ed, tools }) {
   );
 }
 
-export function ChaosModule({ ed, tools }) {
+export function ChaosModule({ ed }) {
   const [i, setI] = useState(1);
   const { C, val } = ed;
   const k = (key, opts = {}) => C(key, { look: 'panel', color: SP.chaos, ringColor, ...opts });
@@ -469,7 +476,7 @@ export function ChaosModule({ ed, tools }) {
   const sync = val(`chaos${i}Sync`);
   const items = Array.from({ length: CHAOS_COUNT }, (_, n) => ({ id: n + 1, text: `CHAOS ${n + 1}`, used: ed.used(`chaos${n + 1}`) }));
   return (
-    <Module id="chaos" title="Chaos" tools={tools} header={<ModTabs items={items} value={i} onPick={setI} color={SP.chaos} label="Chaos generator" />}
+    <Module id="chaos" title="Chaos" header={<ModTabs items={items} value={i} onPick={setI} color={SP.chaos} label="Chaos generator" />}
       actions={<SourceChip source={`chaos${i}`} ed={ed} />} bodyClass="sp-chaos">
       <div className="sp-screen">
         <ChaosGraph type={type} character={val(`chaos${i}Char`)} steps={val(`chaos${i}Steps`)} color={SP.chaos} live={ed.live} source={`chaos${i}`} className="fill" />
@@ -510,7 +517,7 @@ export function SourcesModule({ ed }) {
                   title={`${ed.sourceName(s)}: ${MOD_SOURCE_INFO[s]}.\nDrag onto a knob to modulate it${n ? ` · ${n} route${n > 1 ? 's' : ''}: click to see them` : ''}`}
                   onDragStart={(e) => { e.dataTransfer.setData(SOURCE_MIME, s); e.dataTransfer.setData('text/plain', s); e.dataTransfer.effectAllowed = 'link'; document.body.classList.add('ggs-dragging'); }}
                   onDragEnd={() => document.body.classList.remove('ggs-dragging')}
-                  onClick={() => n && ed.showInMatrix(s)}>
+                  onClick={() => n && ed.showInMatrix(s)} onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && n) { e.preventDefault(); ed.showInMatrix(s); } }}>
                   <span className="sp-src-name">{sourceShort(s).toUpperCase()}{n ? <i>{n}</i> : null}</span>
                   <SourceSpark source={s} live={ed.live} color={color} width={38} height={20} />
                 </div>
@@ -566,21 +573,21 @@ export function FxRack({ ed }) {
 
 // ---- optional modules --------------------------------------------------------------------------------------------
 
-export function ScopeModule({ ed, tools }) {
+export function ScopeModule({ ed }) {
   const id = ed.channel.id;
   const analyser = useCallback(() => getEngine()?.channelAnalyser?.(id) ?? null, [id]);
   const release = useCallback(() => getEngine()?.releaseChannelAnalyser?.(id), [id]);
   return (
-    <Module id="scope" title="Output scope" tools={tools} actions={<span className="sp-note">wave · spectrum</span>} bodyClass="sp-scope">
+    <Module id="scope" title="Output scope" actions={<span className="sp-note">wave · spectrum</span>} bodyClass="sp-scope">
       <div className="sp-screen"><OutputScope analyser={analyser} release={release} color={SP.accent} /></div>
     </Module>
   );
 }
 
-export function PadModule({ ed, tools }) {
+export function PadModule({ ed }) {
   const { TouchPad } = ed;
   return (
-    <Module id="pad" title="Touch pad" tools={tools} actions={<span className="sp-note">pressure ↑ · slide →</span>} bodyClass="sp-padbody">
+    <Module id="pad" title="Touch pad" actions={<span className="sp-note">pressure ↑ · slide →</span>} bodyClass="sp-padbody">
       <TouchPad channel={ed.channel} />
     </Module>
   );

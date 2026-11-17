@@ -2,12 +2,12 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import { onFrame } from './frames.js';
 
 // 'log' needs min > 0; 'cube' is for ranges that start at zero (times): fine steps near the bottom, coarse at the top
-function toNorm(v, min, max, curve) {
+export function toNorm(v, min, max, curve) {
   if (curve === 'log' && min > 0) return Math.log(v / min) / Math.log(max / min);
   if (curve === 'cube') return Math.cbrt((v - min) / (max - min));
   return (v - min) / (max - min);
 }
-function fromNorm(n, min, max, curve) {
+export function fromNorm(n, min, max, curve) {
   if (curve === 'log' && min > 0) return min * Math.pow(max / min, n);
   if (curve === 'cube') return min + (max - min) * n * n * n;
   return min + (max - min) * n;
@@ -62,7 +62,7 @@ export const SOURCE_MIME = 'application/x-ggs-source';
 export function Knob({
   value, min = 0, max = 1, curve, def, step, onChange, size = 30, label, unit, color = 'var(--accent)',
   bipolar = false, title, disabled = false, showValue = false, rings, live, onAltDrag, onDropSource, onContextMenu, className = '',
-  look, labelSlot, ringColor
+  look, labelSlot, ringColor, bare = false
 }) {
   const ref = useRef(null);
   const drag = useRef(null);
@@ -125,6 +125,7 @@ export function Knob({
     if (disabled) return;
     const fine = e.shiftKey ? 0.005 : 0.02;
     const moves = { ArrowUp: fine, ArrowRight: fine, ArrowDown: -fine, ArrowLeft: -fine, PageUp: 0.1, PageDown: -0.1 };
+    if (look === 'panel') setReadout(true);
     if (e.key in moves) setNorm(at.current + moves[e.key]);
     else if (e.key === 'Home') setNorm(0);
     else if (e.key === 'End') setNorm(1);
@@ -182,7 +183,7 @@ export function Knob({
 
   if (look === 'panel') {
     return (
-      <PanelKnob {...{ value, min, max, curve, step, label, unit, color, bipolar, disabled, rings, live, onDropSource, onContextMenu, className, labelSlot, ringColor, readout, setReadout, over, setOver, dot }}
+      <PanelKnob {...{ value, min, max, curve, step, label, unit, color, bipolar, disabled, rings, live, onDropSource, onContextMenu, className, labelSlot, ringColor, readout, setReadout, over, setOver, dot, bare }}
         size={size === 'md' ? 'md' : 'sm'} tip={title || `${label ? `${label}: ` : ''}${formatValue(value, { unit, step })}`} n={n}
         handlers={{ onPointerDown, onPointerMove, onPointerUp, onWheel, onDoubleClick, onKeyDown }} />
     );
@@ -245,7 +246,7 @@ let gradients = 0;
 
 function PanelKnob({
   value, min, max, curve, step, label, unit, color, bipolar, disabled, rings, live, onDropSource, onContextMenu, className, labelSlot, ringColor,
-  readout, setReadout, over, setOver, dot, size, tip, n, handlers
+  readout, setReadout, over, setOver, dot, size, tip, n, handlers, bare
 }) {
   const g = GEOMETRY[size];
   const [hover, setHover] = useState(false);
@@ -334,7 +335,7 @@ function PanelKnob({
           </g>
         )}
       </svg>
-      {(label || labelSlot !== undefined) && (
+      {(label || labelSlot !== undefined) && !bare && (
         <div className="knob-readout">
           {showValue ? <span className="v">{text}</span> : labelSlot !== undefined ? labelSlot : <span className="l">{label}</span>}
         </div>

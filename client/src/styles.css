@@ -337,13 +337,13 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
   --sp-shadow-control: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 1px rgba(0, 0, 0, 0.35);
   --sp-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.2);
   --sp-shadow-pop: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; border-radius: 6px;
+  position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; overflow: clip; border-radius: 6px;
   background: var(--sp-base); color: var(--sp-fg); font: 12px/16px var(--sp-sans); font-variant-numeric: tabular-nums; user-select: none;
   -webkit-font-smoothing: antialiased;
 }
 .gsp.solo { position: fixed; inset: 0; z-index: 800; border-radius: 0; }
 .gsp-page { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: flex; flex-direction: column; box-sizing: border-box; }
-.gsp-row { display: flex; min-height: 0; }
+.gsp-row { position: relative; display: flex; min-height: 0; }
 .gsp-slot { position: relative; display: flex; min-width: 0; min-height: 0; }
 .gsp-slot > :not(.gsp-tools) { flex: 1; min-width: 0; }
 .gsp-empty { color: var(--sp-fg2); text-align: center; margin: auto; }
@@ -414,6 +414,7 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .sp-led:hover i { background: var(--sp-control-hover); }
 .sp-led.on { color: var(--sp-fg); }
 .sp-led.on i::after { background: var(--c, var(--sp-accent)); box-shadow: 0 0 6px var(--c, var(--sp-accent)); }
+.sp-attached { display: flex; flex-direction: column; align-items: center; }
 .sp-attach select { width: 44px; height: 13px; padding: 0; border: 0; background: none; color: var(--sp-fg2); font: 500 9px/13px var(--sp-sans); text-align: center; text-align-last: center; appearance: none; cursor: pointer; }
 .sp-attach select:hover { color: var(--sp-fg); }
 .sp-tabs { display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; }
@@ -443,6 +444,8 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .gsp .ggs-browser, .gsp .ggs-wt-panel { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; margin: 0; padding: 8px; border-radius: 8px; border: 1px solid var(--sp-line-strong); background: var(--sp-raised); box-shadow: var(--sp-shadow-pop); }
 .gsp .ggs-browser { width: 660px; }
 .gsp .ggs-wt-panel { width: 520px; left: -60px; }
+.gsp-slot[data-low] .ggs-browser, .gsp-slot[data-low] .ggs-wt-panel { top: auto; bottom: calc(100% + 6px); }
+.gsp-small { position: absolute; z-index: 45; top: 6px; left: 6px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; transform-origin: 0 0; border-radius: 8px; border: 1px solid var(--sp-line-strong); background: var(--sp-raised); box-shadow: var(--sp-shadow-pop); font-size: 12px; white-space: nowrap; }
 .sp-cluster { display: flex; flex: none; align-items: center; gap: 4px; }
 .sp-cluster.grow { flex: 1; justify-content: center; min-width: 0; }
 .sp-header .sp-cap { align-self: center; height: 46px; margin-right: 2px; }
@@ -459,7 +462,7 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .sp-voices b { font-weight: 400; }
 .sp-menu-btn { flex: none; width: 26px; height: 26px; border: 0; border-radius: 5px; background: var(--sp-control); box-shadow: var(--sp-shadow-control); color: var(--sp-fg2); font-size: 16px; line-height: 1; }
 .sp-menu-btn:hover { background: var(--sp-control-hover); color: var(--sp-fg); }
-.sp-menu-btn.floating { position: absolute; top: 8px; right: 8px; z-index: 20; }
+.sp-menu-btn.floating { position: absolute; top: 8px; right: 8px; z-index: 35; }
 
 /* oscillators, sub and noise */
 .sp-osc { flex-direction: column; gap: 4px; padding: 6px; }
@@ -512,7 +515,7 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .sp-envgraph .ggs-envedit .fill { opacity: 0.16; }
 .sp-envgraph .ggs-envedit .node { fill: var(--sp-base); stroke: var(--c); stroke-width: 1.5; }
 .sp-envgraph .ggs-envedit .bend { fill: var(--sp-base); }
-.sp-lfo .ggs-steps { display: block; width: 100%; height: 100%; }
+.sp-lfo .ggs-steps { display: block; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; background: none; }
 .sp-selcol { display: flex; flex: none; flex-direction: column; justify-content: space-between; width: 104px; }
 .sp-chaos-side { display: flex; flex: none; flex-direction: column; justify-content: space-between; width: 198px; }
 .sp-chaos-top { display: flex; align-items: flex-start; }
@@ -546,7 +549,8 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .sp-dock-close + .sp-dock-note { margin-left: 8px; }
 .sp-dock-body { flex: 1; min-height: 0; overflow: auto; }
 .sp-dock.open .sp-dock-body { padding: 8px 10px; }
-.sp-dock-over { position: absolute; z-index: 30; left: 6px; right: 6px; bottom: 6px; display: flex; height: max(340px, calc(100% - 392px)); }
+.sp-dock-over { position: absolute; z-index: 30; left: 6px; right: 6px; bottom: 6px; display: flex; height: min(calc(100% - 12px), max(340px, calc(100% - 392px))); }
+.sp-dock-tablist { display: flex; align-items: center; height: 100%; }
 .sp-dock .ggs-matrix, .sp-dock .ggs-ptable { color: var(--sp-fg); }
 .sp-dock .ggs-amt input { accent-color: var(--sp-accent); }
 .sp-dock .btn { background: var(--sp-control); border: 0; color: var(--sp-fg); }
@@ -581,7 +585,7 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .gsp-tools button:hover:not(:disabled) { background: var(--sp-control-hover); }
 .gsp-tools button:disabled { opacity: 0.35; }
 .gsp-grip { padding: 0 2px; color: var(--sp-fg2); font-size: 14px; line-height: 1; cursor: grab; }
-.gsp-row-end { flex: 0 0 22px; border: 1px dashed var(--sp-line-strong); border-radius: 8px; }
+.gsp-row-end { position: absolute; z-index: 14; top: 0; right: 0; bottom: 0; width: 44px; border: 1px dashed var(--sp-line-strong); border-radius: 8px; background: rgba(26, 30, 39, 0.75); }
 .gsp-row-end.drop, .gsp-newrow.drop { border-color: var(--sp-accent); background: rgba(124, 140, 255, 0.12); }
 .gsp-newrow { position: absolute; z-index: 35; left: 50%; bottom: 10px; display: flex; align-items: center; justify-content: center; width: 320px; height: 30px; transform: translateX(-50%); border: 1px dashed var(--sp-line-strong); border-radius: 8px; background: rgba(26, 30, 39, 0.95); color: var(--sp-fg2); font-size: 11px; }
 .gsp-arrange-bar { position: absolute; z-index: 40; top: 6px; left: 50%; display: flex; align-items: center; gap: 10px; padding: 6px 10px; transform: translateX(-50%); border-radius: 8px; border: 1px solid var(--sp-line-strong); background: var(--sp-raised); box-shadow: var(--sp-shadow-pop); font-size: 11px; white-space: nowrap; }

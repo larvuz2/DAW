@@ -338,17 +338,17 @@ export function SynthEditor({ channel }) {
             : '\nDrop a source here, or right-click, to modulate it.';
       }
       const common = {
-        key, value: val(key), min: d.min, max: d.max, def: d.default, curve: d.curve, step: d.step, label, unit: d.unit, title,
+        value: val(key), min: d.min, max: d.max, def: d.default, curve: d.curve, step: d.step, label, unit: d.unit, title,
         rings, ringColor: opts.ringColor,
         onDropSource: target ? (src) => MOD_SOURCES.includes(src) && src !== 'none' && modulate(src, key) : undefined,
         onContextMenu: target ? knobMenu(key, d) : opts.menu,
         onChange: (v) => set(key, d.step ? Math.round(v) : Math.round(v * 1e6) / 1e6)
       };
       // the synth page's looks: a number in a box, or the panel knob (the label shows the value while touched)
-      if (opts.look === 'box') return <ValueBox {...common} width={opts.width} color={opts.color} format={opts.format} className={opts.className} />;
+      if (opts.look === 'box') return <ValueBox key={key} {...common} width={opts.width} color={opts.color} format={opts.format} className={opts.className} />;
       if (opts.look === 'panel') {
         return (
-          <Knob {...common} look="panel" size={opts.size === 'md' ? 'md' : 'sm'} color={opts.color || 'var(--sp-accent)'} bipolar={d.min < 0} className={opts.className} labelSlot={opts.labelSlot}
+          <Knob key={key} {...common} look="panel" size={opts.size === 'md' ? 'md' : 'sm'} color={opts.color || 'var(--sp-accent)'} bipolar={d.min < 0} className={opts.className} labelSlot={opts.labelSlot} bare={opts.bare}
             live={rings?.length || opts.live ? liveOf(key) : undefined} onAltDrag={target && rings.length ? (travel, first) => changeDepth(key, travel, first) : undefined} />
         );
       }
@@ -370,7 +370,7 @@ export function SynthEditor({ channel }) {
     }
     if (d.type === 'bool' && opts.look) {
       return (
-        <button key={key} type="button" role="switch" aria-checked={!!val(key)} className={`sp-led ${val(key) ? 'on' : ''} ${opts.className || ''}`} style={{ '--c': opts.color }}
+        <button key={key} type="button" role="switch" aria-checked={!!val(key)} aria-label={`${d.group ? `${d.group} ` : ''}${label}`} className={`sp-led ${val(key) ? 'on' : ''} ${opts.className || ''}`} style={{ '--c': opts.color }}
           title={title} onClick={() => set(key, !val(key))}>
           <i />{opts.label !== null && <span>{label}</span>}
         </button>

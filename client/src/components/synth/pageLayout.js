@@ -143,7 +143,15 @@ export function showModule(layout, id) {
 // ---- sizes -------------------------------------------------------------------------------------------------------
 
 export const rowHeight = (row) => Math.max(...row.map((it) => MODULES[it.id].h));
-const rowMinWidth = (row) => row.reduce((sum, it) => sum + (MODULES[it.id].px ? MODULES[it.id].px * it.w : MODULES[it.id].min * Math.min(1, it.w)), 0) + GAP * (row.length - 1);
+/**
+ * How a module takes its row's width: a fixed `px`, or a `grow` share never narrower than `min` — the width its controls
+ * need. "Narrower" (w < 1) only gives away space a module has beyond that; it never makes controls overlap.
+ */
+export function moduleWidth(it) {
+  const m = MODULES[it.id];
+  return m.px ? { px: Math.max(m.min, m.px * it.w) } : { grow: m.grow * it.w, min: m.min };
+}
+const rowMinWidth = (row) => row.reduce((sum, it) => { const w = moduleWidth(it); return sum + (w.px ?? w.min); }, 0) + GAP * (row.length - 1);
 
 /** The size the page is drawn at before it is scaled: wide enough for every row, as tall as its rows. */
 export function naturalSize(layout) {
@@ -153,11 +161,14 @@ export function naturalSize(layout) {
   return { width: Math.ceil(width), height: Math.ceil(height) };
 }
 
-/** How much to scale the page so it fills a box of w × h without scrolling (never less than 0.3, never more than 1.75). */
+/** Below this the page is too small to use: it still fits (nothing is cut), and it offers the classic view. */
+export const SMALL_SCALE = 0.55;
+
+/** How much to scale the page so all of it fits a box of w × h without scrolling (never more than 1.75). */
 export function fitScale(layout, w, h) {
   const n = naturalSize(layout);
   if (!(w > 0) || !(h > 0)) return 1;
-  return Math.max(0.3, Math.min(1.75, w / n.width, h / n.height));
+  return Math.max(0.05, Math.min(1.75, w / n.width, h / n.height));
 }
 
 // ---- remembered in this browser ---------------------------------------------------------------------------------
@@ -192,7 +203,9 @@ export function loadLayouts(storage) {
     raw = JSON.parse(s?.getItem(STORAGE_KEY) || 'null');
     if (!raw) old = JSON.parse(s?.getItem(OLD_KEY) || 'null');
   } catch { raw = null; old = null; }
-  if (!raw && old) raw = { saved: (Array.isArray(old.saved) ? old.saved : []).map(fromGrid) };
+  if (!raw && old) {
+    raw = { saved: (Array.isArray(old.saved) ? old.saved : []).map(fromGrid).map((l) => (BUILT_IN_LAYOUTS.some((b) => b.name.toLowerCase() === l.name.toLowerCase()) ? { ...l, name: `${l.name} (0.14)` } : l)) };
+  }
   const saved = (Array.isArray(raw?.saved) ? raw.saved : []).map((l) => normalizeLayout(l)).filter((l) => l.rows.length)
     .filter((l, i, all) => all.findIndex((x) => x.name === l.name) === i && !BUILT_IN_LAYOUTS.some((b) => b.name === l.name)).slice(0, MAX_SAVED);
   const current = Array.isArray(raw?.current?.rows) ? normalizeLayout(raw.current, raw.current.name) : defaultLayout();

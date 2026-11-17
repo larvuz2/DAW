@@ -22,6 +22,15 @@ the side of each cluster.
 - The 0.14 *Overview* tab is replaced by the page. The output scope and the touch pad are modules you can add.
 - Under the hood: the knob has a panel look (the classic tabs keep theirs), a value box control, pictures that stay
   sharp when the page is scaled, and the engine reports how many notes a GGS channel is sounding.
+- After an independent review: drawn LFO steps and envelope nodes follow the pointer whatever the box's shape;
+  making a module narrower never makes controls overlap; in a very small window the page shrinks without cutting
+  anything off and offers full screen or the classic view; the warp-mode and FM-source menus are menus of their own,
+  reachable by keyboard and named for screen readers; the play button and the source chips work from the keyboard;
+  popovers near the bottom open upwards; another tab no longer overwrites the layout in use; Esc in a search box
+  in full screen closes the box, not full screen; the filter curve stays sharp when the page rescales.
+- **Docs:** `docs/av-bible.pdf` — the audio → visual bible (in Spanish): everything the studio can send to
+  TouchDesigner, Blender or Unreal, what is available today and what needs a proposed real-time bridge, with every
+  variable's range. `npm run docs:av` regenerates it from the catalogs.
 
 ## 0.14.0 — The synth on one screen
 

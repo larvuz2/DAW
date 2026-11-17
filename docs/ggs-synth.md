@@ -165,8 +165,9 @@ Every knob is the same control as in the classic tabs: it shows its value while 
 a dot where modulation has it, takes a dropped source, and right-click gives *Modulate with*, *Show in the matrix* and
 *Reset*. The value boxes are dragged up and down (Shift = fine), take the arrow keys and a double-click resets them.
 
-The page is drawn at one size and **scaled to fit its window**: it never scrolls and nothing overlaps, in a small
-window or on a big screen. On this page the channel's own settings fold into the window's title bar (volume, pan,
+The page is drawn at one size and **scaled to fit its window**: it never scrolls, nothing overlaps and nothing is cut
+off, on any screen (making a module narrower only gives away the room it has beyond what its controls need). In a
+window too small to read it — a phone — it offers full screen or the classic view. On this page the channel's own settings fold into the window's title bar (volume, pan,
 mixer track; *Channel settings…* opens the rest and the keyboard).
 
 **Arranging.** ⋯ → *Arrange modules*: each module gets a grip to drag it onto another (it goes before it) or below the
