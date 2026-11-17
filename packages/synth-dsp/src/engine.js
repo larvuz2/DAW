@@ -5,3 +5,4 @@ export { GgsFx } from './fx.js';
 export { prewarmTables } from './wavetables.js';
 export { MACRO_COUNT } from './params.js';
 export { STUDIO_FX } from './effects/index.js';
+export { SYNTH_ENGINES } from './engines/index.js';

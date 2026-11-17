@@ -1,5 +1,5 @@
 // GGS Synth on the main thread: loading the worklet, the per-channel rig (effects + macro sources) and the voices.
-import { ggsDefaults, releaseTail, FX_KEYS, hash32, MACRO_COUNT, STUDIO_FX } from '@greanteadawy/synth-dsp';
+import { ggsDefaults, releaseTail, FX_KEYS, hash32, MACRO_COUNT, STUDIO_FX, SYNTH_ENGINES } from '@greanteadawy/synth-dsp';
 import { scheduleCurve } from '../dsp.js';
 import { workletUrl } from './module.js';
 
@@ -25,8 +25,9 @@ export function loadGgsModule(ctx) {
 export const ggsReady = (ctx) => ready.has(ctx);
 export const usesGgs = (project) => project.channels.some((c) => c.instrument.kind === 'ggs');
 
-/** The studio's DSP effects (mixer inserts) run in the same worklet module. */
-export const usesWorklet = (project) => usesGgs(project) || project.mixer.some((m) => m.effects.some((e) => STUDIO_FX[e.type]));
+/** The synth engines (per-note voices) and the studio's DSP effects (mixer inserts) run in the same worklet module. */
+export const usesWorklet = (project) => usesGgs(project) || project.channels.some((c) => SYNTH_ENGINES[c.instrument.kind])
+  || project.mixer.some((m) => m.effects.some((e) => STUDIO_FX[e.type]));
 
 /** Offline renders wait for this before they start: every GGS channel and every DSP effect then has its worklet. */
 export function prepareGgs(ctx, project) {

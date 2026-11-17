@@ -1,5 +1,5 @@
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
-import { GGS_PARAMS, GGS_PRESETS, migrateParams as migrateGgsParams } from '@greanteadawy/synth-dsp';
+import { GGS_PARAMS, GGS_PRESETS, migrateParams as migrateGgsParams, SYNTH_ENGINES } from '@greanteadawy/synth-dsp';
 import { didYouMean, brief } from './suggest.js';
 
 // Instrument catalog. Every channel in the Channel Rack has an instrument:
@@ -782,6 +782,16 @@ export const INSTRUMENTS = {
     presets: { Default: {} }
   }
 };
+
+// the studio's synth engines beside the GGS Synth (packages/synth-dsp/src/engines): one worklet processor per note.
+// Their classes carry their own parameter definitions and presets, in the shape used above; `engine` tells the
+// client which kind of voice to build.
+for (const [kind, Engine] of Object.entries(SYNTH_ENGINES)) {
+  INSTRUMENTS[kind] = {
+    label: Engine.label, category: Engine.category, melodic: true, defaultKey: 60, color: Engine.color, engine: true,
+    description: Engine.description, params: Engine.defs, presets: Engine.presets
+  };
+}
 
 export const INSTRUMENT_KINDS = Object.keys(INSTRUMENTS);
 

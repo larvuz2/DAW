@@ -8,6 +8,10 @@ import {
 } from '@greanteadawy/core';
 import { playNote, Voice } from './instruments.js';
 import { OFFLINE_START } from './studiofx.js';
+import { isEngine } from './engines.js';
+
+/** Notes of an engine instrument (additive, modal…) that may sound at once on one channel: the oldest gives way. */
+const ENGINE_POLYPHONY = 16;
 import { prewarmModels, prewarmRange } from './modelPool.js';
 import { modelOf, layerOf } from './models.js';
 import { SpatialRig } from './spatial.js';
@@ -422,8 +426,8 @@ export class AudioEngine {
     }
     // plugin instruments: at most `polyphony` voices per channel (each DSP voice is its own worklet processor) —
     // the oldest sounding one is cut, so dense parts or slow-to-finish plugins can't pile up CPU
-    if (ch.instrument.kind === 'plugin' || ch.instrument.kind === 'ggs') {
-      const poly = ch.instrument.kind === 'ggs' ? Math.round(p.polyphony) || 16 : pluginEntry(ch.instrument.plugin)?.manifest.polyphony || 16;
+    if (ch.instrument.kind === 'plugin' || ch.instrument.kind === 'ggs' || isEngine(ch.instrument.kind)) {
+      const poly = ch.instrument.kind === 'ggs' ? Math.round(p.polyphony) || 16 : ch.instrument.kind === 'plugin' ? pluginEntry(ch.instrument.plugin)?.manifest.polyphony || 16 : ENGINE_POLYPHONY;
       const sounding = [...this.voices].filter((v) => v.channelId === channelId && !v.done && v.killedAt === null && v.start <= time + 0.0005 && v.end > time);
       // released notes (only their tail is left — and offline renders schedule ahead, so some already ended) go
       // first, oldest first; held notes only when that isn't enough

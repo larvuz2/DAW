@@ -9,7 +9,7 @@
 // Messages are only used for edits made while a note sounds (a knob turned in the editor) and tempo changes — and,
 // the other way, for what the editor shows while it is open: a watched voice reports where its modulation stands
 // about thirty times a second (nothing in the audio depends on it).
-import { GgsVoice, GgsFx, prewarmTables, MACRO_COUNT, STUDIO_FX } from '@greanteadawy/synth-dsp/engine';
+import { GgsVoice, GgsFx, prewarmTables, MACRO_COUNT, STUDIO_FX, SYNTH_ENGINES } from '@greanteadawy/synth-dsp/engine';
 
 const MACROS = Array.from({ length: MACRO_COUNT }, (_, i) => `macro${i + 1}`);
 
@@ -209,4 +209,84 @@ for (const [type, Fx] of Object.entries(STUDIO_FX)) {
     }
   }
   registerProcessor(`gtd-fx-${type}`, StudioFxProcessor);
+}
+
+// ---- synth engines (additive, modal, …): one processor per engine, one node per note — the same life as a GGS voice.
+// The note arrives whole (processorOptions: settings, key, velocity, tuning, its start time, its seed); the gate, a
+// hard stop, the pitch bend and the release velocity are AudioParams, so the key is let go on its exact sample and an
+// offline render repeats sample for sample.
+for (const [type, Engine] of Object.entries(SYNTH_ENGINES)) {
+  class EngineVoiceProcessor extends AudioWorkletProcessor {
+    static get parameterDescriptors() {
+      return [param('gate', 1, 0, 1, 'a-rate'), param('kill', 0, 0, 1, 'k-rate'), param('pitch', 0, -96, 96, 'k-rate'), param('release', 0.5, 0, 1, 'k-rate')];
+    }
+
+    constructor(options) {
+      super();
+      this.o = options.processorOptions || {};
+      this.startFrame = Math.round((this.o.start || 0) * sampleRate);
+      this.voice = null;
+      this.off = false;
+      this.done = false;
+      this.pending = null; // a knob turned before the note has started
+      this.bl = new Float32Array(128);
+      this.br = new Float32Array(128);
+      this.port.onmessage = (e) => {
+        if (e.data?.type !== 'params') return;
+        if (this.voice) this.voice.set(e.data.values);
+        else this.pending = { ...(this.pending || {}), ...e.data.values };
+      };
+    }
+
+    finish() {
+      this.done = true;
+      this.voice = null;
+      this.port.postMessage({ type: 'ended' });
+      return false;
+    }
+
+    /** n samples of the note into the output from `at` (through the scratch block: no views are made per block). */
+    fill(L, R, at, n, bend) {
+      const { bl, br } = this;
+      this.voice.render(bl, br, n, bend);
+      for (let i = 0; i < n; i++) { L[at + i] = bl[i]; R[at + i] = br[i]; }
+    }
+
+    process(inputs, outputs, parameters) {
+      if (this.done) return false;
+      if (parameters.kill[0] > 0.5) return this.finish();
+      const L = outputs[0][0];
+      const R = outputs[0][1] || L;
+      const n = L.length;
+      if (n > this.bl.length) { this.bl = new Float32Array(n); this.br = new Float32Array(n); }
+      let from = 0;
+      if (!this.voice) {
+        const at = this.startFrame - currentFrame;
+        if (at >= n) return true; // the note starts in a later block
+        from = Math.max(0, at);
+        const o = this.o;
+        this.voice = new Engine(sampleRate, o.seed);
+        this.voice.set(this.pending ? { ...o.params, ...this.pending } : o.params || {});
+        this.voice.noteOn(o.key ?? 60, o.velocity ?? 0.8, o.tune || 0);
+      }
+      const bend = parameters.pitch[0];
+      let offAt = -1;
+      if (!this.off) {
+        const gate = parameters.gate;
+        if (gate.length === 1) { if (gate[0] < 0.5) offAt = from; } else {
+          for (let i = from; i < n; i++) if (gate[i] < 0.5) { offAt = i; break; }
+        }
+      }
+      if (offAt >= 0) {
+        if (offAt > from) this.fill(L, R, from, offAt - from, bend);
+        this.voice.noteOff(parameters.release[0]);
+        this.off = true;
+        this.fill(L, R, offAt, n - offAt, bend);
+      } else {
+        this.fill(L, R, from, n - from, bend);
+      }
+      return this.voice.finished ? this.finish() : true;
+    }
+  }
+  registerProcessor(`gtd-voice-${type}`, EngineVoiceProcessor);
 }

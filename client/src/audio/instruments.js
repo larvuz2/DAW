@@ -5,6 +5,7 @@ import { BAND } from './band.js';
 import { WORLD } from './world.js';
 import { pluginVoice } from './plugins.js';
 import { ggsVoice } from './ggs-synth/index.js';
+import { engineVoice, isEngine } from './engines.js';
 
 /** A playing note. Owns its sources; supports note-off (release) and fast kill (choke / stop). */
 export class Voice {
@@ -590,9 +591,12 @@ export function playNote(ctx, dest, instrument, opts) {
     else if (WORLD[kind]) natural = WORLD[kind](v, ctx, p, args);
     else if (kind === 'plugin') natural = pluginVoice(v, ctx, instrument, args);
     else if (kind === 'ggs') natural = ggsVoice(v, ctx, instrument, { ...args, expr: opts.expr, rig: opts.rig, beat: opts.beat, tune });
+    else if (isEngine(kind)) natural = engineVoice(v, ctx, instrument, { ...args, expr: opts.expr, tune });
     const bend = opts.expr?.expression?.pitch;
-    if (bend && kind !== 'ggs') bendVoice(v, bend, t, Math.max(0.001, opts.expr.seconds));
-    if (tune && kind !== 'ggs') tuneVoice(ctx, v, tune, t);
+    // (worklet voices — the GGS Synth and the engines — take their pitch curve and their tuning themselves)
+    const own = kind === 'ggs' || isEngine(kind);
+    if (bend && !own) bendVoice(v, bend, t, Math.max(0.001, opts.expr.seconds));
+    if (tune && !own) tuneVoice(ctx, v, tune, t);
   } catch (err) {
     // one note the Web Audio API refuses must not break the transport (the scheduler would retry the same range on
     // every tick and stack the other notes): drop it, release what it built, say so once per instrument
