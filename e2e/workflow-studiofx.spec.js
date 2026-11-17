@@ -156,8 +156,11 @@ test('GGS Synth: the unison law, the stack and the drive rate are in the editor 
   const said = await claude.call('set_synth_oscillator', { channel: 'Super', oscillator: 'A', unison: 16, detune: 60, unisonLaw: 'super', stack: 'octave', unisonTable: 0.25 });
   expect(said).toMatch(/16× unison \(60 ct, super law, octave stack, spread 0\.25 over the table\)/);
   expect(await claude.call('set_synth_effect', { channel: 'Super', drive: { amount: 0.5, type: 'hard', oversampling: '8x' } })).toMatch(/drive hard 0\.5 at 8x/);
-  const p = (await project()).channels.find((c) => c.name === 'Super').instrument.params;
-  expect([p.oscAUnison, p.oscAUniLaw, p.oscAStack, p.oscAUniPos, p.driveOs]).toEqual([16, 'super', 'octave', 0.25, '8x']);
+  // (the tab's copy of the project: Claude's reply can arrive before the edit reaches the tab)
+  await expect.poll(async () => {
+    const p = (await project()).channels.find((c) => c.name === 'Super')?.instrument.params;
+    return p && [p.oscAUnison, p.oscAUniLaw, p.oscAStack, p.oscAUniPos, p.driveOs];
+  }).toEqual([16, 'super', 'octave', 0.25, '8x']);
   await expect(claude.call('set_synth_oscillator', { channel: 'Super', oscillator: 'A', unison: 17 })).rejects.toThrow(/unison/);
   // sixteen copies in an octave stack render, in tune, at a sane level
   const report = await claude.call('analyze_sound', { channel: 'Super', note: 'A3', lengthSteps: 12, seconds: 1.5 });
