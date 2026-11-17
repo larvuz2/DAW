@@ -8,6 +8,16 @@ import { onFrame } from '../ui/frames.js';
 import { liveSource } from './modulation.js';
 
 const GRID = 'rgba(255,255,255,0.07)';
+
+// The synth page is drawn at one size and scaled to its window: canvases draw at that scale too, so they stay sharp.
+let displayScale = 1;
+const SCALE_EVENT = 'gtd-display-scale';
+export function setDisplayScale(s) {
+  if (!(s > 0) || Math.abs(s - displayScale) < 0.01) return;
+  displayScale = s;
+  globalThis.dispatchEvent?.(new Event(SCALE_EVENT));
+}
+export const pixelRatio = () => Math.min(3, (globalThis.devicePixelRatio || 1) * displayScale);
 const DIM = 'rgba(255,255,255,0.32)';
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -31,7 +41,7 @@ export function useCanvas(draw, deps, live = null, still = null) {
     if (!cv || !box) return;
     const w = Math.max(10, box.clientWidth);
     const h = Math.max(10, box.clientHeight);
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = pixelRatio();
     if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
       cv.width = Math.round(w * dpr);
       cv.height = Math.round(h * dpr);
@@ -75,6 +85,11 @@ export function useCanvas(draw, deps, live = null, still = null) {
     });
     io.observe(box);
     return () => { ro.disconnect(); io.disconnect(); };
+  }, [live]);
+  useEffect(() => {
+    const again = () => paint.current(live ? live() : null);
+    globalThis.addEventListener?.(SCALE_EVENT, again);
+    return () => globalThis.removeEventListener?.(SCALE_EVENT, again);
   }, [live]);
   useEffect(() => {
     if (!live) return undefined;
@@ -142,7 +157,7 @@ function normalize(wave) {
  * The wavetable drawn as a waterfall: every frame of the table in perspective, back to front, and the one the
  * oscillator plays now lit in its colour (where the knob is, and — while a note sounds — where modulation took it).
  */
-export function WavetableStack({ table, pos, color, on = true, live = null }) {
+export function WavetableStack({ table, pos, color, on = true, live = null, className = 'tall' }) {
   const frames = useMemo(() => stackOf(table), [table]);
   const count = useMemo(() => getWavetable(table).frames, [table]);
   const geom = (w, h) => {
@@ -165,7 +180,7 @@ export function WavetableStack({ table, pos, color, on = true, live = null }) {
     return { pad, fw, amp, origin, trace };
   };
   return (
-    <Display className="tall" label={`Wavetable ${table} at position ${Math.round(pos * 100)}%`} live={live} deps={[table, Math.round(pos * 400), color, on]}
+    <Display className={className} label={`Wavetable ${table} at position ${Math.round(pos * 100)}%`} live={live} deps={[table, Math.round(pos * 400), color, on]}
       still={(g, w, h) => {
         // every frame, back to front (the same picture until the table, the colour or the size changes)
         const { fw, amp, origin, trace } = geom(w, h);
@@ -236,9 +251,9 @@ export function WavetableStack({ table, pos, color, on = true, live = null }) {
  * loud it is (Blend); a dot underneath where it sits in the stereo field. Copies a stack moves up an octave or a
  * fifth are drawn hollow and labelled.
  */
-export function UnisonFan({ unison, detune, law, stack, blend, spread, color }) {
+export function UnisonFan({ unison, detune, law, stack, blend, spread, color, className = 'short' }) {
   return (
-    <Display className="short" label={`${unison} unison copies, ${detune} cents, ${law} law${stack !== 'off' ? `, ${stack} stack` : ''}`}
+    <Display className={className} label={`${unison} unison copies, ${detune} cents, ${law} law${stack !== 'off' ? `, ${stack} stack` : ''}`}
       deps={[unison, Math.round(detune * 10), law, stack, Math.round(blend * 100), Math.round(spread * 100), color]}
       draw={(g, w, h) => {
         const n = Math.max(1, Math.round(unison));
@@ -399,13 +414,17 @@ function lfoAt(shape, ph) {
 }
 
 /** Two cycles of an LFO, and — while a note sounds — a line at the value it has now. */
-export function LfoGraph({ shape, phase, color = '#5ab8f0', live = null, source }) {
+export function LfoGraph({ shape, phase, color = '#5ab8f0', live = null, source, className = 'mid', label = '' }) {
   const getter = useMemo(() => (live ? () => liveSource(live(), source) : null), [live, source]);
   return (
-    <Display className="mid" label={`LFO: ${shape}`} live={getter} deps={[shape, Math.round(phase * 100), color]}
+    <Display className={className} label={`LFO: ${shape}`} live={getter} deps={[shape, Math.round(phase * 100), color, label]}
       still={(g, w, h) => {
         g.strokeStyle = GRID;
+        g.lineWidth = 1;
+        for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(Math.round((i / 4) * w) + 0.5, 4); g.lineTo(Math.round((i / 4) * w) + 0.5, h - 4); g.stroke(); }
+        g.strokeStyle = 'rgba(255,255,255,0.14)';
         g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+        if (label) text(g, label, w - 6, 12, { align: 'right', color: 'rgba(230,233,240,0.6)' });
         const curve = () => {
           g.beginPath();
           for (let i = 0; i <= Math.round(w); i++) {
@@ -439,10 +458,10 @@ export function LfoGraph({ shape, phase, color = '#5ab8f0', live = null, source 
   );
 }
 
-export function ChaosGraph({ type, character, steps, color = '#ef7fb0', live = null, source }) {
+export function ChaosGraph({ type, character, steps, color = '#ef7fb0', live = null, source, className = 'mid' }) {
   const getter = useMemo(() => (live ? () => liveSource(live(), source) : null), [live, source]);
   return (
-    <Display className="mid" label={`Chaos: ${type}`} live={getter} deps={[type, Math.round(character * 100), steps]}
+    <Display className={className} label={`Chaos: ${type}`} live={getter} deps={[type, Math.round(character * 100), steps]}
       still={(g, w, h) => {
         g.strokeStyle = GRID;
         g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
@@ -471,7 +490,7 @@ export function ChaosGraph({ type, character, steps, color = '#ef7fb0', live = n
 // ---- a source over the last seconds (the mod sources strip) ----------------------------------------------------
 
 /** A source's value over the last three seconds, scrolling; flat and dim while nothing sounds. */
-export function SourceSpark({ source, live, color }) {
+export function SourceSpark({ source, live, color, width = 40, height = 18 }) {
   const ref = useRef(null);
   const both = BIPOLAR_SOURCES.has(source);
   useEffect(() => {
@@ -481,41 +500,47 @@ export function SourceSpark({ source, live, color }) {
     let quiet = true;
     let frames = 0;
     let visible = true;
+    let drawnDpr = 0;
     const io = typeof IntersectionObserver === 'undefined' || !ref.current ? null : new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
     io?.observe(ref.current);
     const stop = onFrame(() => {
       const cv = ref.current;
       if (!cv) return;
-      // ~30 points a second is plenty for a line 40 pixels wide
+      // ~30 points a second is plenty for a line this wide
       if (++frames % 2) return;
       const raw = liveSource(live(), source);
       const nowQuiet = raw === null || raw === undefined;
-      if (nowQuiet && quiet && n) return;
+      const dpr = pixelRatio();
+      if (nowQuiet && quiet && n && drawnDpr === dpr) return;
       quiet = nowQuiet;
       hist[at] = nowQuiet ? 0 : clamp(raw, -1, 1);
       at = (at + 1) % hist.length;
       n = Math.min(hist.length, n + 1);
       if (!visible) return; // still recorded, drawn when it is back on screen
-      const w = 40;
-      const h = 18;
-      if (cv.width !== w * 2) { cv.width = w * 2; cv.height = h * 2; }
+      if (cv.width !== Math.round(width * dpr)) { cv.width = Math.round(width * dpr); cv.height = Math.round(height * dpr); }
+      drawnDpr = dpr;
       const g = cv.getContext('2d');
-      g.setTransform(2, 0, 0, 2, 0, 0);
-      g.clearRect(0, 0, w, h);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, width, height);
+      const pad = 2.5;
+      const yOf = (v) => pad + (height - pad * 2) * (1 - clamp(both ? (v + 1) / 2 : v, 0, 1));
+      g.strokeStyle = hexA(color, 0.22);
+      g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, Math.round(yOf(0)) + 0.5); g.lineTo(width, Math.round(yOf(0)) + 0.5); g.stroke();
       g.beginPath();
       for (let i = 0; i < hist.length; i++) {
-        const v = hist[(at + i) % hist.length];
-        const y = both ? h / 2 - v * (h / 2 - 2) : h - 2 - v * (h - 4);
-        const x = (i / (hist.length - 1)) * w;
+        const x = (i / (hist.length - 1)) * (width - 2);
+        const y = yOf(hist[(at + i) % hist.length]);
         if (i) g.lineTo(x, y); else g.moveTo(x, y);
       }
-      g.strokeStyle = quiet ? 'rgba(255,255,255,0.18)' : color;
-      g.lineWidth = 1.2;
+      g.strokeStyle = quiet ? hexA(color, 0.35) : color;
+      g.lineWidth = 1.25;
+      g.lineJoin = 'round';
       g.stroke();
     });
     return () => { stop(); io?.disconnect(); };
-  }, [source, live, color, both]);
-  return <canvas ref={ref} className="ovw-spark" style={{ width: 40, height: 18 }} aria-hidden="true" />;
+  }, [source, live, color, both, width, height]);
+  return <canvas ref={ref} className="ovw-spark" style={{ width, height }} aria-hidden="true" />;
 }
 
 // ---- the effects, each as a picture of what it does ------------------------------------------------------------
@@ -611,6 +636,7 @@ export function OutputScope({ analyser, release, color = '#f59f42' }) {
     let quiet = false;
     let drawnW = 0;
     let drawnH = 0;
+    let drawnDpr = 0;
     let visible = true;
     const io = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
     if (wrap.current) io?.observe(wrap.current);
@@ -625,11 +651,12 @@ export function OutputScope({ analyser, release, color = '#f59f42' }) {
       let loud = 0;
       for (let i = 0; i < 2048; i += 8) loud = Math.max(loud, Math.abs(time[i]));
       // silence is drawn once, not 30 times a second (unless the box changed size)
-      if (loud < 1e-4 && quiet && drawnW === w && drawnH === h) return;
+      const dpr = pixelRatio();
+      if (loud < 1e-4 && quiet && drawnW === w && drawnH === h && drawnDpr === dpr) return;
       quiet = loud < 1e-4;
       drawnW = w;
       drawnH = h;
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      drawnDpr = dpr;
       if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.width = `${w}px`; cv.style.height = `${h}px`; }
       const g = cv.getContext('2d');
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -682,4 +709,113 @@ export function OutputScope({ analyser, release, color = '#f59f42' }) {
     };
   }, [analyser, release, color]);
   return <div ref={wrap} className="ovw-display scope"><canvas ref={canvas} role="img" aria-label="Output waveform and spectrum of this channel" /></div>;
+}
+
+// ---- the synth page's small pictures -----------------------------------------------------------------------------
+
+/** Two cycles of the sub oscillator's wave, as a line across its box. */
+export function SubWave({ wave, on = true, color = '#7c8cff' }) {
+  const d = useMemo(() => {
+    const shape = (x) => (wave === 'square' ? (x < 0.5 ? 1 : -1) : wave === 'triangle' ? 1 - 4 * Math.abs(x - 0.5) : wave === 'saw' ? 1 - 2 * x : Math.sin(2 * Math.PI * x));
+    let path = '';
+    for (let i = 0; i <= 96; i++) {
+      const x = i / 96;
+      path += `${i ? 'L' : 'M'}${(x * 120).toFixed(2)} ${(15 - shape((x * 2) % 1) * 11).toFixed(2)}`;
+    }
+    return path;
+  }, [wave]);
+  return (
+    <svg viewBox="0 0 120 30" preserveAspectRatio="none" className="sp-svg" role="img" aria-label={`Sub ${wave} wave`}>
+      <path d={d} fill="none" stroke={on ? color : 'var(--sp-fg3)'} strokeWidth="1.3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** The noise's spectrum: flat (white), falling 3 dB (pink) or 6 dB (brown) an octave, tilted by Colour. */
+export function NoiseView({ type, colour = 0, on = true, color = '#7c8cff' }) {
+  const d = useMemo(() => {
+    const slope = type === 'brown' ? 1 : type === 'pink' ? 0.5 : 0;
+    let path = '';
+    for (let i = 0; i <= 120; i++) {
+      const f = i / 120;
+      const jitter = Math.sin(i * 12.9898) * 43758.5453;
+      const r = (jitter - Math.floor(jitter)) * 2 - 1;
+      const level = 0.55 - (slope + colour * 0.5) * (f - 0.5) * 0.9 + r * 0.06;
+      path += `${i ? 'L' : 'M'}${i} ${(28 - clamp(level, 0.03, 0.97) * 26).toFixed(2)}`;
+    }
+    return path;
+  }, [type, colour]);
+  return (
+    <svg viewBox="0 0 120 30" preserveAspectRatio="none" className="sp-svg" role="img" aria-label={`${type} noise spectrum`}>
+      <path d={d} fill="none" stroke={on ? color : 'var(--sp-fg3)'} strokeWidth="1" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Velocity → loudness for the current sensitivity (the voice: level × (1 − s + s·v²)). */
+export function VelocityCurve({ sens, level = 1, color = '#ffb347' }) {
+  const d = useMemo(() => {
+    let path = '';
+    for (let i = 0; i <= 24; i++) {
+      const v = i / 24;
+      const g = (1 - sens + sens * v * v) * Math.min(1, level / 0.8);
+      path += `${i ? 'L' : 'M'}${(3 + v * 50).toFixed(1)} ${(41 - clamp(g, 0, 1) * 36).toFixed(1)}`;
+    }
+    return path;
+  }, [sens, level]);
+  return (
+    <svg viewBox="0 0 56 46" className="sp-svg" role="img" aria-label="Velocity response">
+      <rect x="3" y="5" width="50" height="36" fill="none" stroke="var(--sp-line)" strokeWidth="1" />
+      <path d="M3 41 L53 5" stroke="var(--sp-line)" strokeWidth="1" strokeDasharray="2 3" />
+      <path d={`${d}L53 41L3 41Z`} fill={hexA(color, 0.14)} />
+      <path d={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * The signal flow, small: each source wired to filter 1, filter 2, both or straight to the amp, and the two filters in
+ * series or side by side. Click (or Enter on) a source to send it to the next place.
+ */
+export function SignalFlow({ sources, f1On, f2On, route, onCycle }) {
+  const serial = route === 'serial';
+  const F1 = [104, 26];
+  const F2 = [104, 74];
+  const AMP = [172, 50];
+  const ys = sources.map((_, i) => 10 + i * (80 / Math.max(1, sources.length - 1)));
+  const curve = (x1, y1, x2, y2) => `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`;
+  const wire = (on) => ({ stroke: 'var(--sp-accent-hover)', strokeOpacity: on ? 1 : 0.15, strokeWidth: on ? 1.6 : 1 });
+  const node = ([x, y], text, on) => (
+    <g key={text}>
+      <rect x={x - 15} y={y - 9} width={30} height={18} rx={4} fill={on ? 'var(--sp-control)' : 'var(--sp-panel)'} stroke={on ? 'var(--sp-accent)' : 'var(--sp-line)'} />
+      <text x={x} y={y + 3} textAnchor="middle" className="sp-flow-text" fill={on ? 'var(--sp-fg)' : 'var(--sp-fg3)'}>{text}</text>
+    </g>
+  );
+  return (
+    <svg viewBox="0 0 196 100" className="sp-svg sp-flow" role="group" aria-label={`Signal flow: filters in ${route}`}>
+      <g fill="none" strokeLinecap="round">
+        {sources.map((s, i) => {
+          if (!s.on) return null;
+          const to = s.dest === 'f1' ? [F1] : s.dest === 'f2' ? [F2] : s.dest === 'both' ? [F1, F2] : [AMP];
+          return to.map(([x, y]) => <path key={`${s.id}${x}${y}`} d={curve(34, ys[i], x === AMP[0] ? AMP[0] - 12 : x - 15, y)} stroke={s.color} strokeOpacity={0.85} strokeWidth={1.3} />);
+        })}
+        {serial ? <path d={`M${F1[0]} ${F1[1] + 9} L${F2[0]} ${F2[1] - 9}`} {...wire(true)} /> : <path d={curve(F1[0] + 15, F1[1], AMP[0] - 12, AMP[1])} {...wire(true)} />}
+        {serial && <path d={`M${F2[0] - 3.5} ${F2[1] - 13.5} L${F2[0]} ${F2[1] - 9} L${F2[0] + 3.5} ${F2[1] - 13.5}`} {...wire(true)} />}
+        <path d={curve(F2[0] + 15, F2[1], AMP[0] - 12, AMP[1])} {...wire(true)} />
+      </g>
+      {sources.map((s, i) => (
+        <g key={s.id} className={`sp-flow-src ${s.on ? '' : 'off'}`} data-source={s.id} role="button" tabIndex={0} onClick={() => onCycle(s.id)}
+          aria-label={`${s.label} goes to ${s.dest === 'direct' ? 'the amp' : s.dest === 'both' ? 'both filters' : s.dest === 'f1' ? 'filter 1' : 'filter 2'}: change`}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCycle(s.id); } }}>
+          <title>{`${s.label} → ${s.dest === 'direct' ? 'straight to the amp' : s.dest === 'both' ? 'both filters' : s.dest === 'f1' ? 'filter 1' : 'filter 2'} (click to send it elsewhere)`}</title>
+          <rect x={4} y={ys[i] - 7} width={30} height={14} rx={3} fill="var(--sp-control)" stroke={s.on ? s.color : 'var(--sp-line)'} />
+          <text x={19} y={ys[i] + 3} textAnchor="middle" className="sp-flow-text" fill={s.on ? s.color : 'var(--sp-fg3)'}>{s.short}</text>
+        </g>
+      ))}
+      {node(F1, 'F1', f1On)}
+      {node(F2, 'F2', f2On)}
+      <path d={`M${AMP[0] - 12} ${AMP[1] - 9} L${AMP[0] + 6} ${AMP[1]} L${AMP[0] - 12} ${AMP[1] + 9} Z`} fill="var(--sp-control)" stroke="var(--sp-accent)" strokeLinejoin="round" />
+      <text x={AMP[0] - 3} y={AMP[1] + 21} textAnchor="middle" className="sp-flow-text small" fill="var(--sp-fg3)">AMP</text>
+    </svg>
+  );
 }

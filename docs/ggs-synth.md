@@ -144,7 +144,40 @@ from template) is a 24-bar piece on six of them with a full performance written 
 
 ## The editor
 
-Select a GGS channel and open **Channel settings** (F8).
+Select a GGS channel and open **Channel settings** (F8). The editor opens on the **synth page**: the whole patch on one
+screen, arranged and coloured like the /synth editor. The **classic tabs** described further down are one click away
+(⋯ → *Classic view*; *Synth page* brings you back) and the choice is remembered.
+
+### The synth page
+
+[![The synth page](screenshots/ggs-page.png)](screenshots/ggs-page.png)
+
+| Row | Modules |
+|---|---|
+| Header | the preset (name, description, ‹ Presets n/N ›), the eight **macros** (drag a macro's number onto a knob), the voice (Mode poly / mono / legato, Poly, Glide, Quality), the output (**play**: hold to sound the step note, drag up for pressure and sideways for slide; Master; the number of sounding voices) and the **⋯** menu |
+| Sources | **Osc A · B · C**: power, the wavetable (click its name for the grid of all 46), the table drawn as a stack of frames with the playing one lit; Oct, Semi, Fine, Phase, Rand and where it goes (To) in small boxes; Position, Pos sprd (where the unison copies sit in the table), Warp (its mode under the knob), Level, Pan; the unison copies fanned out by law and stack; Voices, Detune, Blend, Spread, FM (its source under the knob). **Sub** and **Noise** stacked, each with its picture |
+| Filters | **Filter 1 · 2** (power, the model, the measured response with its handle, Cutoff and Resonance, Drive, Key trk, Morph), **Routing** (where each source goes — click one to send it elsewhere; *serial ⇄* switches the filters), **Amp** (velocity → loudness, Level, Vel sens, Rel vel) |
+| Modulators | **Envelopes**, **LFOs**, **Chaos**: tabs in the title (dimmed when not routed), a chip to drag the source onto a knob, the shape to edit by hand (envelope nodes, drawn LFO steps) or watched moving with the note |
+| Mod sources | every source with a trace of what it just did; drag one onto any knob |
+| Dock | **FX rack** (drive, chorus, stereo delay, reverb); **Mod matrix** and **All parameters** open upwards over the page, × closes them |
+
+Every knob is the same control as in the classic tabs: it shows its value while you touch it, wears a ring per route,
+a dot where modulation has it, takes a dropped source, and right-click gives *Modulate with*, *Show in the matrix* and
+*Reset*. The value boxes are dragged up and down (Shift = fine), take the arrow keys and a double-click resets them.
+
+The page is drawn at one size and **scaled to fit its window**: it never scrolls and nothing overlaps, in a small
+window or on a big screen. On this page the channel's own settings fold into the window's title bar (volume, pan,
+mixer track; *Channel settings…* opens the rest and the keyboard).
+
+**Arranging.** ⋯ → *Arrange modules*: each module gets a grip to drag it onto another (it goes before it) or below the
+rows (a new row), ◀ ▶ to move it in its row, ▲ ▼ to move it to the row above or below, − + to make it narrower or
+wider, × to hide it; *+ Add a module* brings a hidden one back (the output scope and the touch pad are hidden at
+first). The ⋯ menu also has the built-in layouts (*Synth*, *Oscillators*, *Filters, routing & envelopes*, *Modulation*,
+*Sound & scope*, *Minimal*), *Save layout as…* (kept in this browser, up to 30), *Delete* and *Revert*, and **Full
+screen**: the page alone on the whole screen, for recording a video (Esc or *Exit full screen* to leave; menus and
+dialogs still open above it).
+
+### The classic tabs
 
 - **Presets**: the name in the header opens a browser — categories, and a search that looks at names, descriptions,
   macro names and tags worked out from each patch (`acid`, `fm`, `unison`, `mono glide`, `tempo-synced` …). ↑ ↓ load
@@ -194,43 +227,6 @@ The header also has the eight macros with their names, gain, and **Export / Impo
 
 The **touch pad** at the bottom plays the patch the way an MPE controller would: hold it to sound the step note,
 move up for pressure and right for slide.
-
-### Overview: the whole patch on one screen
-
-The last tab, **Overview**, shows the patch as pictures, every part in a module of its own — made for looking at a
-sound, and for recording it (a screen video, a clip for social media). The other tabs are unchanged; the Overview uses
-the same controls, so a knob there has its rings, its live dot and its modulation menu, takes a dragged source and is
-undone like any other.
-
-[![The Overview tab](screenshots/ggs-overview.png)](screenshots/ggs-overview.png)
-
-| Module | What it shows |
-|---|---|
-| Preset & macros | the preset browser, the eight macros, level, gain, the voice (poly / mono, glide), Export / Import |
-| Oscillator A · B · C | the wavetable as a stack of frames, the frame being played lit (it moves when the position is modulated); the unison copies spread by their law and stack; position, level, detune, warp, FM |
-| Sub & noise | the sub's wave next to the noise's colour (its spectrum tilt) |
-| Filter 1 · 2 | the measured response, with the handle to drag |
-| Routing | the signal flow: each source wired to filter 1, filter 2, both or straight to the amp. **Click a source** to send it to the next place, **click serial ⇄ parallel** to connect the filters the other way |
-| Amp & voice | the amp envelope (envelope 1), velocity, glide, polyphony, mono / legato, quality |
-| Envelopes · LFOs · Chaos | one at a time (chips 1–4, dimmed when not routed): the envelope to shape by hand, the LFO and the chaos path moving with the note that sounds |
-| Mod sources | every source as a draggable chip with its last moments drawn as a small trace |
-| Mod matrix | the routes, each with its depth as a slider |
-| Effects | drive (its curve), chorus (the two wobbling copies), delay (the repeats fading), reverb (the tail) |
-| Output scope | the channel's sound right now: waveform and spectrum (an analyser off the channel's fader; it does not change what you hear) |
-| Touch pad | the pad, to play the patch from the screen |
-
-**Arranging.** Press **Arrange**: each module gets a grip to drag it to another place (it goes before the module it is
-dropped on, or at the end), ◀ ▶ to move it one place, − + to make it narrower or wider (2 to 12 columns of a
-12-column grid) and × to hide it; **+ Add a module** brings a hidden one back. **Layout** has ready-made arrangements
-(*Whole patch*, *Oscillators*, *Filters, routing & envelopes*, *Modulation*, *Sound & scope*, *Minimal*) and the ones you
-save with **Save as…** (kept in this browser, with the arrangement you were using; up to 30, and a layout saved in
-another tab shows up here too). **Full screen** shows only the modules, bigger, over the whole page (and in the
-browser's full screen where it has one), with the toolbar out of the way until you point at it; menus and dialogs
-still open above it. Esc or *Exit full screen* to leave. In a narrow window the modules fall into two columns, then
-one (their widths are then set by the window).
-
-Pictures that move with the note only redraw what moved, and stop while scrolled out of sight; the scope's analyser is
-disconnected when the tab closes.
 
 A knob turned while notes sound changes them immediately. Changes to what a voice is made of — switching an
 oscillator, picking another wavetable or filter model, changing the routing — are **click-free**: that part of the

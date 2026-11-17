@@ -838,6 +838,11 @@ export class AudioEngine {
     s.scope = null;
   }
 
+  /** How many notes a GGS channel is sounding right now (its voices, releases included), or null without a rig. */
+  ggsVoices(channelId) {
+    return this.strips.get(channelId)?.ggs?.voices.size ?? null;
+  }
+
   /** Where the modulation of a GGS channel's newest note stands: Float32Array [sources…, targets…], or null. */
   ggsLive(channelId) {
     return this.strips.get(channelId)?.ggs?.live ?? null;

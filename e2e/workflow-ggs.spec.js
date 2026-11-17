@@ -21,6 +21,8 @@ test.beforeAll(async ({ browser, baseURL }) => {
   else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
+  // these tests drive the classic tabs of the synth editor (the synth page has its own spec)
+  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'classic'));
   claude = await connectMcp(baseURL);
 });
 test.afterAll(async () => {

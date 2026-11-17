@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { filterResponse } from '@greanteadawy/synth-dsp';
 import { formatValue } from '../ui/Knob.jsx';
+import { pixelRatio } from './displays.jsx';
 
 const F_MIN = 20;
 const F_MAX = 20000;
@@ -10,7 +11,9 @@ const DB_TOP = 30;
 const DB_BOTTOM = -54;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, onChange, width = 236, height = 96 }) {
+/** `look="page"`: the synth page's colours (violet curve with a gradient under it, labelled grid, glowing handle). */
+export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, onChange, width = 236, height = 96, look }) {
+  const page = look === 'page';
   const ref = useRef(null);
   const drag = useRef(null);
   const xOf = (hz) => (Math.log(hz / F_MIN) / Math.log(F_MAX / F_MIN)) * width;
@@ -28,13 +31,14 @@ export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, 
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = pixelRatio();
     cv.width = width * dpr;
     cv.height = height * dpr;
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, width, height);
     g.globalAlpha = on ? 1 : 0.4;
+    if (page) { drawPage(g, width, height, curve, cutoff, on, xOf, yOf); return; }
     // grid: decades and 0 dB
     g.lineWidth = 1;
     g.font = '8.5px ui-monospace, Menlo, monospace';
@@ -116,4 +120,59 @@ export function FilterGraph({ type, cutoff, resonance, drive, morph, on = true, 
       <span className="ggs-fgraph-read">{formatValue(cutoff, { unit: 'Hz' })} · res {resonance.toFixed(2)}</span>
     </div>
   );
+}
+
+/** The synth page's drawing: grid lines at every octave mark, dB labels, a gradient fill and a glowing cutoff handle. */
+function drawPage(g, width, height, curve, cutoff, on, xOf, yOf) {
+  const line = 'rgba(42,48,64,';
+  g.lineWidth = 1;
+  for (const hz of [50, 100, 200, 500, 1000, 2000, 5000, 10000]) {
+    const x = Math.round(xOf(hz)) + 0.5;
+    g.strokeStyle = `${line}${hz === 100 || hz === 1000 || hz === 10000 ? 0.9 : 0.4})`;
+    g.beginPath(); g.moveTo(x, 4); g.lineTo(x, height - 12); g.stroke();
+  }
+  for (const db of [24, 12, 0, -12, -24, -36, -48]) {
+    const y = Math.round(yOf(db)) + 0.5;
+    g.strokeStyle = db === 0 ? 'rgba(58,66,87,0.95)' : `${line}0.45)`;
+    g.beginPath(); g.moveTo(0, y); g.lineTo(width, y); g.stroke();
+  }
+  g.font = '500 8.5px ui-monospace, Menlo, monospace';
+  g.fillStyle = '#5c6578';
+  g.textAlign = 'center';
+  for (const [hz, text] of [[100, '100'], [1000, '1k'], [10000, '10k']]) g.fillText(text, xOf(hz), height - 3);
+  g.textAlign = 'left';
+  g.fillText('+12', 4, yOf(12) - 2);
+  g.fillText('0 dB', 4, yOf(0) - 2);
+  g.fillText('−24', 4, yOf(-24) - 2);
+  const n = curve.freqs.length - 1;
+  const trace = () => {
+    g.beginPath();
+    for (let i = 0; i < n; i++) {
+      const y = clamp(yOf(curve.db[i]), 2, height - 10);
+      if (i) g.lineTo(i * 2, y); else g.moveTo(0, y);
+    }
+  };
+  const tone = on ? '124,140,255' : '92,101,120';
+  trace();
+  g.lineTo(width, height - 10); g.lineTo(0, height - 10); g.closePath();
+  const fill = g.createLinearGradient(0, 4, 0, height - 10);
+  fill.addColorStop(0, `rgba(${tone},0.32)`);
+  fill.addColorStop(1, `rgba(${tone},0.02)`);
+  g.fillStyle = fill;
+  g.fill();
+  trace();
+  g.lineJoin = 'round';
+  g.strokeStyle = on ? '#96a3ff' : '#5c6578';
+  g.lineWidth = 1.75;
+  g.stroke();
+  const hx = xOf(clamp(cutoff, F_MIN, F_MAX));
+  const hy = clamp(yOf(curve.db[n]), 6, height - 12);
+  g.fillStyle = `rgba(${tone},0.3)`;
+  g.beginPath(); g.arc(hx, hy, 6, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#fff';
+  g.beginPath(); g.arc(hx, hy, 2.5, 0, Math.PI * 2); g.fill();
+  g.font = '500 9px ui-monospace, Menlo, monospace';
+  g.textAlign = 'right';
+  g.fillStyle = '#9aa3b5';
+  g.fillText(formatValue(cutoff, { unit: 'Hz' }), width - 4, 12);
 }

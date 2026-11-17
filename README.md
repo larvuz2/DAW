@@ -36,10 +36,10 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
   (Lorenz, Rössler, drift, Turing machine), 8 macros, a 64-route modulation matrix and built-in drive / chorus /
   delay / reverb. Its editor is hands-on: drag a source onto a knob and it wears a ring; a dot on the ring shows
   where the control really is while a note sounds. Drag the nodes of an envelope, the handle on a filter's measured
-  response; browse presets and wavetables by search and sight; read every route in real units. The **Overview** tab
-  puts the whole patch on one screen as pictures (wavetable stacks, unison fans, filter curves, the signal flow, live
-  LFOs and chaos, the channel's scope) in modules you can rearrange, resize, hide and save as layouts — full screen
-  for recording a video. 30 presets levelled by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
+  response; browse presets and wavetables by search and sight; read every route in real units. It opens on the
+  **synth page**: the whole patch on one screen, laid out and coloured like the /synth editor and scaled to fit any
+  window, in modules you can rearrange, resize, hide and save as layouts — full screen for recording a video; the
+  classic tabs are one click away. 30 presets levelled by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
 - **Per-note expression (MPE-style)** — every note has its own pitch, pressure and slide curve and a release
   velocity: draw them in the piano roll's expression lane, play them in from an MPE controller (or any keyboard),
   have Claude write them. Bend one note of a chord; pitch curves work on every instrument.
@@ -155,7 +155,7 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
 | [![Wave editor](docs/screenshots/wave-editor.png)](docs/screenshots/wave-editor.png) **Wave editor** — select, cut, fade, stretch, pitch shift | [![Pitch correction](docs/screenshots/pitch-correction.png)](docs/screenshots/pitch-correction.png) **Pitch correction** — auto-tune and notes moved by hand |
 | [![Recorder](docs/screenshots/recorder.png)](docs/screenshots/recorder.png) **Recorder** — takes over the song, placed on the playlist | [![About](docs/screenshots/about.png)](docs/screenshots/about.png) **About** — app name and version (ⓘ, top right) |
 | [![GGS Synth](docs/screenshots/ggs-synth.png)](docs/screenshots/ggs-synth.png) **GGS Synth** — wavetable oscillators, modulation rings with live dots, the source bar, eight macros, touch pad | [![Expression](docs/screenshots/expression.png)](docs/screenshots/expression.png) **Per-note expression** — pitch curves over the notes, the expression lane |
-| [![GGS Synth Overview](docs/screenshots/ggs-overview.png)](docs/screenshots/ggs-overview.png) **GGS Synth Overview** — the whole patch on one screen, modules you arrange | |
+| [![GGS Synth page](docs/screenshots/ggs-page.png)](docs/screenshots/ggs-page.png) **GGS Synth page** — the whole patch on one screen, modules you arrange | |
 
 ## Quick start
 

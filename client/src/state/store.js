@@ -28,7 +28,7 @@ function saveUiPrefs(state) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
       windows: state.windows, snap: state.snap, followClaude: state.followClaude, metronome: state.metronome,
-      browserOpen: state.browserOpen, kbOctave: state.kbOctave, recordQuantize: state.recordQuantize
+      browserOpen: state.browserOpen, kbOctave: state.kbOctave, recordQuantize: state.recordQuantize, synthView: state.synthView
     }));
   } catch { /* storage unavailable */ }
 }
@@ -124,6 +124,7 @@ export const useStore = create((set, get) => ({
   followClaude: prefs.followClaude ?? true,
   kbOctave: prefs.kbOctave ?? 4,
   recordQuantize: prefs.recordQuantize ?? true,
+  synthView: prefs.synthView === 'classic' ? 'classic' : 'page', // the GGS Synth editor: one page, or the classic tabs
   toasts: [],
   activity: [],
   contextMenu: null,

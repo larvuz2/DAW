@@ -66,16 +66,23 @@ export function ChannelSettings() {
   const st = useStore.getState();
   const ch = project.channels.find((c) => c.id === channelId) || project.channels[0];
   const isGgs = ch?.instrument.kind === 'ggs';
+  const synthView = useStore((s) => s.synthView);
+  const [channelOpen, setChannelOpen] = useState(false);
   // the GGS Synth editor needs room: widen a narrow Channel window once when such a channel is shown
   useEffect(() => {
     if (!isGgs) return;
     const s = useStore.getState();
     const w = s.windows.channelSettings;
-    if (w.open && !w.max && w.w < 700) s.openWindow('channelSettings', { w: Math.min(820, Math.max(700, window.innerWidth - 300)), h: Math.max(w.h, Math.min(640, window.innerHeight - 90)), x: Math.max(8, Math.min(w.x, window.innerWidth - 1100)) });
-  }, [isGgs, ch?.id]);
+    if (!w.open || w.max) return;
+    // the synth page is drawn for a big window (it scales to any size, but reads best large)
+    if (s.synthView === 'page' && (w.w < 1000 || w.h < 600)) s.openWindow('channelSettings', { x: 8, y: 8, w: Math.max(w.w, window.innerWidth - 16), h: Math.max(w.h, window.innerHeight - 70) });
+    else if (w.w < 700) s.openWindow('channelSettings', { w: Math.min(820, Math.max(700, window.innerWidth - 300)), h: Math.max(w.h, Math.min(640, window.innerHeight - 90)), x: Math.max(8, Math.min(w.x, window.innerWidth - 1100)) });
+  }, [isGgs, ch?.id, synthView]);
   if (!ch) {
     return <Window name="channelSettings" title="Channel settings" icon="sliders"><p className="empty-hint">No channel selected.</p></Window>;
   }
+  // the synth page fills the window: the channel's own settings fold into one line above it (and open on demand)
+  const page = isGgs && synthView === 'page';
   const plugin = ch.instrument.kind === 'plugin' ? plugins.find((p) => p.id === ch.instrument.plugin) || null : null;
   const pluginError = plugin ? pluginErrors[plugin.id] || null : null;
   const instrumentPlugins = plugins.filter((p) => p.enabled && p.type === 'instrument');
@@ -92,12 +99,26 @@ export function ChannelSettings() {
   const kbBase = Math.max(0, Math.min(103, Math.floor((ch.rootKey - 12) / 12) * 12 + 12));
 
   const toolbar = (
-    <Select value={ch.id} onChange={(id) => st.selectChannel(id)} options={project.channels.map((c) => ({ value: c.id, label: c.name }))} title="Channel" />
+    <>
+      <Select value={ch.id} onChange={(id) => st.selectChannel(id)} options={project.channels.map((c) => ({ value: c.id, label: c.name }))} title="Channel" />
+      {page && (
+        <div className="cs-strip" data-nodrag>
+          <span className="cs-strip-swatch" style={{ background: ch.color }} />
+          <Knob value={ch.volume} min={0} max={1.25} def={0.78} label="Volume" size={22} onChange={(v) => upd({ volume: v }, 'vol')} title={`Volume ${Math.round(ch.volume * 100)}%`} />
+          <Knob value={ch.pan} min={-1} max={1} def={0} bipolar label="Pan" size={22} onChange={(v) => upd({ pan: v }, 'pan')} title={`Pan ${ch.pan.toFixed(2)}`} />
+          <Select value={ch.mixerTrack} onChange={(v) => upd({ mixerTrack: Number(v) })} title="Mixer track"
+            options={project.mixer.map((m, i) => ({ value: i, label: i === 0 ? 'Master' : `${i}. ${m.name}` }))} />
+          <button className={`btn tiny ${channelOpen ? 'on' : ''}`} aria-expanded={channelOpen} onClick={() => setChannelOpen(!channelOpen)}
+            title="This channel's settings: name, colour, pitch, filter, swing, cut group, instrument, the keyboard">{channelOpen ? 'Hide channel settings' : 'Channel settings…'}</button>
+        </div>
+      )}
+    </>
   );
 
   return (
     <Window name="channelSettings" title={`Channel — ${ch.name}`} icon="sliders" toolbar={toolbar} minW={360} minH={300} className="channel-settings">
-      <div className="cs-body">
+      <div className={`cs-body ${page && !channelOpen ? 'page' : ''}`}>
+        {(!page || channelOpen) && (<>
         <div className="cs-top">
           <CommitInput className="cs-name" value={ch.name} onCommit={(name) => upd({ name })} aria-label="Channel name" />
           <div className="swatches">
@@ -165,6 +186,7 @@ export function ChannelSettings() {
             {pluginError && <p className="form-error">Plugin error: {pluginError}</p>}
           </div>
         </fieldset>
+        </>)}
         {isGgs && <SynthEditor channel={ch} />}
         {!isGgs && <ParamControls defs={def.params} values={ch.instrument.params} color={ch.color} samples={samples}
           onSamplePick={async () => {
@@ -175,7 +197,7 @@ export function ChannelSettings() {
           }}
           onSampleEdit={(id) => openSampleEditor(id)}
           onChange={(key, v) => upd({ instrument: { params: { [key]: v } } }, `p:${key}`)} />}
-        <MiniKeyboard channelId={ch.id} base={kbBase} />
+        {(!page || channelOpen) && <MiniKeyboard channelId={ch.id} base={kbBase} />}
       </div>
     </Window>
   );

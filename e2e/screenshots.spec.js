@@ -263,6 +263,7 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
   const claude = await connectMcp(baseURL);
+  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'classic'));
   await claude.call('create_project', { name: 'Expressive Synths', template: 'expressive' });
   await expect(page).toHaveTitle(/Expressive Synths/);
   const lead = await page.evaluate(() => {
@@ -327,14 +328,21 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await page.locator('.ggs-wt-panel').scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${OUT}/ggs-wavetables.png`, clip });
   await page.keyboard.press('Escape');
-  // the Overview tab: the whole patch on one screen, as pictures (a wider window: it is a 12-column grid)
+  // the synth page: the whole patch on one screen, arranged like the /synth editor (full screen, as for a video)
+  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'page'));
   await layout(page, { channelSettings: [10, 10, 1580, 880] });
-  await tab('Overview');
-  await hold();
-  await page.locator('.ggs-tabs').evaluate((el) => el.scrollIntoView({ block: 'start' }));
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: `${OUT}/ggs-overview.png`, clip: { x: 0, y: 44, width: 1600, height: 846 } });
+  await expect(page.locator('.gsp')).toBeVisible();
+  await page.locator('.sp-menu-btn').first().click();
+  await page.locator('.context-menu .cm-item', { hasText: 'Full screen' }).click();
+  await expect(page.locator('.gsp.solo')).toBeVisible();
+  await page.locator('.gsp.solo .sp-play').hover();
+  await page.mouse.down();
+  await page.mouse.move(800, 500);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${OUT}/ggs-page.png` });
   await page.mouse.up();
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'classic'));
   // the piano roll: pitch curves over the notes, the pitch lane underneath
   await layout(page, { pianoRoll: [10, 10, 1580, 600] });
   await page.locator('.pr-lane').selectOption('pitch');

@@ -61,13 +61,15 @@ export const SOURCE_MIME = 'application/x-ggs-source';
  */
 export function Knob({
   value, min = 0, max = 1, curve, def, step, onChange, size = 30, label, unit, color = 'var(--accent)',
-  bipolar = false, title, disabled = false, showValue = false, rings, live, onAltDrag, onDropSource, onContextMenu, className = ''
+  bipolar = false, title, disabled = false, showValue = false, rings, live, onAltDrag, onDropSource, onContextMenu, className = '',
+  look, labelSlot, ringColor
 }) {
   const ref = useRef(null);
   const drag = useRef(null);
   const dot = useRef(null);
   const alt = useRef(null); // the Alt-drag in progress: { total, sent }
   const [over, setOver] = useState(false);
+  const [readout, setReadout] = useState(false); // the panel look shows the value instead of the label while touched
   const emit = useRafCallback((v) => onChange?.(v));
   const emitAlt = useRafCallback(() => {
     const a = alt.current;
@@ -94,6 +96,7 @@ export function Knob({
     if (disabled || e.button !== 0) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    if (look === 'panel') setReadout(true);
     drag.current = { y: e.clientY, n, alt: e.altKey && !!onAltDrag };
     alt.current = drag.current.alt ? { total: 0, sent: null } : null;
   };
@@ -109,7 +112,7 @@ export function Knob({
     const dy = drag.current.y - e.clientY;
     setNorm(drag.current.n + dy / (e.shiftKey ? 800 : 160));
   };
-  const onPointerUp = () => { drag.current = null; };
+  const onPointerUp = () => { drag.current = null; if (look === 'panel') setReadout(false); };
   const onWheel = (e) => {
     if (disabled) return;
     e.stopPropagation();
@@ -160,7 +163,7 @@ export function Knob({
 
   // the live dot follows the audio thread without re-rendering: one attribute write per frame, when it moved
   useEffect(() => {
-    if (!live) return undefined;
+    if (!live || look === 'panel') return undefined; // (the panel knob moves its own dot)
     let shown = null;
     return onFrame(() => {
       const el = dot.current;
@@ -175,7 +178,15 @@ export function Knob({
       el.setAttribute('cy', c + r * Math.sin(deg));
       el.style.display = '';
     });
-  }, [live, min, max, curve, c, r]);
+  }, [live, min, max, curve, c, r, look]);
+
+  if (look === 'panel') {
+    return (
+      <PanelKnob {...{ value, min, max, curve, step, label, unit, color, bipolar, disabled, rings, live, onDropSource, onContextMenu, className, labelSlot, ringColor, readout, setReadout, over, setOver, dot }}
+        size={size === 'md' ? 'md' : 'sm'} tip={title || `${label ? `${label}: ` : ''}${formatValue(value, { unit, step })}`} n={n}
+        handlers={{ onPointerDown, onPointerMove, onPointerUp, onWheel, onDoubleClick, onKeyDown }} />
+    );
+  }
 
   const dragOver = (e) => {
     if (!onDropSource || disabled || !e.dataTransfer.types.includes(SOURCE_MIME)) return;
@@ -209,6 +220,125 @@ export function Knob({
       </svg>
       {label && <div className="knob-label">{label}</div>}
       {showValue && <div className="knob-value">{formatValue(value, { unit, step })}</div>}
+    </div>
+  );
+}
+
+// ---- the panel look (the synth page): a track with a value arc, a shaded cap with a pointer, the label under it that
+// shows the value while the knob is touched. Same behaviour as the knob above; only the drawing differs.
+const GEOMETRY = {
+  sm: { r: 11, arc: 14.5, stroke: 2, ring: 18, ringGap: 2.5, ringStroke: 1.25, w: 44, h: 40, cx: 22, cy: 22, pointer: 1.5 },
+  md: { r: 16.5, arc: 21, stroke: 2.5, ring: 25, ringGap: 3, ringStroke: 1.5, w: 62, h: 54, cx: 31, cy: 30, pointer: 2 }
+};
+const START = 135;
+const SWEEP = 270;
+const angleAt = (n) => START + SWEEP * Math.max(0, Math.min(1, n));
+const polar = (cx, cy, r, deg) => [cx + r * Math.cos((deg * Math.PI) / 180), cy + r * Math.sin((deg * Math.PI) / 180)];
+function arcPath(cx, cy, r, from, to) {
+  const a0 = angleAt(Math.min(from, to));
+  const a1 = angleAt(Math.max(from, to));
+  const [x0, y0] = polar(cx, cy, r, a0);
+  const [x1, y1] = polar(cx, cy, r, a1);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+let gradients = 0;
+
+function PanelKnob({
+  value, min, max, curve, step, label, unit, color, bipolar, disabled, rings, live, onDropSource, onContextMenu, className, labelSlot, ringColor,
+  readout, setReadout, over, setOver, dot, size, tip, n, handlers
+}) {
+  const g = GEOMETRY[size];
+  const [hover, setHover] = useState(false);
+  const [gid] = useState(() => `kg${++gradients}`);
+  const accent = color || 'var(--sp-accent)';
+  const zero = bipolar ? Math.max(0, Math.min(1, toNorm(0, min, max, curve))) : 0;
+  const normOf = (v) => Math.max(0, Math.min(1, toNorm(v, min, max, curve)));
+  const [p0x, p0y] = polar(g.cx, g.cy, g.r * 0.36, angleAt(n));
+  const [p1x, p1y] = polar(g.cx, g.cy, g.r * 0.84, angleAt(n));
+  const text = formatValue(value, { unit, step });
+  const showValue = readout || (hover && labelSlot === undefined);
+
+  useEffect(() => {
+    if (!live) return undefined;
+    let shown = null;
+    return onFrame(() => {
+      const el = dot.current;
+      if (!el) return;
+      const v = live();
+      const at = v === null || v === undefined || Number.isNaN(v) ? null : Math.round(normOf(v) * 500) / 500;
+      if (at === shown) return;
+      shown = at;
+      if (at === null) { el.style.display = 'none'; return; }
+      const [x, y] = polar(g.cx, g.cy, g.arc, angleAt(at));
+      el.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`);
+      el.style.display = '';
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, min, max, curve, size]);
+
+  const dragOver = (e) => {
+    if (!onDropSource || disabled || !e.dataTransfer.types.includes(SOURCE_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'link';
+    if (!over) setOver(true);
+  };
+  const dropped = (e) => {
+    setOver(false);
+    const source = e.dataTransfer.getData(SOURCE_MIME);
+    if (!source || !onDropSource || disabled) return;
+    e.preventDefault();
+    onDropSource(source);
+  };
+  return (
+    <div className={`knob panel ${size} ${disabled ? 'disabled' : ''} ${onDropSource ? 'assignable' : ''} ${over ? 'drop' : ''} ${rings?.length ? 'modulated' : ''} ${className}`}
+      title={tip} role="slider" tabIndex={disabled ? -1 : 0} aria-label={label || tip} aria-valuemin={min} aria-valuemax={max}
+      aria-valuenow={typeof value === 'number' ? value : undefined} aria-valuetext={text} aria-disabled={disabled || undefined}
+      onKeyDown={handlers.onKeyDown} onFocus={(e) => e.currentTarget.matches(':focus-visible') && setReadout(true)} onBlur={() => setReadout(false)}
+      onContextMenu={onContextMenu} onDragOver={dragOver} onDragLeave={() => setOver(false)} onDrop={dropped}
+      onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
+      <svg width={g.w} height={g.h} viewBox={`0 0 ${g.w} ${g.h}`} onPointerDown={handlers.onPointerDown} onPointerMove={handlers.onPointerMove}
+        onPointerUp={handlers.onPointerUp} onPointerCancel={handlers.onPointerUp} onWheel={handlers.onWheel} onDoubleClick={handlers.onDoubleClick}>
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={hover || readout ? '#3d4459' : '#343a4b'} />
+            <stop offset="1" stopColor="#1e222c" />
+          </linearGradient>
+        </defs>
+        {over && <circle cx={g.cx} cy={g.cy} r={g.arc + g.stroke / 2 + 2} fill={accent} fillOpacity={0.14} stroke={accent} strokeWidth={1.75} />}
+        <path d={arcPath(g.cx, g.cy, g.arc, 0, 1)} fill="none" stroke="var(--sp-control)" strokeWidth={g.stroke} strokeLinecap="round" />
+        {Math.abs(n - zero) > 0.002
+          ? <path d={arcPath(g.cx, g.cy, g.arc, zero, n)} fill="none" stroke={accent} strokeWidth={g.stroke} strokeLinecap="round" />
+          : <circle cx={polar(g.cx, g.cy, g.arc, angleAt(n))[0]} cy={polar(g.cx, g.cy, g.arc, angleAt(n))[1]} r={g.stroke / 2} fill={accent} />}
+        {rings?.slice(0, 3).map((ring, i) => {
+          const rad = g.ring + i * g.ringGap;
+          const lo = normOf(ring.lo);
+          const hi = normOf(ring.hi);
+          const c = ringColor ? ringColor(ring) : ring.color;
+          const [ex, ey] = polar(g.cx, g.cy, rad, angleAt(ring.amount < 0 ? lo : hi));
+          return (
+            <g key={i} className="knob-ring">
+              <path d={arcPath(g.cx, g.cy, rad, 0, 1)} fill="none" stroke={c} strokeOpacity={0.12} strokeWidth={g.ringStroke} strokeLinecap="round" />
+              {hi - lo > 0.002 && <path d={arcPath(g.cx, g.cy, rad, lo, hi)} fill="none" stroke={c} strokeWidth={g.ringStroke} strokeLinecap="round" />}
+              <circle cx={ex} cy={ey} r={g.ringStroke * 0.95} fill={c} />
+            </g>
+          );
+        })}
+        <circle cx={g.cx} cy={g.cy + 1.5} r={g.r} fill="#000" opacity={0.35} />
+        <circle cx={g.cx} cy={g.cy} r={g.r} fill={`url(#${gid})`} stroke="var(--sp-base)" strokeWidth={1} />
+        <circle cx={g.cx} cy={g.cy} r={g.r - 1} fill="none" stroke="#fff" strokeOpacity={0.07} strokeWidth={1} />
+        <line x1={p0x} y1={p0y} x2={p1x} y2={p1y} stroke="var(--sp-fg)" strokeWidth={g.pointer} strokeLinecap="round" />
+        {live && (
+          <g ref={dot} className="knob-live-dot" style={{ display: 'none' }}>
+            <circle r={g.stroke * 1.9} fill={accent} opacity={0.3} />
+            <circle r={g.stroke * 0.95} fill="#fff" />
+          </g>
+        )}
+      </svg>
+      {(label || labelSlot !== undefined) && (
+        <div className="knob-readout">
+          {showValue ? <span className="v">{text}</span> : labelSlot !== undefined ? labelSlot : <span className="l">{label}</span>}
+        </div>
+      )}
     </div>
   );
 }

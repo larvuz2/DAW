@@ -36,7 +36,7 @@ const LIBRARY = Object.keys(GGS_PRESETS).map((name) => {
   };
 });
 
-export function PresetBrowser({ preset, onPick }) {
+export function PresetBrowser({ preset, onPick, compact = false }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
@@ -72,7 +72,9 @@ export function PresetBrowser({ preset, onPick }) {
       <div className="ggs-presets-bar">
         <button className="tbtn small" onClick={() => step(-1)} aria-label="Previous preset" title="Previous preset">‹</button>
         <button className="ggs-presets-name" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="listbox" title="Browse presets">
-          <b>{preset}</b><span>{CATEGORY_LABEL[GGS_PRESET_INFO[preset]?.category] || 'Preset'} ▾</span>
+          {compact
+            ? <b className="compact">Presets <small>{LIBRARY.findIndex((p) => p.name === preset) + 1 || '–'}/{LIBRARY.length}</small></b>
+            : <><b>{preset}</b><span>{CATEGORY_LABEL[GGS_PRESET_INFO[preset]?.category] || 'Preset'} ▾</span></>}
         </button>
         <button className="tbtn small" onClick={() => step(1)} aria-label="Next preset" title="Next preset">›</button>
       </div>

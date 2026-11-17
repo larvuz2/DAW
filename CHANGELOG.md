@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.15.0 — The synth page
+
+**The GGS Synth editor now opens on one page laid out like the /synth editor**, in its colours (deep-space panels,
+the violet accent, a colour per family of modulation sources): the header with the preset, eight macros, the voice
+and the output; the three oscillators with sub and noise; the filters, the routing and the amp; the envelopes, LFOs
+and chaos; the strip of modulation sources; and a dock with the FX rack that opens upwards into the modulation matrix
+or the table of every parameter. Knobs show their value while touched; numbers sit in small boxes; captions run down
+the side of each cluster.
+
+- **One screen, no scrolling, no overlaps.** The page is drawn at one size (rows of fixed heights, like the
+  original) and scaled to fit its window or the screen; a test checks at 1440×900 that no control sits on another,
+  on a picture or outside its module.
+- **Fewer pages.** The channel's own settings fold into the window's title bar; the classic tabs are behind
+  ⋯ → *Classic view* (and *Synth page* brings you back); the choice is remembered.
+- **Still modular.** ⋯ → *Arrange modules*: drag modules within and between rows, move them up or down a row,
+  resize, hide, add back; six built-in layouts and your own (saved in this browser; 0.14 layouts are converted).
+  Full screen for recording a video, with menus and dialogs still on top.
+- **Play from the page:** hold the play button in the header; drag up for pressure and sideways for slide. The voice
+  count beside it is live.
+- The 0.14 *Overview* tab is replaced by the page. The output scope and the touch pad are modules you can add.
+- Under the hood: the knob has a panel look (the classic tabs keep theirs), a value box control, pictures that stay
+  sharp when the page is scaled, and the engine reports how many notes a GGS channel is sounding.
+
 ## 0.14.0 — The synth on one screen
 
 **New tab in the GGS Synth editor: Overview.** The whole patch on one screen, drawn: each oscillator's wavetable as a
