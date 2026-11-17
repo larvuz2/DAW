@@ -231,18 +231,19 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   A shape that works: tension low at the start of a section, highest just before it ends, released on the next
   downbeat.
 - add_chords progression="<library name>" writes one in the project key. voices=4 voice-leads the whole progression
-  (every voice moves as little as it can, parallel fifths and octaves avoided; bass="smooth" allows inversions).
+  (every voice moves as little as it can, parallel fifths and octaves avoided wherever the chords allow;
+  bass="smooth" allows inversions).
 - add_arpeggio: modes up, down, updown, downup, converge, diverge, pinky, thumb, asplayed, random; rate "1/16",
   octaves, gate (>1 = legato), swing, accentEvery or a velocities pattern. add_drum_groove: sixteen styles written onto
   the drum channels there are (missing ones are made); variation and fill are seeded. write_drums takes Euclidean
-  rhythms: "E(5,16)", "E(3,8,2)" rotated, "E(3,8)x4" repeated. The same seed always gives the same part: change it
+  rhythms: "E(5,16)", "E(3,8,2)" started 2 steps later, "E(3,8)x4" repeated. The same seed always gives the same part: change it
   for another take, keep it to get the part you liked again.
 - Tuning: set_tuning puts every pitched instrument in just intonation (system "just": beatless major chords on the
-  root, its fourth and fifth — chords far from the root pay for it), "just7" (4:5:6:7 sevenths), "pythagorean",
+  root, its fourth and fifth — chords far from the root pay for it), "just7" (a 4:5:6:7 seventh on the root), "pythagorean",
   "meantone", a well temperament ("werckmeister", "kirnberger", "vallotti", "young"), "harmonic", other equal
   divisions or a custom table, with a root (default: the song's key) and a4. The root never moves. describe_tuning
   shows the exact ratios, cents and Hz, and with chord=… how fast that chord beats there (compare=[…] for other
-  systems). Drums are not retuned. Use it for drones, pads and slow harmony in one key; leave fast modulating music
+  systems). Drums, tabla, taiko and gongs are not retuned. Use it for drones, pads and slow harmony in one key; leave fast modulating music
   in equal temperament.
 - add_chords voicing: close, open, drop2 (neo-soul/jazz keys), drop3, spread (cinematic), shell (root-3-7, lo-fi
   comping), rootless (3-5-7-9 over a bassline). register keeps the chords around a pitch ("E4" keys, "C5" airy pads).

@@ -30,7 +30,9 @@ that plays what you click and receives what you write.
   and richer versions of the same chord. Click to hear one in place, double-click to use it.
 - **Read from pattern** names the chords the channel plays in the selected pattern. **Write to …** puts the
   progression into it: choose how long each chord lasts, how it is voiced — *Smooth* voices the whole progression at
-  once so that every voice moves as little as possible, avoiding parallel fifths and octaves — and whether it is held
+  once so that every voice moves as little as possible, avoiding parallel fifths and octaves wherever the chords
+  allow (three and four voices come out without any; five or six voices on plain triads keep some doubled octaves in
+  close position) — and whether it is held
   or arpeggiated. One undo takes it back.
 
 ### Library
@@ -44,13 +46,13 @@ that plays what you click and receives what you write.
 ![The Tuning tab](screenshots/harmony-tuning.png)
 
 Every pitched instrument of a project — synths, the GGS Synth, pianos and strings, samplers — plays in the project's
-tuning; drums are not retuned. Playback, renders and exports all follow it.
+tuning; drums, the tabla, the taiko and gongs are not retuned. Playback, renders and exports all follow it.
 
 | System | What it is |
 | --- | --- |
 | Equal temperament | Twelve equal semitones: the standard. With *Steps / octave* other than 12 each key is one step of that many (19, 24, 31, 53…). |
 | Just intonation (5-limit) | Whole-number ratios from 2, 3 and 5. The major chords on the root, its fourth and its fifth are beatless (4:5:6); chords far from the root are not. |
-| Just intonation (7-limit) | With the seventh harmonic: a low, sweet minor seventh (7/4) — a dominant seventh is 4:5:6:7. |
+| Just intonation (7-limit) | With the seventh harmonic: a low, sweet minor seventh (7/4) — the dominant seventh on the root is 4:5:6:7 (on other degrees it is not). |
 | Pythagorean | Stacked pure fifths: strong melodies and open fifths, wide restless thirds (81/64). |
 | Meantone | Fifths narrowed so that major thirds are pure (¼ comma) or nearly so; one "wolf" fifth far from the root. |
 | Werckmeister III, Kirnberger III, Vallotti, Young II | Well temperaments: every key playable, each with its own colour. |
@@ -83,7 +85,7 @@ The scale picker lists the 57 scales by family. Roman numerals and chord symbols
 | `add_chords` | Now also `progression: "<library name>"`, and `voices: 3–6` to voice-lead the whole progression with the solver (`bass: "root"` or `"smooth"`). |
 | `add_arpeggio` | Ten modes (up, down, updown, downup, converge, diverge, pinky, thumb, asplayed, random), rate, octaves, gate, swing, accents or a velocity pattern, seed. |
 | `add_drum_groove` | Sixteen styles (four on the floor, house, techno, backbeat, half-time, breakbeat, boom bap, trap, drum & bass, 2-step, shuffle, reggaeton, bossa nova, synthwave, lo-fi, sparse cinematic) written onto the drum channels there are — missing ones are created. `variation`, `fill`, `swing`, `seed`. |
-| `write_drums` | A track may be a Euclidean rhythm: `"E(5,16)"`, `"E(3,8,2)"` (rotated), `"E(3,8)x4"` (repeated). |
+| `write_drums` | A track may be a Euclidean rhythm: `"E(5,16)"`, `"E(3,8,2)"` (started 2 steps later), `"E(3,8)x4"` (repeated). |
 | `set_tuning` | System, root, A4, and what the system needs (`divisions`, `fraction`, `cents` or `ratios`). Only what is named changes. |
 | `describe_tuning` | The table of a tuning with exact ratios, cents and Hz; with `chord` or `notes`, how pure that chord is (nearest ratio, cents off, beats per second) and, with `compare`, in other systems. Read-only. |
 | `music_theory` | New actions: `scales` (all 57, by family, with descriptions), `chord_types` (all 65), `identify` (name the chord notes make), `euclid`. Any scale name works everywhere ("aeolian", "jazz minor", "phrygian dominant"). |

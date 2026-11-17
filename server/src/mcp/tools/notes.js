@@ -20,7 +20,7 @@ const replaceArg = z.boolean().optional().describe("Default true: first clear th
 const outside = (pt, channelId, lo, hi) => (pt.notes[channelId] || []).filter((n) => n.start < lo || n.start >= hi);
 
 /**
- * "E(5,16)" → the Euclidean rhythm of 5 hits in 16 steps as a step string; "E(3,8,2)" turns it by 2 steps; a
+ * "E(5,16)" → the Euclidean rhythm of 5 hits in 16 steps as a step string; "E(3,8,2)" starts it 2 steps later; a
  * count after it repeats it ("E(3,8)x2" = two bars of tresillo in eighths… of sixteenths). Anything else is returned as it is.
  */
 function euclidSteps(text) {
@@ -281,7 +281,7 @@ export function registerNoteTools({ tool, backend, load }) {
       octave: z.number().int().min(0).max(8).optional().describe('Octave of the first chord root (default 4)'),
       style: z.enum(['block', 'rhythm', 'arp-up', 'arp-down', 'arp-updown', 'broken']).optional(),
       voicing: z.enum(VOICINGS).optional().describe('How the chord tones are spread (default close)'),
-      voices: z.number().int().min(3).max(6).optional().describe('Voice-lead the whole progression with this many voices: every voice moves as little as possible from chord to chord, without parallel fifths and octaves (4 = four-part writing). Replaces voicing/inversion/register; voicing "open" or "spread" lets the upper voices span two octaves'),
+      voices: z.number().int().min(3).max(6).optional().describe('Voice-lead the whole progression with this many voices: every voice moves as little as possible from chord to chord, and parallel fifths and octaves are avoided wherever the chords allow (4 = four-part writing; with 5–6 voices on plain triads some doubled octaves remain — use voicing "open" there). Replaces voicing/inversion/register; voicing "open" or "spread" lets the upper voices span two octaves'),
       bass: z.enum(BASS_RULES).optional().describe('With voices: "root" = the lowest voice plays the root or the slash bass (default), "smooth" = it may take any chord tone if that moves less (inversions)'),
       inversion: z.number().int().min(0).max(4).optional().describe('Inversion of the first chord (the rest are voice-led from it); default 0'),
       register: z.union([z.string(), z.number()]).optional().describe('Center pitch the voicings stay around, e.g. "E4" for mid keys, "C5" for airy pads (default: the first chord at octave)'),

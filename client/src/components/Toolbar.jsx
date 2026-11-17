@@ -98,6 +98,8 @@ export function Toolbar() {
       const m = /^(\d+)\s*\/\s*(\d+)$/.exec(v || '');
       if (m) st.dispatch([{ type: 'project/update', patch: { timeSig: [Number(m[1]), Number(m[2])] } }]);
     } },
+    // (also here because the toolbar button is hidden on a phone)
+    { label: 'Harmony & tuning…', onClick: () => st.openWindow('harmony') },
     { label: 'Versions…', onClick: () => st.openWindow('versions') },
     { label: 'Save a copy', onClick: async () => {
       const p = await api.duplicateProject(project.id, `${project.name} (copy)`);

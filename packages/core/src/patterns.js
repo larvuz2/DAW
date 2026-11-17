@@ -92,7 +92,7 @@ export function arpeggiate(events, {
 // Euclidean rhythms
 
 /**
- * `pulses` hits spread as evenly as possible over `steps` (Bjorklund's algorithm), turned by `rotation` steps:
+ * `pulses` hits spread as evenly as possible over `steps` (Bjorklund's algorithm), started `rotation` steps later:
  * euclid(8, 3) = x--x--x- (tresillo), euclid(8, 5) = cinquillo, euclid(16, 5) = bossa nova, euclid(12, 7) = a West
  * African bell. → an array of booleans.
  */
@@ -111,8 +111,9 @@ export function euclid(steps, pulses, rotation = 0) {
     b = rest;
   }
   const flat = [...a, ...b].flat();
+  // (rotation r: the rhythm starts r steps later — what was on step 0 is on step r)
   const r = Math.round(rotation) || 0;
-  return flat.map((_, i) => flat[(((i + r) % n) + n) % n]);
+  return flat.map((_, i) => flat[(((i - r) % n) + n) % n]);
 }
 
 /** A rhythm as a step string: hits "x" (or "X" on accented steps), rests "-". */

@@ -178,6 +178,69 @@ test('Claude writes harmony: a library progression voice-led, an arpeggio, a gro
   expect(report).toMatch(/LUFS/);
 });
 
+test('found by the review: one audition at a time, power chords in five voices, a bar that follows the metre', async () => {
+  const win = page.locator('.window.harmony');
+  if (!(await win.isVisible())) await page.locator('.toolbar button[aria-label="Harmony"]').click();
+  await win.getByRole('tab', { name: 'Chords' }).click();
+  await expect(win.locator('#harmony-pane')).toHaveAttribute('role', 'tabpanel');
+  // every note the window asks the engine for is counted
+  await page.locator('.harmony-pad-main').first().click(); // (a click makes the engine)
+  await page.evaluate(() => {
+    const engine = window.greanteadawy.engine();
+    window.__previews = [];
+    const preview = engine.preview.bind(engine);
+    engine.preview = (...args) => { window.__previews.push(performance.now()); return preview(...args); };
+  });
+  const count = () => page.evaluate(() => window.__previews.length);
+
+  // the library: a second ▶ stops the first, the same ▶ again stops it, and closing the window stops it too
+  await win.getByRole('tab', { name: 'Library' }).click();
+  await win.getByRole('searchbox').fill('');
+  const plays = win.locator('.harmony-prog button[aria-label^="Hear "]');
+  await plays.nth(0).click();
+  await expect(win.locator('.harmony-prog button[aria-label^="Stop "]')).toHaveCount(1);
+  await plays.nth(1).click(); // (the first row now says Stop: nth(1) of the "Hear" buttons is the third row)
+  await expect(win.locator('.harmony-prog button[aria-label^="Stop "]')).toHaveCount(1);
+  await win.locator('.harmony-prog button[aria-label^="Stop "]').click();
+  await expect(win.locator('.harmony-prog button[aria-label^="Stop "]')).toHaveCount(0);
+  const stopped = await count();
+  await page.waitForTimeout(2500);
+  expect(await count(), 'nothing sounds after Stop').toBe(stopped);
+  await plays.nth(0).click();
+  await win.locator('.wbtn.close').click();
+  await expect(win).toBeHidden();
+  await page.waitForTimeout(300);
+  const closed = await count();
+  await page.waitForTimeout(2500);
+  expect(await count(), 'nothing sounds after the window is closed').toBe(closed);
+
+  // power chords, read from a pattern and voiced for five voices: no error, and they are written
+  await claude.call('create_pattern', { name: 'Riff', bars: 2 });
+  await claude.call('add_notes', { pattern: 'Riff', channel: 'Keys', text: '1.1 A2+E3 1/1; 2.1 G2+D3 1/1' });
+  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.selectPattern(st.project.patterns.find((x) => x.name === 'Riff').id); });
+  await page.locator('.toolbar button[aria-label="Harmony"]').click();
+  await win.getByRole('tab', { name: 'Chords' }).click();
+  const keysId = await page.evaluate(() => window.greanteadawy.store.getState().project.channels.find((c) => c.name === 'Keys').id);
+  await win.locator('select[title="The channel that plays and receives the chords"]').selectOption(keysId);
+  await win.locator('.btn', { hasText: 'Read from pattern' }).click();
+  await expect(win.locator('.harmony-chip b')).toHaveText(['A5', 'G5']);
+  await win.locator('select[title="How the chords are voiced"]').selectOption('smooth5');
+  const before = await count();
+  await win.locator('.harmony-chip-main').first().click();
+  await win.locator('.btn', { hasText: /^\s*Play$/ }).click();
+  await expect.poll(count).toBeGreaterThan(before);
+  await expect(win.locator('.harmony-write .btn.primary')).toHaveText('Write to Riff');
+  await win.locator('.harmony-write .btn.primary').click();
+  await expect.poll(async () => [...new Set((await notesOf('Keys', 'Riff')).map((n) => n.start))].sort((x, y) => x - y)).toEqual([0, 384]);
+  for (const n of await notesOf('Keys', 'Riff')) expect([9, 4, 7, 2]).toContain(n.key % 12);
+
+  // 3/4: "1 bar each" is three beats
+  await page.evaluate(() => window.greanteadawy.store.getState().dispatch([{ type: 'project/update', patch: { timeSig: [3, 4] } }]));
+  await win.getByRole('button', { name: /^Write to / }).click();
+  await expect.poll(async () => [...new Set((await notesOf('Keys', 'Riff')).map((n) => n.start))].sort((a, b) => a - b)).toEqual([0, 288]);
+  await page.evaluate(() => window.greanteadawy.store.getState().dispatch([{ type: 'project/update', patch: { timeSig: [4, 4] } }]));
+});
+
 test('no uncaught errors in the browser', async () => {
   expect(errors).toEqual([]);
 });

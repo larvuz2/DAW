@@ -339,7 +339,7 @@ export function substitutions(chordIn, key, scale) {
 
 /**
  * Negative harmony: every note mirrored around the axis between the tonic and its fifth (in C: between Eb and E),
- * which turns major into minor and a dominant pull into a plagal one. → [{ chord, mirrored, notes }]
+ * which turns major into minor and a dominant pull into a plagal one. → [{ chord, mirrored, notes, exact }]
  */
 export function negativeHarmony(chords, key, scale = 'major') {
   const ctx = keyContext(key, scale);
@@ -349,18 +349,22 @@ export function negativeHarmony(chords, key, scale = 'major') {
     const chord = readChord(c, ctx);
     const pcs = chord.pcs.map((p) => mod12(axis - p));
     // The mirror turns a chord upside down: its fifth becomes the root of the new chord (G7 → Fm6, not the Dm7b5 the
-    // same notes also spell). Name the mirrored notes over that root; failing that, the best reading in root position.
+    // same notes also spell). Name the mirrored notes over that root — but only with a name that has every note and
+    // no other (Cmaj7 mirrors to C Eb G Ab: that is Abmaj7, not a "Cm" that drops the Ab); failing that, the best
+    // complete name on another root, and only then the closest incomplete one.
     const fifth = chord.intervals.find((i) => i === 7) ?? chord.intervals.find((i) => i === 6 || i === 8);
     const wanted = fifth === undefined ? null : mod12(axis - (chord.root + fifth));
+    const rank = (x) => (x.missing.length || x.extra.length ? 0 : 2) + (x.root === wanted ? 1 : 0);
     let best = null;
     for (const bass of pcs) {
       const pitches = [48 + bass, ...pcs.filter((p) => p !== bass).map((p) => 60 + p)];
-      const found = detectChords(pitches, { spell }).find((x) => x.bass === x.root);
-      if (!found) continue;
-      const prefer = (x) => (x.root === wanted ? 1 : 0);
-      if (!best || prefer(found) > prefer(best) || (prefer(found) === prefer(best) && found.score > best.score)) best = found;
+      for (const found of detectChords(pitches, { spell })) {
+        if (found.bass !== found.root) continue;
+        if (!best || rank(found) > rank(best) || (rank(found) === rank(best) && found.score > best.score)) best = found;
+      }
     }
-    return { chord: chord.name, mirrored: best ? best.name : pcs.map(spell).join(' '), notes: pcs.map(spell) };
+    // exact: the name holds every mirrored note and no other (some mirrors have no name in the dictionary: C7b9)
+    return { chord: chord.name, mirrored: best ? best.name : pcs.map(spell).join(' '), notes: pcs.map(spell), exact: !!best && rank(best) >= 2 };
   });
 }
 
@@ -509,11 +513,13 @@ export function findProgressions({ query = '', tags = [], scale = null, mood = n
 export function progressionByName(name, key = 'C') {
   const wanted = String(name ?? '').trim().toLowerCase();
   const exact = PROGRESSIONS.find((p) => p.name.toLowerCase() === wanted) || PROGRESSIONS.find((p) => p.name.toLowerCase().replace(/\s*\(.*\)$/, '') === wanted);
-  const found = exact || PROGRESSIONS.filter((p) => p.name.toLowerCase().includes(wanted) && wanted.length >= 3);
+  // (numerals mean something by their case: "I-V-vi-IV" is the axis progression, not the minor loop "i-v-VI-iv")
+  const cased = exact ? [] : PROGRESSIONS.filter((p) => p.name.includes(String(name).trim()) && wanted.length >= 3);
+  const found = exact || (cased.length === 1 ? cased[0] : PROGRESSIONS.filter((p) => p.name.toLowerCase().includes(wanted) && wanted.length >= 3));
   if (found && !Array.isArray(found)) return progressionInKey(found, key);
   if (found.length === 1) return progressionInKey(found[0], key);
   const close = found.length ? found.map((p) => p.name) : nearest(wanted, PROGRESSIONS.map((p) => p.name), 4);
-  throw new Error(`${found.length ? `"${name}" fits ${found.length} progressions` : `No progression is called "${name}"`}.${close.length ? ` ${found.length ? 'They are' : 'Did you mean'}: ${close.slice(0, 6).map((c) => `"${c}"`).join(', ')}${found.length ? '.' : '?'}` : ''} Search the library with words or tags (find_progressions).`);
+  throw new Error(`${found.length ? `"${name}" fits ${found.length} progressions` : `No progression is called "${name}"`}.${close.length ? ` ${found.length ? 'They are' : 'Did you mean'}: ${close.slice(0, 6).map((c) => `"${c}"`).join(', ')}${found.length ? '.' : '?'}` : ''} Search the library with words or tags (the harmony tool, action "progressions").`);
 }
 
 /**

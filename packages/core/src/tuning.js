@@ -85,6 +85,21 @@ export const TUNING_IDS = TUNING_SYSTEMS.map((t) => t.id);
 const SYSTEM = Object.fromEntries(TUNING_SYSTEMS.map((t) => [t.id, t]));
 
 export const DEFAULT_TUNING = Object.freeze({ system: 'equal', root: 'C', a4: 440 });
+const CENTS_MAX = 2400;
+const RATIO_MIN = 0.25;
+const RATIO_MAX = 4;
+
+/**
+ * A patch laid over a stored tuning (what `project/update { tuning }` does): what the patch names replaces what was
+ * there, and a new table replaces the other kind of table — `cents` sent to a tuning made of `ratios` must not be
+ * ignored because the ratios are still there.
+ */
+export function mergeTuning(current, patch) {
+  const merged = { ...(current || {}), ...(patch || {}) };
+  if (patch?.cents !== undefined) delete merged.ratios;
+  else if (patch?.ratios !== undefined) delete merged.cents;
+  return merged;
+}
 
 /** "5/4", "1.25" or 1.25 → { value, fraction } (fraction null when it was given as a decimal). */
 function readRatio(x) {
@@ -129,12 +144,20 @@ export function normalizeTuning(raw, { strict = false } = {}) {
     else { fail(`fraction is ${raw.fraction}: the share of the comma each fifth is narrowed by must be 0–0.5 (0.25 = quarter-comma, 1/3 ≈ 0.333, 1/6 ≈ 0.167; 0 = Pythagorean)`); out.fraction = 0.25; }
   }
   if (out.system === 'custom') {
-    if (Array.isArray(raw.ratios) && raw.ratios.length === 12 && raw.ratios.every((r) => readRatio(r))) {
+    const ratios = Array.isArray(raw.ratios) && raw.ratios.length === 12 ? raw.ratios.map((r) => readRatio(r)) : null;
+    const cents = Array.isArray(raw.cents) && raw.cents.length === 12 ? raw.cents.map(Number) : null;
+    // A tuning never moves its own root, and a note stays within two octaves of where the keyboard has it: a table
+    // that says otherwise is a mistake (a ratio of 1000000 is 220 MHz), not a tuning.
+    if (ratios && ratios.every((r) => r && r.value >= RATIO_MIN && r.value <= RATIO_MAX) && Math.abs(ratios[0].value - 1) < 1e-9) {
       out.ratios = raw.ratios.map((r) => (typeof r === 'number' ? r : String(r).replace(/\s+/g, '').replace(':', '/')));
-    } else if (Array.isArray(raw.cents) && raw.cents.length === 12 && raw.cents.every((c) => Number.isFinite(Number(c)) && Math.abs(Number(c)) <= 2400)) {
-      out.cents = raw.cents.map((c) => Math.round(Number(c) * 1000) / 1000);
+    } else if (!ratios && cents && cents.every((c) => Number.isFinite(c) && Math.abs(c) <= CENTS_MAX) && (cents[0] === 0 || !strict)) {
+      // (a table loaded from a file that starts elsewhere is moved as a whole, so that its root is where it belongs)
+      out.cents = cents.map((c) => Math.round((c - cents[0]) * 1000) / 1000);
     } else {
-      fail('A custom tuning needs `cents` (twelve numbers: cents above the root for C, C#… counted from the root, e.g. 0, 112, 204…) or `ratios` (twelve ratios such as "1/1", "16/15", "9/8"…)');
+      if (ratios && ratios.every(Boolean) && Math.abs(ratios[0].value - 1) >= 1e-9) fail(`The first ratio of a custom tuning is the root itself and must be 1/1 (got ${raw.ratios[0]}): a tuning never moves its own root. Divide every ratio by the first one.`);
+      if (ratios && ratios.every(Boolean)) fail(`Every ratio of a custom tuning must be between 1/${1 / RATIO_MIN} and ${RATIO_MAX} (two octaves either side of the root): ${raw.ratios.filter((r, i) => ratios[i].value < RATIO_MIN || ratios[i].value > RATIO_MAX).join(', ')} is outside`);
+      if (!ratios && cents && cents.every((c) => Number.isFinite(c) && Math.abs(c) <= CENTS_MAX)) fail(`The first of the twelve cents is the root itself and must be 0 (got ${raw.cents[0]}): a tuning never moves its own root. Subtract ${raw.cents[0]} from every value — or change a4 to move the whole tuning.`);
+      fail('A custom tuning needs `cents` (twelve numbers: cents above the root, starting with the root itself = 0, e.g. 0, 112, 204…, each within ±2400) or `ratios` (twelve ratios starting with "1/1": "1/1", "16/15", "9/8"…)');
       out.system = 'equal';
     }
   }
@@ -247,6 +270,10 @@ export function tuningTable(tuningIn) {
 }
 
 // The simple ratios an interval may be heard as, and the pair of harmonics that coincide (and beat) when it is close.
+// harmonics up to the 9th are what beats are heard between, and two of them beat when they are within a third of a
+// semitone of meeting (equal temperament's harmonic seventh, the widest miss musicians call "out of tune", is 31 c)
+const BEAT_LIMIT = 9;
+const BEAT_REACH = 35;
 const SIMPLE = [[1, 1], [2, 1], [3, 2], [4, 3], [5, 4], [6, 5], [5, 3], [8, 5], [7, 4], [7, 5], [7, 6], [9, 8], [16, 15], [15, 8], [9, 5], [16, 9], [45, 32]];
 
 /**
@@ -267,11 +294,21 @@ export function chordPurity(tuning, pitches) {
       let best = SIMPLE[0];
       for (const c of SIMPLE) if (Math.abs(centsOf(within / (c[0] / c[1]))) < Math.abs(centsOf(within / (best[0] / best[1])))) best = c;
       const [n, d] = frac(best[0] * 2 ** octaves, best[1]);
+      // Beats are two low harmonics that nearly meet: harmonic d of the upper note against harmonic n of the lower,
+      // equal when the interval is pure. Only ratios of small numbers have harmonics loud enough to hear beating
+      // (the 45th harmonic of a tritone's "45/32" does not exist in any instrument), and only when the interval is
+      // close to one — so a tritone is measured against 7/5, and a semitone, which is near none, does not beat.
+      let near = null;
+      for (const c of SIMPLE) {
+        if (Math.max(c[0], c[1]) > BEAT_LIMIT) continue;
+        const off = Math.abs(centsOf(within / (c[0] / c[1])));
+        if (off <= BEAT_REACH && (!near || off < near.off)) near = { c, off };
+      }
+      const [bn, bd] = near ? frac(near.c[0] * 2 ** octaves, near.c[1]) : [0, 0];
       pairs.push({
         low: keys[i], high: keys[j], ratio: `${n}/${d}`,
         offCents: Math.round(centsOf(r / (n / d)) * 100) / 100,
-        // harmonic d of the upper note against harmonic n of the lower: equal when the interval is pure
-        beatsHz: Math.round(Math.abs(d * notes[j].hz - n * notes[i].hz) * 1000) / 1000
+        beatsHz: Math.round(Math.abs(bd * notes[j].hz - bn * notes[i].hz) * 1000) / 1000
       });
     }
   }

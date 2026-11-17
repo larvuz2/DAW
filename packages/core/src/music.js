@@ -122,11 +122,21 @@ export const CHORD_SYMBOLS = CHORD_LIST.map((c) => c.symbol);
  */
 export function chordType(quality) {
   const q = String(quality ?? '').trim().replace(/♭/g, 'b').replace(/♯/g, '#');
-  const tries = [q, q.replace(/[()\s]/g, '')];
-  // "M9#11", "Madd9": a capital M that does not start "Maj"/"Min"/"Mi7" means major
-  if (/^M(?!aj|AJ|in|IN|i\d|I\d|a\d|A\d|i$|I$)/.test(q)) tries.push(`maj${q.slice(1)}`, q.slice(1));
-  const low = q.toLowerCase();
-  tries.push(low, low.replace(/[()\s]/g, ''), low.replace(/^(?:min|mi|-)(?!n)/, 'm'));
+  const bare = (t) => t.replace(/[()\s]/g, '');
+  const tries = [q, bare(q)];
+  if (/^M(?!aj|AJ|in|IN|i\d|I\d|a\d|A\d|i$|I$)/.test(q)) {
+    // "M9#11", "Madd9", "M7(b5)": a capital M that does not start "Maj"/"Min"/"Mi7" means major, and only major —
+    // it must never be read as the minor chord its lower-case spelling names, nor lose its major seventh ("M7b9" is
+    // not C7b9: a chord the dictionary does not have is refused)
+    const rest = q.slice(1);
+    for (const r of [rest, rest.toLowerCase()]) {
+      tries.push(`maj${r}`, `maj${bare(r)}`);
+      if (!/^\(?(?:7|9|11|13)/.test(r)) tries.push(r, bare(r));
+    }
+  } else {
+    const low = q.toLowerCase();
+    tries.push(low, bare(low), low.replace(/^(?:min|mi|-)(?!n)/, 'm'));
+  }
   for (const t of tries) {
     const hit = CHORD_BY_KEY.get(t);
     if (hit) return hit;
@@ -256,7 +266,8 @@ function parseRoman(text) {
     }
   }
   const m = ROMAN_HEAD.exec(t);
-  if (!m) return null;
+  // (a numeral is written in one case: "vI" is not a minor fifth degree with a suffix "I")
+  if (!m || /^[IViv]/.test(m[3])) return null;
   const neapolitan = m[2] === 'N';
   let suffix = m[3];
   let figure = null;
@@ -295,6 +306,14 @@ function romanQuality(upper, suffix) {
   return CHORD_BY_KEY.get(`m${plain}`)?.symbol ?? CHORD_BY_KEY.get(`m${plain.toLowerCase()}`)?.symbol ?? null;
 }
 
+/**
+ * A progression as people write it → its numerals: "I-V-vi-IV", "I – V – vi – IV", "I - V - vi - IV", "ii7 V7 Imaj7",
+ * "I, IV, V". A dash is a separator only before a numeral, so "ii-7" (a minor seventh written with a minus) stays whole.
+ */
+export function splitProgression(text) {
+  return String(text ?? '').trim().split(/\s*[,–—]\s*|\s+-\s+|\s+|-(?![1-7]\b)(?=[b#♭♯]?[IViNnv])/).filter(Boolean);
+}
+
 /** "V7", "bVII", "ii°", "IV/1", "N6" — or a secondary chord like "V7/V" or "vii°/ii". */
 export function isRomanNumeral(s) {
   return typeof s === 'string' && parseRoman(s) !== null;
@@ -302,11 +321,16 @@ export function isRomanNumeral(s) {
 
 const PARENT_SCALES = ['major', 'minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonicMinor', 'melodicMinor'];
 // scales with a passing note read their chords in the mode they decorate
-const PARENT_OF = { bebopDominant: 'mixolydian', bebopMajor: 'major', bebopMinor: 'dorian' };
+const PARENT_OF = { bebopDominant: 'mixolydian', bebopMajor: 'major', bebopMinor: 'dorian', spanishEightTone: 'phrygian' };
+
+// the notes that make a scale's own chord: root, thirds, fifth, sevenths
+const CHORD_TONES = new Set([0, 3, 4, 7, 10, 11]);
 
 /**
  * The 7-note scale roman numerals, diatonic chords and spelling are read in: 5/6-note scales borrow from the first
- * common 7-note scale that contains them.
+ * common 7-note scale that contains them. A scale no 7-note scale contains (whole tone, diminished, augmented, the
+ * major blues) is read in the one it shares most with — its third first (a scale with a major third is never read
+ * as a minor key), then its chord tones, then its other notes.
  */
 export function sevenNoteScale(scale) {
   const id = resolveScale(scale);
@@ -314,8 +338,18 @@ export function sevenNoteScale(scale) {
   if (!steps) return 'major';
   if (steps.length === 7) return id;
   if (PARENT_OF[id]) return PARENT_OF[id];
-  // the first common 7-note scale that holds every note (in-sen → phrygian, iwato → locrian), else major/minor
-  return PARENT_SCALES.find((p) => steps.every((x) => SCALES[p].includes(x))) || (steps.includes(3) ? 'minor' : 'major');
+  // the first common 7-note scale that holds every note (in-sen → phrygian, iwato → locrian)
+  const holder = PARENT_SCALES.find((p) => steps.every((x) => SCALES[p].includes(x)));
+  if (holder) return holder;
+  const third = steps.includes(4) ? 4 : steps.includes(3) ? 3 : null;
+  let best = 'major';
+  let bestScore = -1;
+  for (const p of PARENT_SCALES) {
+    let score = third !== null && SCALES[p].includes(third) ? 100 : 0;
+    for (const x of steps) if (SCALES[p].includes(x)) score += CHORD_TONES.has(x) ? 2 : 1;
+    if (score > bestScore) { best = p; bestScore = score; }
+  }
+  return best;
 }
 
 const LETTERS = 'CDEFGAB';
@@ -358,7 +392,7 @@ export function chordSpelling(symbol, fallback = null) {
   const { root, intervals, bass } = parseChord(symbol);
   const text = String(symbol).trim();
   const rootName = chordRootName(text);
-  const byPc = new Map(intervals.map((i) => [(root + i) % 12, chordToneName(rootName, i)]));
+  const byPc = new Map(intervals.map((i) => [(root + i) % 12, chordToneName(rootName, i, intervals)]));
   if (bass !== null && !byPc.has(bass)) byPc.set(bass, chordRootName(text.slice(text.lastIndexOf('/') + 1)));
   return (pc) => {
     const p = ((Math.round(pc) % 12) + 12) % 12;
@@ -386,9 +420,10 @@ export function romanToChord(numeral, key = 'C', scale = 'major') {
   const root = chordRootName(symbol);
   let under = null;
   if (r.figure) {
-    const iv = CHORD_BY_KEY.get(r.quality).intervals[r.figure[1]];
+    const all = CHORD_BY_KEY.get(r.quality).intervals;
+    const iv = all[r.figure[1]];
     if (iv === undefined) throw new Error(`"${numeral}" asks for an inversion its chord has no note for`);
-    under = chordToneName(root, iv);
+    under = chordToneName(root, iv, all);
   }
   if (r.bass) {
     // a bass degree is a degree of the key the progression is in, also under an applied chord
@@ -428,7 +463,7 @@ const MAJOR_DEGREES = [0, 2, 4, 5, 7, 9, 11];
 const BY_LETTER = new Set(['harmonicMinor', 'melodicMinor']);
 
 /** A scale degree (pitch class `pc`, degree 1–7 of a key on `tonic`) with an accidental applied — see plainRoman. */
-function alterDegree(pc, degree, acc, tonic) {
+export function alterDegree(pc, degree, acc, tonic) {
   if (!acc) return pc;
   const against = ((pc - tonic - MAJOR_DEGREES[degree - 1] + 18) % 12) - 6; // how the key already alters it: −1 = flat
   if (acc === 'b' && against >= 0) return (pc + 11) % 12;
@@ -445,13 +480,22 @@ export function chordRootName(symbol) {
 
 const LETTER_STEPS = [0, 1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6]; // interval class → how many letters above the root it is written
 
-/** The name of a chord tone, written by letter from its root: the third of Db is F, of F# is A#, the seventh of G is F. */
-export function chordToneName(rootName, interval) {
+/**
+ * The name of a chord tone, written by letter from its root: the third of Db is F, of F# is A#, the seventh of G is F.
+ * With the chord's own intervals the name follows what the note is in that chord: the seventh of G#dim7 is F (a
+ * diminished seventh, not the E# a sixth would be), the fifth of Caug is G# (not Ab).
+ */
+export function chordToneName(rootName, interval, intervals = null) {
   const root = chordRootName(rootName);
   const pc = (parsePitchClass(root) + interval) % 12;
   const semis = ((interval % 12) + 12) % 12;
-  // a ninth, eleventh or thirteenth is written as the second, fourth or sixth it is
-  const steps = interval > 12 && semis === 6 ? 3 : LETTER_STEPS[semis];
+  const has = (x) => !!intervals && intervals.includes(x);
+  let steps = LETTER_STEPS[semis];
+  // a ninth, eleventh or thirteenth is written as the second, fourth or sixth it is, also when altered (#9, #11)
+  if (interval > 12 && semis === 6) steps = 3;
+  else if (interval > 12 && semis === 3) steps = 1;
+  else if (semis === 9 && has(3) && has(6) && !has(10) && !has(11)) steps = 6;
+  else if (semis === 8 && has(4) && !has(7)) steps = 4;
   const letter = LETTERS[(LETTERS.indexOf(root[0]) + steps) % 7];
   const diff = ((pc - LETTER_PC[letter] + 18) % 12) - 6;
   if (Math.abs(diff) <= 1) return letter + (diff === 1 ? '#' : diff === -1 ? 'b' : '');

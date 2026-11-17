@@ -18,7 +18,8 @@ const PC_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B
 const kept = new Map();
 
 const POOLS = [['diatonic', 'In the key'], ['borrowed', 'Borrowed from parallel modes'], ['chromatic', 'Chromatic']];
-const SPANS = [[PPQ * 4, '1 bar'], [PPQ * 2, '½ bar'], [PPQ * 8, '2 bars'], [PPQ, '1 beat']];
+// how long each chord lasts: in bars of the project's own metre (a bar of 3/4 is three beats, not four)
+const SPANS = [['bar', '1 bar', 1], ['half', '½ bar', 0.5], ['two', '2 bars', 2], ['beat', '1 beat', 0]];
 const VOICINGS = [['smooth', 'Smooth (4 voices)'], ['smooth3', 'Smooth (3 voices)'], ['smooth5', 'Smooth (5 voices)'], ['close', 'Close'], ['open', 'Open'], ['drop2', 'Drop 2'], ['spread', 'Spread'], ['shell', 'Shell'], ['rootless', 'Rootless']];
 const STYLES = [['block', 'Held chords'], ['up', 'Arpeggio up'], ['down', 'Arpeggio down'], ['updown', 'Arpeggio up-down'], ['converge', 'Arpeggio outside-in'], ['pinky', 'Arpeggio, top note between'], ['random', 'Arpeggio random']];
 
@@ -26,9 +27,13 @@ const STYLES = [['block', 'Held chords'], ['up', 'Arpeggio up'], ['down', 'Arpeg
 function voice(chords, voicing) {
   if (!chords.length) return [];
   const voices = { smooth: 4, smooth3: 3, smooth5: 5 }[voicing];
-  if (voices) return voiceLead(chords, { voices, low: 43, high: 79 }).voicings;
+  // A chord of two notes (A5) has no five-voice voicing in this range: use as many voices as the chords allow, and a
+  // plain close voicing when even three do not fit — a button here must never fail.
+  for (let v = voices; v >= 3; v--) {
+    try { return voiceLead(chords, { voices: v, low: 43, high: 79 }).voicings; } catch { /* try with one voice fewer */ }
+  }
   const span = PPQ * 4;
-  const notes = chordProgressionNotes(chords, { start: 0, chordLength: span, octave: 4, style: 'block', voicing, gate: 1 });
+  const notes = chordProgressionNotes(chords, { start: 0, chordLength: span, octave: 4, style: 'block', voicing: voices ? 'close' : voicing, gate: 1 });
   return chords.map((_, i) => notes.filter((n) => n.start === i * span).map((n) => n.key).sort((a, b) => a - b));
 }
 
@@ -55,7 +60,8 @@ function ChordsTab({ project, ctx, channel, pattern }) {
   const [chords, setChordsRaw] = useState(saved?.chords || []);
   const [selected, setSelected] = useState(null);
   const [sevenths, setSevenths] = useState(false);
-  const [span, setSpan] = useState(PPQ * 4);
+  const [each, setEach] = useState('bar');
+  const span = each === 'beat' ? PPQ : Math.round(ticksPerBar(project) * SPANS.find(([id]) => id === each)[2]);
   const [voicing, setVoicing] = useState('smooth');
   const [style, setStyle] = useState('block');
   const [playing, setPlaying] = useState(-1);
@@ -99,9 +105,9 @@ function ChordsTab({ project, ctx, channel, pattern }) {
     stop();
     if (!channel || !names.length) return;
     const voiced = voice(names, voicing);
-    const each = Math.max(0.35, (span / PPQ) * (60 / project.bpm));
-    voiced.forEach((pitches, i) => timers.current.push(setTimeout(() => { setPlaying(i); sound(channel.id, pitches, each * 0.95); }, i * each * 1000)));
-    timers.current.push(setTimeout(() => setPlaying(-1), voiced.length * each * 1000));
+    const seconds = Math.max(0.35, (span / PPQ) * (60 / project.bpm));
+    voiced.forEach((pitches, i) => timers.current.push(setTimeout(() => { setPlaying(i); sound(channel.id, pitches, seconds * 0.95); }, i * seconds * 1000)));
+    timers.current.push(setTimeout(() => setPlaying(-1), voiced.length * seconds * 1000));
   };
   const fromPattern = () => {
     if (!pattern || !channel) return;
@@ -168,12 +174,13 @@ function ChordsTab({ project, ctx, channel, pattern }) {
           <div className="harmony-subs">
             {subs.map((s) => (
               <button key={`${s.kind}${s.chord}`} className="harmony-sub" title={s.why} onClick={() => { hear(s.chord, names.slice(0, selected)); }}
-                onDoubleClick={() => setChords(names.map((n, j) => (j === selected ? s.chord : n)))}>
+                onDoubleClick={() => setChords(names.map((n, j) => (j === selected ? s.chord : n)))}
+                onKeyDown={(e) => { if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); setChords(names.map((n, j) => (j === selected ? s.chord : n))); } }}>
                 <b>{s.chord}</b><span>{s.kind}</span>
               </button>
             ))}
           </div>
-          <div className="muted">Click a substitute to hear it in place, double-click to use it. Approach chords go in front of {sel.name}.</div>
+          <div className="muted">Click a substitute to hear it in place, double-click (or Shift+Enter) to use it. Approach chords go in front of {sel.name}.</div>
         </div>
       )}
 
@@ -195,7 +202,7 @@ function ChordsTab({ project, ctx, channel, pattern }) {
       ))}
 
       <div className="row harmony-write">
-        <Select value={span} onChange={(v) => setSpan(Number(v))} title="Length of each chord" options={SPANS.map(([value, label]) => ({ value, label: `${label} each` }))} />
+        <Select value={each} onChange={setEach} title="Length of each chord" options={SPANS.map(([value, label]) => ({ value, label: `${label} each` }))} />
         <Select value={voicing} onChange={setVoicing} title="How the chords are voiced" options={VOICINGS.map(([value, label]) => ({ value, label }))} />
         <Select value={style} onChange={setStyle} title="How the chords are played" options={STYLES.map(([value, label]) => ({ value, label }))} />
         <button className="btn primary" onClick={write} disabled={!names.length || !pattern || !channel}>Write to {pattern ? pattern.name : 'pattern'}</button>
@@ -212,6 +219,21 @@ function LibraryTab({ project, ctx, channel, onLoad }) {
   const found = useMemo(() => {
     try { return findProgressions({ query, tags: tag ? [tag] : [], mood: mood === 'any' ? null : mood, key: ctx.key, limit: 100 }); } catch { return []; }
   }, [query, tag, mood, ctx.key]);
+  // one progression is heard at a time: the next ▶ (or the same one again, or closing the window) stops the last
+  const timers = useRef([]);
+  const [hearing, setHearing] = useState(null);
+  const stop = () => { timers.current.forEach(clearTimeout); timers.current = []; setHearing(null); };
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const hear = (p) => {
+    const was = hearing;
+    stop();
+    if (was === p.name) return;
+    const voiced = voice(p.chords, 'smooth');
+    const each = Math.max(0.4, (60 / project.bpm) * 2);
+    timers.current = voiced.map((pitches, i) => setTimeout(() => sound(channel.id, pitches, each * 0.95), i * each * 1000));
+    timers.current.push(setTimeout(() => setHearing(null), voiced.length * each * 1000));
+    setHearing(p.name);
+  };
   return (
     <div className="harmony-library">
       <div className="row">
@@ -225,11 +247,7 @@ function LibraryTab({ project, ctx, channel, onLoad }) {
         {!found.length && <p className="empty-hint">Nothing fits. Try fewer words, another tag or “All”.</p>}
         {found.map((p) => (
           <div key={p.name} className="harmony-prog">
-            <button className="tbtn small" aria-label={`Hear ${p.name}`} title="Hear it" disabled={!channel} onClick={() => {
-              const voiced = voice(p.chords, 'smooth');
-              const each = Math.max(0.4, (60 / project.bpm) * 2);
-              voiced.forEach((pitches, i) => setTimeout(() => sound(channel.id, pitches, each * 0.95), i * each * 1000));
-            }}><Icon name="play" size={11} /></button>
+            <button className="tbtn small" aria-label={hearing === p.name ? `Stop ${p.name}` : `Hear ${p.name}`} title={hearing === p.name ? 'Stop' : 'Hear it'} aria-pressed={hearing === p.name} disabled={!channel} onClick={() => hear(p)}><Icon name={hearing === p.name ? 'stop' : 'play'} size={11} /></button>
             <button className="harmony-prog-main" title="Use this progression" onClick={() => onLoad(p.chords)}>
               <span className="harmony-prog-name"><b>{p.name}</b> <i>{SCALE_INFO[p.scale].label}</i></span>
               <span className="harmony-prog-chords">{p.chords.join('  ')}</span>
@@ -337,10 +355,10 @@ export function Harmony() {
       <div className="harmony-body">
         <div className="ggs-tabs" role="tablist">
           {[['chords', 'Chords'], ['library', 'Library'], ['tuning', 'Tuning']].map(([id, label]) => (
-            <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}{id === 'tuning' && !isStandardTuning(project.tuning) ? ' •' : ''}</button>
+            <button key={id} role="tab" id={`harmony-tab-${id}`} aria-controls="harmony-pane" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}{id === 'tuning' && !isStandardTuning(project.tuning) ? ' •' : ''}</button>
           ))}
         </div>
-        <div className="harmony-pane">
+        <div className="harmony-pane" id="harmony-pane" role="tabpanel" aria-labelledby={`harmony-tab-${tab}`}>
           {tab === 'chords' && <ChordsTab key={project.id} project={project} ctx={ctx} channel={channel} pattern={pattern} />}
           {tab === 'library' && <LibraryTab project={project} ctx={ctx} channel={channel} onLoad={(chords) => { kept.set(project.id, { chords }); useStore.setState({ harmonyLoad: { projectId: project.id, chords } }); setTab('chords'); }} />}
           {tab === 'tuning' && <TuningTab project={project} ctx={ctx} channel={channel} />}

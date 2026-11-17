@@ -818,7 +818,8 @@ export function instrumentDefaults(kind) {
  */
 export function followsTuning(instrument) {
   const def = INSTRUMENTS[instrument?.kind];
-  if (!def || def.category === 'drums' || def.category === 'beatbox') return false;
+  // (melodic: false = an instrument whose keys are not pitches: the tabla, the taiko, gongs)
+  if (!def || def.category === 'drums' || def.category === 'beatbox' || def.melodic === false) return false;
   return !(instrument.kind === 'sampler' && instrument.params?.pitched === false);
 }
 

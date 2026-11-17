@@ -6,7 +6,7 @@
 // usually behaves, not a law: the functions say why they answer what they answer.
 import {
   SCALES, SCALE_INFO, CHORD_INFO, parsePitchClass, parseChord, chordType, chordRootName, romanToChord, isRomanNumeral,
-  requireScale, sevenNoteScale, scaleSpelling
+  requireScale, sevenNoteScale, scaleSpelling, alterDegree
 } from './music.js';
 
 export const mod12 = (n) => ((Math.round(n) % 12) + 12) % 12;
@@ -67,9 +67,29 @@ const minorThird = (c) => c.intervals.includes(3) && !c.intervals.includes(4);
 const fits = (chord, pcs) => chord.pcs.every((p) => pcs.has(p));
 export { isDominantQuality };
 
+/** The pitch class (above the tonic) that an accidental and a degree name in a key: how romanToChord reads them. */
+function degreeReach(ctx, acc, degree, diminished) {
+  const own = ctx.degrees[degree - 1];
+  // a diminished chord on the lowered 6th or 7th of a minor key is built on the raised degree
+  if (diminished && !acc && ((degree === 7 && own === 10) || (degree === 6 && own === 8))) return own + 1;
+  return alterDegree(own, degree, acc, 0);
+}
+
 /** Where a pitch class sits in a key: { acc: '' | 'b' | '#', degree: 1–7 } — the inverse of how romanToChord reads. */
 function degreeOf(pc, ctx, diminished = false) {
   const off = mod12(pc - ctx.tonic);
+  const named = conventionalDegree(off, ctx, diminished);
+  if (degreeReach(ctx, named.acc, named.degree, diminished) === off) return named;
+  // A key with an augmented second (lydian #2: C D# E) has two notes between two of its degrees, and the usual name
+  // of one of them reads as the other (bII is D there, so Db cannot be bII): take the name that reads back as this
+  // note — the sharp of the degree below (#I) before the flat of the one above.
+  for (const acc of ['', '#', 'b']) {
+    for (let degree = 1; degree <= 7; degree++) if (degreeReach(ctx, acc, degree, diminished) === off) return { acc, degree };
+  }
+  return named;
+}
+
+function conventionalDegree(off, ctx, diminished) {
   const d = ctx.degrees.indexOf(off);
   if (diminished) {
     // the raised 6th and 7th of a minor key carry its diminished chords without an accidental (vii° in A minor = G#°)…

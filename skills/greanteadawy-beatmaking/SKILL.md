@@ -39,7 +39,7 @@ user's open studio. This skill is the producer's workflow on top of the tools. T
    `add_roll` for trap hat/snare rolls. For a quick start in a genre, `add_drum_groove style=<boomBap | trap | house |
    dnb | reggaeton | lofi …>` writes a whole groove onto the drum channels (missing ones are made); `variation` and
    `fill` are seeded, so the same `seed` gives the same take. A track of `write_drums` can also be a Euclidean rhythm:
-   `"E(5,16)"` (5 hits spread over 16 steps), `"E(3,8,2)"` rotated.
+   `"E(5,16)"` (5 hits spread over 16 steps), `"E(3,8,2)"` started 2 steps later.
 5. **Harmony** — not sure which chords? `harmony action="progressions"` searches 82 of them by genre and mood (tags
    lo-fi, trap, cinematic, jazz, hopeful, dark…), `action="suggest"` ranks what could follow the chords you have, with
    reasons, and `action="analyze"` says what a progression does (function and tension of each chord). Then

@@ -124,6 +124,9 @@ export function createMcpServer(realBackend) {
     const replies = [];
     for (let i = 0; i < calls.length; i++) {
       const { tool: name, args: given = {} } = calls[i];
+      // A batch works on a copy in memory, so its calls never wait for anything: without this pause a hundred heavy
+      // calls would hold the server's only thread from the first to the last. Other requests are served in between.
+      if (i) await new Promise((resolve) => setImmediate(resolve));
       try {
         const t = registry.get(name);
         if (!t) throw new Error(`Tool "${brief(name)}" not found.${didYouMean(name, [...registry.keys()])}`);

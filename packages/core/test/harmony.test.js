@@ -5,10 +5,10 @@ import assert from 'node:assert/strict';
 import {
   SCALES, SCALE_INFO, SCALE_FAMILIES, scaleGroups, resolveScale, requireScale, sevenNoteScale, scalePitchClasses,
   CHORD_INFO, CHORD_SYMBOLS, CHORD_TYPES, chordType, parseChord, chordNotes, romanToChord, isRomanNumeral, chordToneName,
-  PROGRESSIONS, keyContext, makeChord, readChord, numeralFor, functionOf, analyzeChord, chordTension, tensionCurve,
+  PROGRESSIONS, diatonicChords, keyContext, makeChord, readChord, numeralFor, functionOf, analyzeChord, chordTension, tensionCurve,
   detectChords, detectKey, chordsFromNotes, suggestNext, substitutions, negativeHarmony, neoRiemannian, modulationPaths,
   findProgressions, progressionByName, progressionTags, identifyProgression,
-  voiceLead, arpCycle, arpeggiate, ARP_MODES, euclid, euclidString, drumPattern, DRUM_STYLES, DRUM_STYLE_INFO, DRUM_ROLES, createRng, seedOf,
+  voiceLead, voicingBudget, splitProgression, chordSpelling, mergeTuning, arpCycle, arpeggiate, ARP_MODES, euclid, euclidString, drumPattern, DRUM_STYLES, DRUM_STYLE_INFO, DRUM_ROLES, createRng, seedOf,
   TUNING_IDS, normalizeTuning, isStandardTuning, tuningDegrees, tunedFrequency, tuningCents, tuningTable, chordPurity, describeTuning, approximateRatio,
   createDefaultProject, applyOps, normalizeProject, diffProjects, summarizeProject, followsTuning, midiToFreq, PPQ, STEP
 } from '../src/index.js';
@@ -31,7 +31,21 @@ test('scales: 57 of them, found by any of their names; older projects keep their
   assert.equal(scaleGroups().reduce((n, g) => n + g.scales.length, 0), 57);
   assert.deepEqual(scalePitchClasses('E', 'phrygian dominant'), [4, 5, 8, 9, 11, 0, 2]);
   // chords of a scale without seven notes are read in the mode that holds it
-  assert.deepEqual(['minorPentatonic', 'bebopDominant', 'kumoi', 'inSen', 'wholeTone'].map(sevenNoteScale), ['minor', 'mixolydian', 'dorian', 'phrygian', 'major']);
+  assert.deepEqual(['minorPentatonic', 'bebopDominant', 'kumoi', 'inSen'].map(sevenNoteScale), ['minor', 'mixolydian', 'dorian', 'phrygian']);
+  // …and a scale no mode holds is read in the closest one: one with a major third is never read as a minor key
+  assert.deepEqual(['majorBlues', 'augmented', 'wholeTone', 'diminishedHalfWhole', 'tritone', 'prometheus', 'diminishedWholeHalf', 'spanishEightTone', 'blues', 'chromatic'].map(sevenNoteScale),
+    ['major', 'major', 'mixolydian', 'mixolydian', 'mixolydian', 'mixolydian', 'harmonicMinor', 'phrygian', 'minor', 'major']);
+  assert.equal(keyContext('C', 'majorBlues').minor, false);
+  assert.deepEqual(diatonicChords('C', 'majorBlues').map((c) => c.chord), ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bdim']);
+  for (const [id, steps] of Object.entries(SCALES)) if (steps.includes(4) && !steps.includes(3)) assert.equal(keyContext('C', id).minor, false, id);
+});
+
+test('a capital M is major and nothing else: it never falls back to the minor or the dominant chord of the same letters', () => {
+  for (const [symbol, quality] of [['CM7(b5)', 'maj7b5'], ['CM7b5', 'maj7b5'], ['CM(add9)', 'add9'], ['CMadd9', 'add9'], ['CM', ''], ['CM7', 'maj7'], ['CM9#11', 'maj9#11'], ['CM7(#11)', 'maj7#11'], ['CM6', '6'], ['CM69', '6/9'], ['CM13', 'maj13'], ['CMIN7', 'm7'], ['CMi7', 'm7'], ['CMA7', 'maj7']]) {
+    assert.equal(parseChord(symbol).quality, quality, symbol);
+  }
+  // (these were read as Cm7b9… or C7b9: a major seventh chord the dictionary does not have is refused instead)
+  for (const symbol of ['CM7b9', 'CM7#9', 'CM7sus4', 'CM9b5']) assert.throws(() => parseChord(symbol), /Unknown chord quality/, symbol);
 });
 
 test('chords: 65 types, every spelling people use, and "C6/9" is not a slash chord', () => {
@@ -88,6 +102,22 @@ test('a chord and its numeral are the same thing: every type on every root reads
     }
   }
   assert.equal(n, 12 * 65 * 12 * 3);
+  // …and in every scale there is, also those with an augmented second, where two notes lie between two degrees
+  // (C lydian #2: Db is #I, because bII reads as D)
+  for (const scale of Object.keys(SCALES)) {
+    for (const key of ['C', 'F#']) {
+      const ctx = keyContext(key, scale);
+      for (const quality of ['', 'm', 'dim', '7', 'm7b5', 'maj7']) for (let root = 0; root < 12; root++) for (const bass of [null, (root + 1) % 12, (root + 6) % 12]) {
+        const chord = makeChord(root, quality, bass);
+        const numeral = numeralFor(chord, ctx);
+        const back = parseChord(romanToChord(numeral, key, scale));
+        assert.deepEqual([back.root, back.quality, back.bass], [chord.root, chord.quality, chord.bass], `${chord.name} in ${ctx.label} → ${numeral}`);
+      }
+    }
+  }
+  assert.equal(numeralFor('Db', 'C', 'lydianSharp2'), '#I');
+  assert.equal(numeralFor('D', 'C', 'lydianSharp2'), 'bII');
+  assert.equal(substitutions('G7', 'C', 'lydianSharp2').find((x) => x.kind === 'tritone substitute').chord, 'C#7', 'the tritone substitute of G7 is on Db/C#, not on D');
 });
 
 test('reading a chord in a key: numeral, function, and where it comes from', () => {
@@ -186,6 +216,16 @@ test('substitutes, mirrors and ways to another key', () => {
   // negative harmony: the dominant becomes the minor plagal chord
   assert.deepEqual(negativeHarmony(['C', 'F', 'G7', 'Am', 'Dm7'], 'C').map((x) => x.mirrored), ['Cm', 'Gm', 'Fm6', 'Eb', 'Bb6']);
   assert.deepEqual(negativeHarmony(negativeHarmony(['C', 'F', 'G'], 'C').map((x) => x.mirrored), 'C').map((x) => x.mirrored), ['C', 'F', 'G'], 'mirrored twice is where it started');
+  // a name never drops a note of the mirror: Cmaj7 mirrors to C Eb G Ab, which is Abmaj7 and not "Cm"
+  assert.deepEqual(negativeHarmony(['Cmaj7', 'C9', 'Cm7b5', 'Fmaj7'], 'C').map((x) => [x.mirrored, x.exact]), [['Abmaj7', true], ['F9', true], ['A7', true], ['Ebmaj7', true]]);
+  for (const type of CHORD_SYMBOLS) for (const root of ['C', 'D', 'G', 'A']) {
+    const x = negativeHarmony([root + type], 'C')[0];
+    const named = readChord(x.mirrored);
+    const notes = new Set(x.notes.map((n) => readChord(n).root));
+    assert.equal(x.exact, named.pcs.length === notes.size && named.pcs.every((p) => notes.has(p)), `${root}${type} → ${x.mirrored} (${x.notes.join(' ')})`);
+  }
+  // (a mirror the dictionary has no name for says so: the notes are the answer)
+  assert.equal(negativeHarmony(['C7b9'], 'C')[0].exact, false);
   const toG = modulationPaths('C', 'major', 'G', 'major');
   assert.deepEqual([toG[0].kind, toG[0].chords], ['pivot chord', ['C', 'Am', 'D7', 'G']]);
   assert.match(toG[0].why, /Am is vi in C major and ii in G major/);
@@ -284,7 +324,8 @@ test('arpeggios, Euclidean rhythms and drum grooves: the same seed, the same par
 
   assert.deepEqual([euclidString(8, 3), euclidString(8, 5), euclidString(16, 5), euclidString(12, 7), euclidString(5, 2)], ['x--x--x-', 'x-xx-xx-', 'x--x--x--x--x---', 'x-xx-x-xx-x-', 'x-x--']);
   assert.deepEqual([euclidString(4, 0), euclidString(4, 4), euclidString(8, 9), euclidString(0, 3)], ['----', 'xxxx', 'xxxxxxxx', '']);
-  assert.equal(euclidString(8, 3, 1), '--x--x-x');
+  // a rotation starts the rhythm later, as its description says: what was on step 0 is on step r
+  assert.deepEqual([euclidString(8, 3, 1), euclidString(8, 3, 2), euclidString(8, 3, -1), euclidString(8, 3, 8)], ['-x--x--x', 'x-x--x--', '--x--x-x', 'x--x--x-']);
   assert.equal(euclidString(8, 3, 0, { accentFirst: true }), 'X--x--x-');
   for (let n = 1; n <= 32; n++) for (let k = 0; k <= n; k++) assert.equal(euclid(n, k).filter(Boolean).length, k, `${n}, ${k}`);
 
@@ -408,4 +449,86 @@ test('a project has a tuning: set as a patch, kept through save and load, said i
   const kind = (k, params) => ({ kind: k, params: params || {} });
   assert.deepEqual(['kick', 'hat', 'synth', 'ggs', 'piano', 'bass808'].map((k) => followsTuning(kind(k))), [false, false, true, true, true, true]);
   assert.deepEqual([followsTuning(kind('sampler', { pitched: false })), followsTuning(kind('sampler', { pitched: true })), followsTuning(kind('nothing'))], [false, true, false]);
+});
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// Found by the review of 0.12.0
+
+test('voice leading stays a fraction of a second: a long list of different chords weighs fewer voicings of each', () => {
+  // up to 15 different chord changes (any song with a loop) every candidate is weighed, as before
+  assert.deepEqual([1, 4, 15].map(voicingBudget), [320, 320, 320]);
+  // 256 different chords were 26 million pairs (2.4 s on the server's only thread): now 1.6 million at most
+  for (const changes of [16, 64, 255, 5000]) {
+    const per = voicingBudget(changes);
+    assert.ok(per >= 32 && per <= 320, `${changes}: ${per}`);
+    assert.ok(per === 32 || changes * per * per <= 1_600_000, `${changes}: ${changes * per * per} pairs`);
+  }
+  // …and the answer is still a voicing of every chord, with every voice a line
+  const roots = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const kinds = ['maj7', 'm7', '7', 'm9', '13', 'maj9', '7b9', 'm11'];
+  const chords = Array.from({ length: 96 }, (_, i) => roots[(i * 7) % 12] + kinds[(i * 3) % kinds.length]);
+  const r = voiceLead(chords, { voices: 6, style: 'open', bass: 'smooth' });
+  assert.equal(r.voicings.length, 96);
+  for (const [i, v] of r.voicings.entries()) {
+    assert.equal(v.length, 6);
+    const pcs = readChord(chords[i]).pcs;
+    assert.ok(v.every((p, k) => pcs.includes(p % 12) && (k === 0 || p > v[k - 1])), `${chords[i]}: ${v}`);
+  }
+});
+
+test('progressions as people write them: a dash before any numeral separates, spaces around it too', () => {
+  for (const text of ['I-V-vi-IV', 'I - V - vi - IV', 'I – V – vi – IV', 'I, V, vi, IV', 'I V vi IV']) assert.deepEqual(splitProgression(text), ['I', 'V', 'vi', 'IV'], text);
+  assert.deepEqual(splitProgression('i-iv-v'), ['i', 'iv', 'v']);
+  assert.deepEqual(splitProgression('I-vi-IV-V'), ['I', 'vi', 'IV', 'V']);
+  assert.deepEqual(splitProgression('I-bVII-IV  V7/V-V7'), ['I', 'bVII', 'IV', 'V7/V', 'V7']);
+  // a numeral is written in one case
+  for (const bad of ['vI', 'iI', 'Vi']) assert.equal(isRomanNumeral(bad), false, bad);
+  // and its case tells two library progressions apart
+  assert.equal(progressionByName('I-V-vi-IV').name, 'Axis (I-V-vi-IV)');
+  assert.equal(progressionByName('i-v-VI-iv').name, 'Aeolian sway (i-v-VI-iv)');
+  assert.throws(() => progressionByName('zzz'), /the harmony tool, action "progressions"/);
+});
+
+test('chord tones are named by what they are in the chord', () => {
+  const spelled = (c) => { const sp = chordSpelling(c); return chordNotes(c, 4).map((n) => sp(n)).join(' '); };
+  assert.equal(spelled('G#dim7'), 'G# B D F', 'a diminished seventh, not E#');
+  assert.equal(spelled('Caug'), 'C E G#', 'an augmented fifth, not Ab');
+  assert.equal(spelled('C7#9'), 'C E G Bb D#', 'a sharp ninth, not Eb');
+  assert.equal(spelled('A7'), 'A C# E G');
+  assert.equal(spelled('Am6'), 'A C E F#', 'a sixth stays a sixth');
+});
+
+test('a custom tuning keeps its root, stays within two octaves, and a new table replaces the old one', () => {
+  const ratios = ['1/1', '16/15', '9/8', '6/5', '5/4', '4/3', '7/5', '3/2', '8/5', '5/3', '7/4', '15/8'];
+  const cents = [0, 90, 204, 294, 408, 498, 588, 702, 792, 906, 996, 1110];
+  const strict = (t) => normalizeTuning(t, { strict: true });
+  assert.deepEqual(strict({ system: 'custom', cents }).cents, cents);
+  // cents sent to a tuning made of ratios are not ignored (and the other way round)
+  const merged = strict(mergeTuning({ system: 'custom', root: 'A', a4: 440, ratios }, { cents }));
+  assert.deepEqual([merged.cents, merged.ratios], [cents, undefined]);
+  assert.deepEqual(strict(mergeTuning({ system: 'custom', cents }, { ratios })).cents, undefined);
+  assert.deepEqual(mergeTuning({ system: 'just', root: 'D' }, { a4: 432 }), { system: 'just', root: 'D', a4: 432 });
+  // the first degree is the root itself
+  assert.throws(() => strict({ system: 'custom', cents: [25, ...cents.slice(1)] }), /must be 0 \(got 25\): a tuning never moves its own root/);
+  assert.throws(() => strict({ system: 'custom', ratios: ['16/15', ...ratios.slice(1)] }), /first ratio[^\n]*must be 1\/1/);
+  assert.throws(() => strict({ system: 'custom', ratios: [1, 1.01, 1e6, ...ratios.slice(3)] }), /between 1\/4 and 4[^\n]*1000000 is outside/);
+  // a stored table that starts elsewhere is moved as a whole, so that its root is where it belongs
+  const loaded = normalizeTuning({ system: 'custom', root: 'A', cents: cents.map((c) => c + 25) });
+  assert.deepEqual(loaded.cents, cents);
+  assert.equal(Math.round(tunedFrequency(loaded, 57) * 1000) / 1000, 220);
+  assert.equal(normalizeTuning({ system: 'custom', ratios: [2, ...ratios.slice(1)] }).system, 'equal', 'an unreadable stored table is the standard');
+});
+
+test('drums of every kind keep their pitch in a tuning, and beats are counted between harmonics one can hear', () => {
+  for (const kind of ['kick', 'snare', 'bbkick', 'tabla', 'taiko', 'gong']) assert.equal(followsTuning({ kind, params: {} }), false, kind);
+  for (const kind of ['piano', 'ggs', 'sitar', 'koto']) assert.equal(followsTuning({ kind, params: {} }), true, kind);
+  // G7 in just intonation on C: the tritone B–F beats against 7/5 (27 times a second), not at the "250 per second"
+  // its 45th harmonic would give
+  const g7 = chordPurity(normalizeTuning({ system: 'just', root: 'C' }), [55, 59, 62, 65]);
+  assert.ok(g7.worstBeatsHz > 20 && g7.worstBeatsHz < 30, String(g7.worstBeatsHz));
+  // thirds and fifths are as they were
+  assert.deepEqual(chordPurity(normalizeTuning(null), [60, 64, 67]).pairs.map((x) => x.beatsHz), [10.382, 0.886, 17.788]);
+  // a semitone is near no simple ratio: rough, but not beating
+  assert.equal(chordPurity(normalizeTuning(null), [60, 61]).worstBeatsHz, 0);
 });

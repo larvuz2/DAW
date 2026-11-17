@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.12.1 — Fixes from the review of harmony and tuning
+
+An independent review of 0.12.0 found two serious problems and a list of smaller ones; all are fixed here, each with
+a test that failed before.
+
+**Serious**
+- A long list of different chords voiced for six voices held the server for seconds (2.4 s for one call, 18 s for a
+  batch of eight — and nobody else was answered meanwhile). The search now drops dead ends at once and weighs fewer
+  voicings per chord when there are many different chords (the worst case measured is about half a second; a song
+  with up to 15 different chord changes is voiced exactly as before), and a `batch` lets other requests through
+  between its calls.
+- `music_theory action="progression"` no longer split `"I-V-vi-IV"` (a dash before a lower-case `v`), nor
+  `"I - V - vi - IV"`. One splitter now reads every way people write a progression.
+
+**Chords and numerals**
+- A capital `M` is major and nothing else: `CM7(b5)` was read as Cm7b5, `CM7b9` as C7b9. They are now read as
+  written, or refused when the dictionary has no such chord.
+- A chord and its numeral are the same thing in every scale, also those with an augmented second (lydian #2,
+  hungarian major, ultralocrian), where two notes lie between two degrees: D♭ in C lydian #2 is `#I`.
+- A numeral is written in one case: `vI` and `iI` are refused.
+- Negative harmony names every mirrored note (Cmaj7 → A♭maj7, not "Cm"); a mirror the dictionary has no name for
+  is marked `≈` and its notes are the answer.
+- Scales that no seven-note scale contains are read in the closest one, by their third first: the major blues, the
+  augmented and the whole-tone scale are no longer read as a minor key.
+- Chord tones are named by what they are: the seventh of G♯dim7 is F, the fifth of Caug is G♯, the ♯9 of C7♯9 is D♯.
+- A library progression is found by its numerals with their case (`I-V-vi-IV` is not the minor loop `i-v-VI-iv`).
+
+**Tuning**
+- `set_tuning` no longer accepts arguments it then ignores: `cents` replace `ratios` (and the other way round), a
+  table alone means `system: "custom"`, and `divisions`, `fraction`, `cents` or `ratios` with a system that has no
+  use for them are refused with the fix.
+- A custom table cannot move its own root (the first value must be 0 cents or 1/1) and every ratio must be within
+  two octaves of it. A stored table that starts elsewhere is moved as a whole.
+- The tabla, the taiko and gongs keep their pitch, like the other drums (they were retuned).
+- A glide starts where the last note really was (in 19 equal steps it began four semitones off).
+- The beat rate of a chord is counted between harmonics one can hear (up to the 9th, within 35 cents of meeting):
+  a tritone is measured against 7/5 instead of the 45th harmonic, which gave figures like "250 per second".
+- In tunings with other than twelve steps, `describe_tuning` calls keys keys instead of the notes they are not.
+
+**Tools**
+- `add_drum_groove` only writes onto drum instruments and samplers: a synth called "Kick Bass" or a piano called
+  "Top Hat Lead" keeps its part.
+- `harmony action="analyze"` no longer suggests changing the key when the notes fit its relative (A minor and
+  C major are the same notes).
+- A rotated Euclidean rhythm starts later, as its description says: `E(3,8,2)` is now `x-x--x--` (it started
+  earlier). **This changes what `E(k,n,r)` writes** for a rotation other than 0.
+- Voice leading avoids parallel fifths and octaves more strongly: none are left in three- and four-voice writing
+  and five-voice sevenths (measured over random diatonic progressions; five or six voices on plain triads keep
+  doubled octaves in close position — the texts now say "wherever the chords allow"). **Voiced chords written
+  with `voices` can differ from 0.12.0** by a note here and there.
+
+**Harmony window**
+- A second ▶ in the library stops the first, and closing the window stops it too (they overlapped and kept
+  playing). Power chords with "Smooth (5 voices)" no longer fail: fewer voices are used.
+- "1 bar each" follows the project's metre (it was four beats in 3/4).
+- *File → Harmony & tuning…* opens the window where the toolbar button is hidden (phones); substitutes can be used
+  with Shift+Enter; the tabs are announced as tabs.
+
+**Not changed** — Space starts the transport also when a button has the focus (it does everywhere in the studio;
+Enter presses the button); DSP plugin instruments are still not retuned.
+
 ## 0.12.0 — Harmony and tuning
 
 The fourth batch from GGS Composer: what the studio knows about chords, keys and tuning. 102 tools (was 97).

@@ -1,7 +1,7 @@
 // Instruments, channels, sound preview and music theory helpers.
 import {
   INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, makeInstrument, describeInstruments, describeEffects, uid, noteName,
-  findChannel, parseNote, SCALES, SCALE_INFO, scaleGroups, requireScale, scaleNotes, chordNotes, diatonicChords, romanToChord, isRomanNumeral, CHORD_INFO, CHORD_SYMBOLS, scaleSpelling, spelledNoteName,
+  findChannel, parseNote, SCALES, SCALE_INFO, scaleGroups, requireScale, scaleNotes, chordNotes, diatonicChords, romanToChord, isRomanNumeral, splitProgression, CHORD_INFO, CHORD_SYMBOLS, scaleSpelling, spelledNoteName,
   detectChords, detectKey, euclidString, chordSpelling,
   sanitizeParams, MAX_NUDGE_MS, sanitizePluginValues
 } from '@greanteadawy/core';
@@ -337,7 +337,7 @@ Defaults to the project key/scale. For what a chord does in the key, what could 
       }
       case 'progression': {
         if (!a.progression) throw new Error('progression is required');
-        const tokens = a.progression.split(/[\s,–]+|-(?![1-7]\b)(?=[b#♭♯]?[IViNn])/).filter(Boolean);
+        const tokens = splitProgression(a.progression);
         const chords = tokens.map((t) => {
           if (!isRomanNumeral(t)) throw new Error(`"${t}" is not a roman numeral. Write a degree (I–VII, lower case = minor) and a chord quality: ii7, V7#9, bVII, vii°7 — "V7/V" applies a chord to another degree, "IV/1" puts it over a bass degree`);
           return romanToChord(t, key, scale);

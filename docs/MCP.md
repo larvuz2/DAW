@@ -234,18 +234,19 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   A shape that works: tension low at the start of a section, highest just before it ends, released on the next
   downbeat.
 - add_chords progression="<library name>" writes one in the project key. voices=4 voice-leads the whole progression
-  (every voice moves as little as it can, parallel fifths and octaves avoided; bass="smooth" allows inversions).
+  (every voice moves as little as it can, parallel fifths and octaves avoided wherever the chords allow;
+  bass="smooth" allows inversions).
 - add_arpeggio: modes up, down, updown, downup, converge, diverge, pinky, thumb, asplayed, random; rate "1/16",
   octaves, gate (>1 = legato), swing, accentEvery or a velocities pattern. add_drum_groove: sixteen styles written onto
   the drum channels there are (missing ones are made); variation and fill are seeded. write_drums takes Euclidean
-  rhythms: "E(5,16)", "E(3,8,2)" rotated, "E(3,8)x4" repeated. The same seed always gives the same part: change it
+  rhythms: "E(5,16)", "E(3,8,2)" started 2 steps later, "E(3,8)x4" repeated. The same seed always gives the same part: change it
   for another take, keep it to get the part you liked again.
 - Tuning: set_tuning puts every pitched instrument in just intonation (system "just": beatless major chords on the
-  root, its fourth and fifth — chords far from the root pay for it), "just7" (4:5:6:7 sevenths), "pythagorean",
+  root, its fourth and fifth — chords far from the root pay for it), "just7" (a 4:5:6:7 seventh on the root), "pythagorean",
   "meantone", a well temperament ("werckmeister", "kirnberger", "vallotti", "young"), "harmonic", other equal
   divisions or a custom table, with a root (default: the song's key) and a4. The root never moves. describe_tuning
   shows the exact ratios, cents and Hz, and with chord=… how fast that chord beats there (compare=[…] for other
-  systems). Drums are not retuned. Use it for drones, pads and slow harmony in one key; leave fast modulating music
+  systems). Drums, tabla, taiko and gongs are not retuned. Use it for drones, pads and slow harmony in one key; leave fast modulating music
   in equal temperament.
 - add_chords voicing: close, open, drop2 (neo-soul/jazz keys), drop3, spread (cinematic), shell (root-3-7, lo-fi
   comping), rootless (3-5-7-9 over a bassline). register keeps the chords around a pitch ("E4" keys, "C5" airy pads).
@@ -680,7 +681,7 @@ Write a chord progression into a channel. Chord symbols (Am, F, Cmaj7, G7, Dm9, 
 | `octave` | integer |  | Octave of the first chord root (default 4) |
 | `style` | `block` \| `rhythm` \| `arp-up` \| `arp-down` \| `arp-updown` \| `broken` |  |  |
 | `voicing` | `close` \| `open` \| `drop2` \| `drop3` \| `spread` \| `shell` \| `rootless` |  | How the chord tones are spread (default close) |
-| `voices` | integer |  | Voice-lead the whole progression with this many voices: every voice moves as little as possible from chord to chord, without parallel fifths and octaves (4 = four-part writing). Replaces voicing/inversion/register; voicing "open" or "spread" lets the upper voices span two octaves |
+| `voices` | integer |  | Voice-lead the whole progression with this many voices: every voice moves as little as possible from chord to chord, and parallel fifths and octaves are avoided wherever the chords allow (4 = four-part writing; with 5–6 voices on plain triads some doubled octaves remain — use voicing "open" there). Replaces voicing/inversion/register; voicing "open" or "spread" lets the upper voices span two octaves |
 | `bass` | `root` \| `smooth` |  | With voices: "root" = the lowest voice plays the root or the slash bass (default), "smooth" = it may take any chord tone if that moves less (inversions) |
 | `inversion` | integer |  | Inversion of the first chord (the rest are voice-led from it); default 0 |
 | `register` | string,number |  | Center pitch the voicings stay around, e.g. "E4" for mid keys, "C5" for airy pads (default: the first chord at octave) |
@@ -1663,7 +1664,7 @@ Write a drum groove in a style onto the project's drum channels (kick, snare/cla
 
 ### `set_tuning`
 
-Choose the tuning every pitched instrument of the project plays in (drums are not retuned): equal, just, just7, pythagorean, meantone, werckmeister, kirnberger, vallotti, young, harmonic, custom, a root and the A4 reference. The root keeps its equal-tempered pitch; the other notes move by up to ±30 cents. Only what you name changes (a4 alone keeps the system). system "equal" with a4 440 is the standard. Renders, exports and playback all follow. Look before you leap with describe_tuning (chord = how a chord beats in each system).
+Choose the tuning every pitched instrument of the project plays in (drums, tabla, taiko and gongs are not retuned): equal, just, just7, pythagorean, meantone, werckmeister, kirnberger, vallotti, young, harmonic, custom, a root and the A4 reference. The root keeps its equal-tempered pitch; the other notes move by a few cents to about ±50 (the harmonic series moves its eleventh harmonic by 49). Only what you name changes (a4 alone keeps the system). system "equal" with a4 440 is the standard. Renders, exports and playback all follow. Look before you leap with describe_tuning (chord = how a chord beats in each system).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

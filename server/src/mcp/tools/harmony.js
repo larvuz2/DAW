@@ -5,8 +5,8 @@ import {
   keyContext, readChord, analyzeChord, tensionCurve, detectKey, chordsFromNotes, suggestNext, SUGGESTION_POOLS, substitutions, negativeHarmony,
   modulationPaths, findProgressions, progressionByName, progressionTags, identifyProgression, scaleSpelling, followsTuning, isRest,
   voiceLead, arpeggiate, ARP_MODES, drumPattern, DRUM_STYLES, DRUM_STYLE_INFO,
-  TUNING_SYSTEMS, TUNING_IDS, normalizeTuning, tuningTable, describeTuning, chordPurity, isStandardTuning, A4_MIN, A4_MAX, EDO_MIN, EDO_MAX,
-  requireScale, SCALE_INFO, INSTRUMENTS
+  TUNING_SYSTEMS, TUNING_IDS, normalizeTuning, mergeTuning, tuningTable, describeTuning, chordPurity, isStandardTuning, A4_MIN, A4_MAX, EDO_MIN, EDO_MAX,
+  requireScale, SCALE_INFO, INSTRUMENTS, scalePitchClasses
 } from '@greanteadawy/core';
 import {
   z, ok, projectIdArg, annotations as A, resolveChords, growPatternOp, assertFitsPattern, normVelocity, uniqueName, durationArg, durationTicks, DURATION_WORDS, steps
@@ -99,7 +99,15 @@ Nothing here changes the project. Chords are ${CHORD_WORDS}.`,
           const keys = detectKey(all, { count: 3 });
           if (keys.length) {
             const fits = keys.findIndex((k) => k.tonic === ctx.tonic && (k.scale === 'minor') === ctx.minor);
-            lines.push(`Key by the notes: ${keys.map((k) => `${k.key} ${k.scale} (${k.score})`).join(', ')}${fits === 0 ? ` — the project key ${ctx.label} fits best` : fits > 0 ? ` — the project key ${ctx.label} is among them` : ` — the project key is ${ctx.label}: if the first is what you hear, set it with update_project`}`);
+            // A minor and C major (and D dorian) are the same seven notes: counting notes cannot tell them apart, only
+            // where the music comes to rest can — so the relative key on top is no reason to change the project's
+            const own = new Set(ctx.degrees.map((d) => (ctx.tonic + d) % 12));
+            const sameNotes = (k) => { const pcs = scalePitchClasses(k.key, k.scale); return pcs.length === own.size && pcs.every((x) => own.has(x)); };
+            const verdict = fits === 0 ? ` — the project key ${ctx.label} fits best`
+              : sameNotes(keys[0]) ? ` — ${keys[0].key} ${keys[0].scale} has the same notes as the project key ${ctx.label}: the notes fit it, and which of the two it is depends on where the music rests`
+                : fits > 0 ? ` — the project key ${ctx.label} is among them`
+                  : ` — the project key is ${ctx.label}: if the first is what you hear, set it with update_project`;
+            lines.push(`Key by the notes: ${keys.map((k) => `${k.key} ${k.scale} (${k.score})`).join(', ')}${verdict}`);
           }
           if (!chords.length) return ok(`${lines.join('\n')}\nNo segment names a chord (single notes or clusters): try per="half" or a channel that plays chords.`);
         } else chords = chordList();
@@ -148,7 +156,7 @@ Nothing here changes the project. Chords are ${CHORD_WORDS}.`,
       case 'negative': {
         const chords = chordList();
         const mirrored = negativeHarmony(chords, ctx.key, ctx.minor ? 'minor' : 'major');
-        return ok(`Negative harmony around the axis of ${ctx.key} (every note mirrored between the tonic and its fifth — major turns minor, the dominant's pull becomes a plagal one):\n${mirrored.map((m) => `  ${pad(m.chord, 9)} → ${pad(m.mirrored, 9)} (${m.notes.join(' ')})`).join('\n')}\nMirrored progression: ${mirrored.map((m) => m.mirrored).join(' – ')}`, { mirrored });
+        return ok(`Negative harmony around the axis of ${ctx.key} (every note mirrored between the tonic and its fifth — major turns minor, the dominant's pull becomes a plagal one):\n${mirrored.map((m) => `  ${pad(m.chord, 9)} → ${pad(`${m.exact ? '' : '≈ '}${m.mirrored}`, 9)} (${m.notes.join(' ')})`).join('\n')}\nMirrored progression: ${mirrored.map((m) => m.mirrored).join(' – ')}${mirrored.some((m) => !m.exact) ? '\n≈ = the closest chord name: the mirror has a note this name does not (the notes in brackets are the mirror itself — write those with add_notes if you want it exactly).' : ''}`, { mirrored });
       }
       case 'modulate': {
         if (!a.toKey) throw new Error('toKey is required for action "modulate", e.g. toKey: "E" (and toScale: "major")');
@@ -278,7 +286,9 @@ Nothing here changes the project. Chords are ${CHORD_WORDS}.`,
     const names = [...p.channels];
     for (const role of [...new Set(hits.map((h) => h.role))]) {
       const [as, kinds, label, kind, preset] = PLAYERS[role];
-      const candidates = p.channels.filter((c) => roleOf(c) === as);
+      // A name alone does not make a drum: a synth called "Kick Bass" or a piano called "Top Hat Lead" plays a part
+      // of its own, and the groove would overwrite it. Only drum instruments and samplers can take a drum role.
+      const candidates = p.channels.filter((c) => roleOf(c) === as && (!followsTuning(c.instrument) || c.instrument.kind === 'sampler'));
       const rank = (c) => (kinds.indexOf(c.instrument.kind) + 1 || 99) + (as === 'hat' && isOpen(c) !== (role === 'openhat') ? 50 : 0);
       let ch = [...candidates].sort((x, y) => rank(x) - rank(y))[0] || null;
       // an open hat needs its own channel to ring: the closed hat is no stand-in when one can be made
@@ -335,9 +345,18 @@ Nothing here changes the project. Chords are ${CHORD_WORDS}.`,
     const patch = {};
     for (const k of ['system', 'root', 'a4', 'divisions', 'fraction', 'cents', 'ratios']) if (a[k] !== undefined) patch[k] = a[k];
     const current = p?.tuning || {};
+    if (patch.cents && patch.ratios) throw new Error('Give cents or ratios for a custom tuning, not both');
+    // a table is a custom tuning: sending one says so
+    if ((patch.cents || patch.ratios) && patch.system === undefined) patch.system = 'custom';
+    // an argument the system has no use for would be accepted and change nothing: say where it belongs instead
+    const system = patch.system ?? current.system ?? 'equal';
+    const belongs = { divisions: 'equal', fraction: 'meantone', cents: 'custom', ratios: 'custom' };
+    for (const [field, owner] of Object.entries(belongs)) {
+      if (patch[field] !== undefined && system !== owner) throw new Error(`${field} only means something in system "${owner}", and the tuning ${patch.system ? 'you ask for' : 'of the project'} is "${system}": add system: "${owner}", or leave ${field} out`);
+    }
     // a system chosen without a root is built on the song's key (the well temperaments on C, as they were designed)
     if (patch.system && patch.root === undefined && patch.system !== 'equal' && (current.system ?? 'equal') === 'equal') patch.root = WELL.has(patch.system) ? 'C' : p?.key || 'C';
-    return { patch, tuning: normalizeTuning({ ...current, ...patch }, { strict: true }) };
+    return { patch, tuning: normalizeTuning(mergeTuning(current, patch), { strict: true }) };
   }
   function tableText(tuning) {
     const rows = tuningTable(tuning);
@@ -346,7 +365,7 @@ Nothing here changes the project. Chords are ${CHORD_WORDS}.`,
 
   tool('set_tuning', {
     title: 'Set the tuning of the project',
-    description: `Choose the tuning every pitched instrument of the project plays in (drums are not retuned): ${TUNING_IDS.join(', ')}, a root and the A4 reference. The root keeps its equal-tempered pitch; the other notes move by up to ±30 cents. Only what you name changes (a4 alone keeps the system). system "equal" with a4 440 is the standard. Renders, exports and playback all follow. Look before you leap with describe_tuning (chord = how a chord beats in each system).`,
+    description: `Choose the tuning every pitched instrument of the project plays in (drums, tabla, taiko and gongs are not retuned): ${TUNING_IDS.join(', ')}, a root and the A4 reference. The root keeps its equal-tempered pitch; the other notes move by a few cents to about ±50 (the harmonic series moves its eleventh harmonic by 49). Only what you name changes (a4 alone keeps the system). system "equal" with a4 440 is the standard. Renders, exports and playback all follow. Look before you leap with describe_tuning (chord = how a chord beats in each system).`,
     inputSchema: { projectId: projectIdArg, ...tuningArgs },
     annotations: A.edit
   }, async (a) => {
@@ -379,13 +398,16 @@ Nothing here changes the project. Chords are ${CHORD_WORDS}.`,
     let purity = null;
     if (a.chord || a.notes) {
       const pitches = a.notes ? a.notes.map((n) => parseNote(n)) : chordNotes(readChord(a.chord, p ? keyContext(p.key, p.scale) : keyContext('C', 'major')).name, 4);
+      // with other than twelve steps to the octave a key is one step: the key that is called C5 is not a C
+      const label = (t) => (t.divisions ? (k) => `key ${k}` : noteName);
       const judge = (t) => {
         const r = chordPurity(t, pitches);
-        return { r, text: `${r.ratios ? `exactly ${r.ratios}, ` : ''}${r.worstBeatsHz < 0.05 ? 'beatless' : `fastest beat ${r.worstBeatsHz.toFixed(1)} per second`} — ${r.pairs.map((x) => `${noteName(x.low)}–${noteName(x.high)} ${x.ratio} ${Math.abs(x.offCents) < 0.05 ? 'pure' : `${sign(x.offCents)} c`}`).join(', ')}` };
+        const name = label(t);
+        return { r, text: `${r.ratios ? `exactly ${r.ratios}, ` : ''}${r.worstBeatsHz < 0.05 ? 'beatless' : `fastest beat ${r.worstBeatsHz.toFixed(1)} per second`} — ${r.pairs.map((x) => `${name(x.low)}–${name(x.high)} ${x.ratio} ${Math.abs(x.offCents) < 0.05 ? 'pure' : `${sign(x.offCents)} c`}`).join(', ')}` };
       };
       const own = judge(tuning);
       purity = own.r;
-      lines.push(`${a.chord || 'These notes'} (${pitches.map(noteName).join(' ')}) in this tuning: ${own.text}`);
+      lines.push(`${a.chord || 'These notes'} (${tuning.divisions ? `the keys ${pitches.join(' ')} — in ${tuning.divisions} equal steps every key is one step, so these keys are not the notes a keyboard names them` : pitches.map(noteName).join(' ')}) in this tuning: ${own.text}`);
       for (const system of a.compare || []) {
         if (system === 'custom') continue;
         // (seen from the standard, the other systems are built on the song's key — where one would set them)

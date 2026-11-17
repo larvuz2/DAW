@@ -10,7 +10,7 @@ import {
   normalizeProject, sanitizeNote, normalizeKey, audioClipFields, MAX_NUDGE_MS, MAX_MARKERS, channelAutomationParams, MACRO_PARAMS
 } from './model.js';
 import { SCALES, resolveScale } from './music.js';
-import { normalizeTuning } from './tuning.js';
+import { normalizeTuning, mergeTuning } from './tuning.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
 import { EXPRESSION_DIMS, sanitizeCurve } from './expression.js';
 
@@ -253,7 +253,7 @@ export function applyOp(d, op) {
       if ('tuning' in p) {
         // a patch: what is not named stays ({ a4: 432 } keeps the system); null goes back to the standard
         req(p.tuning === null || (typeof p.tuning === 'object' && !Array.isArray(p.tuning)), 'tuning must be an object { system, root, a4, … } or null for the standard');
-        d.tuning = p.tuning === null ? normalizeTuning(null) : normalizeTuning({ ...d.tuning, ...p.tuning }, { strict: true });
+        d.tuning = p.tuning === null ? normalizeTuning(null) : normalizeTuning(mergeTuning(d.tuning, p.tuning), { strict: true });
       }
       if ('spatial' in p) {
         req(p.spatial && typeof p.spatial === 'object', 'spatial must be an object { enabled, monitor }');

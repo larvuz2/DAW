@@ -416,11 +416,16 @@ export class AudioEngine {
       for (const v of this.voices) if (v.chokeGroup === ch.chokeGroup && v.start < time + 0.0005 && !v.done) v.kill(time);
     }
     const p = ch.instrument.params;
+    // (0 in standard tuning: no note is touched, and renders stay what they were)
+    const tune = tuningCents(this.project.tuning, k);
     let glideFrom = null;
     if (p.mono) {
       const last = this.monoLast.get(channelId);
       if (last && !last.done && last.killedAt === null && last.start < time) {
         if (last.noteEnd === null || last.noteEnd > time - 0.001) glideFrom = last.freq || null;
+        // A voice glides in equal-tempered terms and its own tuning offset is added on top: start where the last
+        // note really was (in 19 equal steps an octave is 19 keys — without this the glide began 4 semitones off).
+        if (glideFrom && (last.tune || tune)) glideFrom *= 2 ** (((last.tune || 0) - tune) / 1200);
         last.kill(time);
       }
     }
@@ -447,8 +452,6 @@ export class AudioEngine {
     const expr = expression || releaseVelocity !== null ? { expression, seconds: exprSeconds ?? duration ?? 1, releaseVelocity: releaseVelocity ?? 0.5 } : null;
     // (the transport says where in the song its notes are; a note played by hand asks the clock)
     const at = ch.instrument.kind === 'ggs' ? beat ?? this.beatAt(time) : null;
-    // (0 in standard tuning: no note is touched, and renders stay what they were)
-    const tune = tuningCents(this.project.tuning, k);
     const v = playNote(this.ctx, dest, ch.instrument, { time, duration, key: k, velocity, glideFrom, buffer, expr, rig: strip.ggs, beat: at, tune });
     if (!v) {
       if (dest !== bus) { try { dest.disconnect(); } catch { /* ignore */ } } // the note's panner, unused
@@ -456,6 +459,7 @@ export class AudioEngine {
     }
     v.chokeGroup = ch.chokeGroup;
     v.channelId = channelId;
+    v.tune = tune; // (where the tuning put this note, for a glide that starts from it)
     v.noteEnd = duration == null ? null : time + duration;
     this.voices.add(v);
     v.onDone = () => {
