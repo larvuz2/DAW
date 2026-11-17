@@ -3,7 +3,7 @@ import { getEngine } from '../audio/index.js';
 import { useAnimationFrame } from './ui/Controls.jsx';
 
 /** Small oscilloscope / spectrum display of the master output (click to switch). */
-export function Visualizer({ width = 88, height = 30 }) {
+export function Visualizer({ width = 58, height = 30 }) {
   const ref = useRef(null);
   const [mode, setMode] = useState('scope');
   const buf = useRef(null);
@@ -46,7 +46,8 @@ export function Visualizer({ width = 88, height = 30 }) {
       const bins = an.frequencyBinCount;
       if (!buf.current || buf.current.length !== bins) buf.current = new Float32Array(bins);
       an.getFloatFrequencyData(buf.current);
-      const bars = 32;
+      // (as many bars as the width can show apart)
+      const bars = Math.min(32, Math.floor(width / 2.4));
       const bw = width / bars;
       for (let b = 0; b < bars; b++) {
         const f0 = Math.floor(Math.pow(bins, b / bars));
