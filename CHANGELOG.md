@@ -22,6 +22,12 @@ at once (not only the one open in the editor):
   and `docs/av-bridge.md` document it. Phase 3 (3D positions, live per-note expression) is next.
 - Under the hood: the 0…1 ↔ range mapping of params lives in core (`normalizeParam` / `denormalizeParam`), shared by
   the engine's automation and the bridge.
+- After an independent review: a frame of a big song costs a fraction of a millisecond again (3,200 automation clips:
+  0.3 ms, from 23 ms — the clips are indexed once per edit); frames that arrive close together are no longer dropped
+  (they carried notes and changes); a lost frame or a takeover sends everything next; automation saved on insert 0
+  moves the master's value; a 3D object reports where its x puts it, an insert silenced by another's solo says so,
+  a route to a free LFO's rate stays at rest, `bend` keeps its ±4 octaves; a channel that goes away gets a last
+  value; the voices stop reporting while nobody hears the bridge; one frame is held to 4096 phase 2 messages.
 
 ## 0.16.0 — Send to visuals
 

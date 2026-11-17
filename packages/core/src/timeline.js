@@ -88,14 +88,14 @@ export function songAudioCovering(project, t) {
   return project.playlist.clips.filter((c) => c.kind === 'audio' && !c.mute && !tracks[c.track]?.mute && c.start < t && c.start + c.length > t);
 }
 
-/** Automation clips overlapping [from, to). */
-export function songAutomationInRange(project, from, to) {
+/** Automation clips overlapping [from, to). byId: the automations by id, when the caller has them (a big song). */
+export function songAutomationInRange(project, from, to, byId = null) {
   const tracks = project.playlist.tracks;
   const out = [];
   for (const clip of project.playlist.clips) {
     if (clip.kind !== 'automation' || clip.mute || tracks[clip.track]?.mute) continue;
     if (clip.start + clip.length <= from || clip.start >= to) continue;
-    const automation = project.automations.find((a) => a.id === clip.refId);
+    const automation = byId ? byId.get(clip.refId) : project.automations.find((a) => a.id === clip.refId);
     if (automation) out.push({ clip, automation });
   }
   return out;

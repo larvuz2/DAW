@@ -1,7 +1,7 @@
 {
  "format": "greanteadawy-project",
  "version": 1,
- "id": "prj_8t62v1b70a",
+ "id": "prj_z59a82ibnv",
  "name": "AV fixture",
  "bpm": 120,
  "timeSig": [
@@ -18,7 +18,7 @@
  },
  "channels": [
   {
-   "id": "ch_l7cc86uoek",
+   "id": "ch_nhl18c229l",
    "name": "Kick",
    "color": "#e8665a",
    "instrument": {
@@ -47,7 +47,7 @@
    "swingMix": 1
   },
   {
-   "id": "ch_0n0b64twmt",
+   "id": "ch_x9kw6mdt8b",
    "name": "Clap",
    "color": "#f5d547",
    "instrument": {
@@ -74,7 +74,7 @@
    "swingMix": 1
   },
   {
-   "id": "ch_zb6r27yjx6",
+   "id": "ch_5gx9gpps2r",
    "name": "Hats",
    "color": "#8bd65b",
    "instrument": {
@@ -100,7 +100,7 @@
    "swingMix": 1
   },
   {
-   "id": "ch_qqrmc2epe4",
+   "id": "ch_3j7ej6kdnp",
    "name": "Bass",
    "color": "#46c79a",
    "instrument": {
@@ -644,7 +644,7 @@
    "swingMix": 1
   },
   {
-   "id": "ch_4g3ddhwcaz",
+   "id": "ch_j8hn7u9sjv",
    "name": "Pad",
    "color": "#46c79a",
    "instrument": {
@@ -1188,7 +1188,7 @@
    "swingMix": 1
   },
   {
-   "id": "ch_ororvetm0t",
+   "id": "ch_3x59mbbjlh",
    "name": "Lead",
    "color": "#46c79a",
    "instrument": {
@@ -1734,81 +1734,81 @@
  ],
  "patterns": [
   {
-   "id": "pat_3mdbev1tzg",
+   "id": "pat_hpn2z8dxm6",
    "name": "Drums",
-   "color": "#8bd65b",
+   "color": "#5a8ef0",
    "length": 384,
    "notes": {
-    "ch_l7cc86uoek": [
+    "ch_nhl18c229l": [
      {
-      "id": "n_h48ly5x3j5",
+      "id": "n_3909fdzhc6",
       "key": 60,
       "start": 0,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_b405c6qq4w",
+      "id": "n_1efiiu1uej",
       "key": 60,
       "start": 96,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_5ya7u7qf4l",
+      "id": "n_94o2daevhp",
       "key": 60,
       "start": 192,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_yfa7ppyzls",
+      "id": "n_55p0blkjg9",
       "key": 60,
       "start": 288,
       "length": 24,
       "velocity": 0.8
      }
     ],
-    "ch_0n0b64twmt": [
+    "ch_x9kw6mdt8b": [
      {
-      "id": "n_ub8sb1flge",
+      "id": "n_kqt7lamss3",
       "key": 60,
       "start": 96,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_9t082d4oas",
+      "id": "n_4rwys60g7r",
       "key": 60,
       "start": 288,
       "length": 24,
       "velocity": 0.8
      }
     ],
-    "ch_zb6r27yjx6": [
+    "ch_5gx9gpps2r": [
      {
-      "id": "n_ckdmf31ch8",
+      "id": "n_qpc8r348cg",
       "key": 60,
       "start": 48,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_e1kjl2w7xg",
+      "id": "n_ug0bqaeikm",
       "key": 60,
       "start": 144,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_3qinoykw03",
+      "id": "n_1s3sgu32k1",
       "key": 60,
       "start": 240,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_b0mnij1kql",
+      "id": "n_jw6xdyq87c",
       "key": 60,
       "start": 336,
       "length": 24,
@@ -1818,63 +1818,63 @@
    }
   },
   {
-   "id": "pat_mpdo65yn78",
+   "id": "pat_4txvu1ydll",
    "name": "Hats",
    "color": "#3fb5d6",
    "length": 384,
    "notes": {
-    "ch_zb6r27yjx6": [
+    "ch_5gx9gpps2r": [
      {
-      "id": "n_snxm4cwfts",
+      "id": "n_heu3pmx0la",
       "key": 60,
       "start": 0,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_biys2n33vc",
+      "id": "n_3dzjgzxktt",
       "key": 60,
       "start": 48,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_yf60ysqw6g",
+      "id": "n_5dg7ml04jm",
       "key": 60,
       "start": 96,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_f9xpotwgah",
+      "id": "n_r2nd259kvi",
       "key": 60,
       "start": 144,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_1p9seowroq",
+      "id": "n_d702wqtw11",
       "key": 60,
       "start": 192,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_5unaxxclz0",
+      "id": "n_dqupiuy077",
       "key": 60,
       "start": 240,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_fh3061bwza",
+      "id": "n_5zy1804rc8",
       "key": 60,
       "start": 288,
       "length": 24,
       "velocity": 0.8
      },
      {
-      "id": "n_xhqtadjt86",
+      "id": "n_dobf7j19q2",
       "key": 60,
       "start": 336,
       "length": 24,
@@ -1884,119 +1884,119 @@
    }
   },
   {
-   "id": "pat_zjgpbekmxj",
+   "id": "pat_x1copoyizp",
    "name": "Chords",
    "color": "#9aa5b1",
    "length": 1536,
    "notes": {
-    "ch_4g3ddhwcaz": [
+    "ch_j8hn7u9sjv": [
      {
-      "id": "n_vi6og1aer6",
+      "id": "n_0cwhgq626s",
       "key": 45,
       "start": 0,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_v01bs9ynz1",
+      "id": "n_nuzkp0yj7w",
       "key": 48,
       "start": 0,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_u9z614dzfg",
+      "id": "n_q9vzadx7ud",
       "key": 52,
       "start": 0,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_23118hn3ib",
+      "id": "n_n2bstbkuk1",
       "key": 57,
       "start": 0,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_dd963lfue1",
+      "id": "n_2505paj5o8",
       "key": 41,
       "start": 384,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_7s584dx8hi",
+      "id": "n_1yjfyou2ht",
       "key": 48,
       "start": 384,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_kjcc1yny4x",
+      "id": "n_wqe0rbicev",
       "key": 53,
       "start": 384,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_4y5oqfvkbc",
+      "id": "n_3eamem75ca",
       "key": 57,
       "start": 384,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_saelpqt997",
+      "id": "n_o5j2qi0kyc",
       "key": 36,
       "start": 768,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_6482dx75bs",
+      "id": "n_yyfw6k4r4j",
       "key": 48,
       "start": 768,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_7egti05brr",
+      "id": "n_1aglwz3lg9",
       "key": 52,
       "start": 768,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_o263ucvwhj",
+      "id": "n_yrqt78q2hf",
       "key": 55,
       "start": 768,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_dyf8lr8b24",
+      "id": "n_5xrae330w3",
       "key": 31,
       "start": 1152,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_f4xedwf1e0",
+      "id": "n_jzrjh53h3x",
       "key": 47,
       "start": 1152,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_4huujpvtbi",
+      "id": "n_a4gmmubap4",
       "key": 50,
       "start": 1152,
       "length": 384,
       "velocity": 0.75
      },
      {
-      "id": "n_8w32pxtqmd",
+      "id": "n_v5ayk59n4r",
       "key": 55,
       "start": 1152,
       "length": 384,
@@ -2006,119 +2006,119 @@
    }
   },
   {
-   "id": "pat_mf3osxe9nl",
+   "id": "pat_vx4a5m9kbg",
    "name": "Bass",
    "color": "#8bd65b",
    "length": 1536,
    "notes": {
-    "ch_qqrmc2epe4": [
+    "ch_3j7ej6kdnp": [
      {
-      "id": "n_u8kjtzf1hl",
+      "id": "n_llc816p1bi",
       "key": 45,
       "start": 0,
       "length": 130,
       "velocity": 0.85
      },
      {
-      "id": "n_to10q33vxv",
+      "id": "n_mjiw4tlymk",
       "key": 45,
       "start": 144,
       "length": 43,
       "velocity": 0.85
      },
      {
-      "id": "n_sx2b0klah5",
+      "id": "n_gkdjd0khv9",
       "key": 45,
       "start": 192,
       "length": 130,
       "velocity": 0.85
      },
      {
-      "id": "n_uxfkv53kw2",
+      "id": "n_425mo3oquw",
       "key": 45,
       "start": 336,
       "length": 43,
       "velocity": 0.85
      },
      {
-      "id": "n_det04wa33f",
+      "id": "n_v3e1cie9gw",
       "key": 41,
       "start": 384,
       "length": 130,
       "velocity": 0.85
      },
      {
-      "id": "n_kw2mtgi75b",
+      "id": "n_zr8s3x8tmp",
       "key": 41,
       "start": 528,
       "length": 43,
       "velocity": 0.85
      },
      {
-      "id": "n_amzzrh2vb8",
+      "id": "n_yjrgtrrk48",
       "key": 41,
       "start": 576,
       "length": 130,
       "velocity": 0.85
      },
      {
-      "id": "n_ah5c6ue68i",
+      "id": "n_t5u0ulxitc",
       "key": 41,
       "start": 720,
       "length": 43,
       "velocity": 0.85
      },
      {
-      "id": "n_q1ji1l5qux",
+      "id": "n_dr0c8p6he6",
       "key": 36,
       "start": 768,
       "length": 130,
       "velocity": 0.85
      },
      {
-      "id": "n_tkxajoklno",
+      "id": "n_240k0cfai3",
       "key": 36,
       "start": 912,
       "length": 43,
       "velocity": 0.85
      },
      {
-      "id": "n_lzp67te6lv",
+      "id": "n_8eynlxv0is",
       "key": 36,
       "start": 960,
       "length": 130,
       "velocity": 0.85
      },
      {
-      "id": "n_9hpygr63tz",
+      "id": "n_d58ftzb0ns",
       "key": 36,
       "start": 1104,
       "length": 43,
       "velocity": 0.85
      },
      {
-      "id": "n_zfshp3imtu",
+      "id": "n_fqn9hdzr0i",
       "key": 31,
       "start": 1152,
       "length": 130,
       "velocity": 0.85
      },
      {
-      "id": "n_r3p10vxwan",
+      "id": "n_gn2phzyz6m",
       "key": 31,
       "start": 1296,
       "length": 43,
       "velocity": 0.85
      },
      {
-      "id": "n_yxr3xuiudg",
+      "id": "n_16ex1rqrn8",
       "key": 31,
       "start": 1344,
       "length": 130,
       "velocity": 0.85
      },
      {
-      "id": "n_912z6povxj",
+      "id": "n_gpxxzmb7g4",
       "key": 31,
       "start": 1488,
       "length": 43,
@@ -2128,140 +2128,140 @@
    }
   },
   {
-   "id": "pat_c4abczzstj",
+   "id": "pat_walb0dnr2y",
    "name": "Lead",
    "color": "#c86be0",
    "length": 1536,
    "notes": {
-    "ch_ororvetm0t": [
+    "ch_3x59mbbjlh": [
      {
-      "id": "n_cquu39daj8",
+      "id": "n_j1wqf56vp0",
       "key": 76,
       "start": 0,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_49lv0cu2pl",
+      "id": "n_hw8hps1lpc",
       "key": 81,
       "start": 48,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_t4v4objidp",
+      "id": "n_mrphcrekd5",
       "key": 84,
       "start": 96,
       "length": 96,
       "velocity": 0.8
      },
      {
-      "id": "n_ciiz1592s8",
+      "id": "n_1zr1pvjzyl",
       "key": 83,
       "start": 240,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_xlbuo52eug",
+      "id": "n_qx3graokx5",
       "key": 81,
       "start": 288,
       "length": 96,
       "velocity": 0.8
      },
      {
-      "id": "n_2nlqlyg1l5",
+      "id": "n_zv50hq0ujw",
       "key": 77,
       "start": 384,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_w4ojnfiqcp",
+      "id": "n_vv0ng25up7",
       "key": 81,
       "start": 432,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_zmcza0ahwd",
+      "id": "n_t435nqir19",
       "key": 84,
       "start": 480,
       "length": 96,
       "velocity": 0.8
      },
      {
-      "id": "n_t4u0usufky",
+      "id": "n_4zdixdjg9s",
       "key": 86,
       "start": 624,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_u3cxcvhboi",
+      "id": "n_d3w4jya41m",
       "key": 84,
       "start": 672,
       "length": 96,
       "velocity": 0.8
      },
      {
-      "id": "n_hloreia3dy",
+      "id": "n_14rh4anqd9",
       "key": 76,
       "start": 768,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_fg2fkjjwgw",
+      "id": "n_9bu7eo2910",
       "key": 79,
       "start": 816,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_7c6u1avgz3",
+      "id": "n_usrkmlhm71",
       "key": 84,
       "start": 864,
       "length": 96,
       "velocity": 0.8
      },
      {
-      "id": "n_eiesorzjjz",
+      "id": "n_nw1e55meq2",
       "key": 83,
       "start": 1008,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_kbsrv8tp2q",
+      "id": "n_pb6fm3g1bt",
       "key": 79,
       "start": 1056,
       "length": 96,
       "velocity": 0.8
      },
      {
-      "id": "n_36n27h1s2r",
+      "id": "n_y3kkwrzqfs",
       "key": 74,
       "start": 1152,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_pvwiuhnv1f",
+      "id": "n_qbzzzfyql6",
       "key": 79,
       "start": 1200,
       "length": 48,
       "velocity": 0.8
      },
      {
-      "id": "n_gtafwb5vxj",
+      "id": "n_hoxtx586ka",
       "key": 83,
       "start": 1248,
       "length": 96,
       "velocity": 0.8
      },
      {
-      "id": "n_sm0i6f0q2h",
+      "id": "n_jsctbxxky5",
       "key": 81,
       "start": 1344,
       "length": 192,
@@ -2274,97 +2274,97 @@
  "playlist": {
   "tracks": [
    {
-    "id": "trk_az2rqd939t",
+    "id": "trk_uhyp1vn3d1",
     "name": "Track 1",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_mjsc0l0136",
+    "id": "trk_ny5lmdkf25",
     "name": "Track 2",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_i5m9545ssy",
+    "id": "trk_ksfp2uk6dg",
     "name": "Track 3",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_dhj7vdt3zm",
+    "id": "trk_yk3k10tgaa",
     "name": "Track 4",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_nd2jg8fp82",
+    "id": "trk_shg7icffmp",
     "name": "Track 5",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_c7w5xm16bd",
+    "id": "trk_ysvxo6nf7t",
     "name": "Track 6",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_m026swi3ab",
+    "id": "trk_qre4y59sd7",
     "name": "Track 7",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_3zisnsbed9",
+    "id": "trk_r0li6acza2",
     "name": "Track 8",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_0emam74uyl",
+    "id": "trk_1mbli5zx23",
     "name": "Track 9",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_xs4rv9xy5q",
+    "id": "trk_5tr62ojrj4",
     "name": "Track 10",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_pv44o22j8j",
+    "id": "trk_vlwbp6skni",
     "name": "Track 11",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_jakc3vx56m",
+    "id": "trk_x8z6sa2ki0",
     "name": "Track 12",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_isyzbr1ie0",
+    "id": "trk_65spry98wc",
     "name": "Track 13",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_ezqaxvzd7j",
+    "id": "trk_8pm9m6qkhd",
     "name": "Track 14",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_v6zujdbxw3",
+    "id": "trk_zqugid1wkf",
     "name": "Track 15",
     "color": null,
     "mute": false
    },
    {
-    "id": "trk_9g0kleuf7c",
+    "id": "trk_bvur6idgc8",
     "name": "Track 16",
     "color": null,
     "mute": false
@@ -2372,9 +2372,9 @@
   ],
   "clips": [
    {
-    "id": "clip_fy082erhd5",
+    "id": "clip_opv4yzukzp",
     "kind": "pattern",
-    "refId": "pat_zjgpbekmxj",
+    "refId": "pat_x1copoyizp",
     "track": 0,
     "start": 0,
     "length": 6144,
@@ -2382,9 +2382,9 @@
     "mute": false
    },
    {
-    "id": "clip_0qrn3v3ccd",
+    "id": "clip_6e0vxma63y",
     "kind": "pattern",
-    "refId": "pat_mpdo65yn78",
+    "refId": "pat_4txvu1ydll",
     "track": 1,
     "start": 0,
     "length": 1536,
@@ -2392,9 +2392,9 @@
     "mute": false
    },
    {
-    "id": "clip_89hur8uj5h",
+    "id": "clip_w5vv885115",
     "kind": "pattern",
-    "refId": "pat_3mdbev1tzg",
+    "refId": "pat_hpn2z8dxm6",
     "track": 2,
     "start": 1536,
     "length": 3072,
@@ -2402,9 +2402,9 @@
     "mute": false
    },
    {
-    "id": "clip_yz220fp1h2",
+    "id": "clip_bau1wdmyow",
     "kind": "pattern",
-    "refId": "pat_mpdo65yn78",
+    "refId": "pat_4txvu1ydll",
     "track": 1,
     "start": 4608,
     "length": 1536,
@@ -2412,9 +2412,9 @@
     "mute": false
    },
    {
-    "id": "clip_zy09b136kc",
+    "id": "clip_idah31afpp",
     "kind": "pattern",
-    "refId": "pat_mf3osxe9nl",
+    "refId": "pat_vx4a5m9kbg",
     "track": 3,
     "start": 1536,
     "length": 3072,
@@ -2422,9 +2422,9 @@
     "mute": false
    },
    {
-    "id": "clip_qanlg8d0fx",
+    "id": "clip_r8154gi2er",
     "kind": "pattern",
-    "refId": "pat_c4abczzstj",
+    "refId": "pat_walb0dnr2y",
     "track": 4,
     "start": 3072,
     "length": 1536,
@@ -2432,9 +2432,9 @@
     "mute": false
    },
    {
-    "id": "clip_l78z4i1pxg",
+    "id": "clip_nga2f9kbkl",
     "kind": "automation",
-    "refId": "auto_s2il5gl79v",
+    "refId": "auto_s7kdnt4vd6",
     "track": 5,
     "start": 1536,
     "length": 1536,
@@ -2442,9 +2442,9 @@
     "mute": false
    },
    {
-    "id": "clip_jr9anh1f8c",
+    "id": "clip_0sjet4zvk5",
     "kind": "automation",
-    "refId": "auto_2u5zjibx4u",
+    "refId": "auto_m9ekfc9dsp",
     "track": 6,
     "start": 0,
     "length": 6144,
@@ -2452,9 +2452,9 @@
     "mute": false
    },
    {
-    "id": "clip_vrr2unvnpi",
+    "id": "clip_3b0fml0aqn",
     "kind": "automation",
-    "refId": "auto_hg069ao2ah",
+    "refId": "auto_tb7ja5ktn9",
     "track": 7,
     "start": 3072,
     "length": 1536,
@@ -2462,9 +2462,9 @@
     "mute": false
    },
    {
-    "id": "clip_soavl5h0t7",
+    "id": "clip_kqg07dbcrb",
     "kind": "automation",
-    "refId": "auto_szsjnnp534",
+    "refId": "auto_qn7r8w4546",
     "track": 8,
     "start": 3072,
     "length": 1536,
@@ -2472,9 +2472,9 @@
     "mute": false
    },
    {
-    "id": "clip_lj5w0gruo0",
+    "id": "clip_m98w6qzvad",
     "kind": "automation",
-    "refId": "auto_v1035i7e8u",
+    "refId": "auto_mphlt5tm33",
     "track": 9,
     "start": 3072,
     "length": 1536,
@@ -2482,9 +2482,9 @@
     "mute": false
    },
    {
-    "id": "clip_89iibsdq31",
+    "id": "clip_u4vhlq1med",
     "kind": "automation",
-    "refId": "auto_nep5v6n3m8",
+    "refId": "auto_5ceyloo3gl",
     "track": 8,
     "start": 4608,
     "length": 1536,
@@ -2495,34 +2495,34 @@
  },
  "markers": [
   {
-   "id": "mk_v7j29lqcwv",
+   "id": "mk_klne062coa",
    "tick": 0,
    "name": "Intro"
   },
   {
-   "id": "mk_sqyvcg2gu1",
+   "id": "mk_hmeq4gmwlk",
    "tick": 1536,
    "name": "Build"
   },
   {
-   "id": "mk_egabtil3i8",
+   "id": "mk_v1d71kdot9",
    "tick": 3072,
    "name": "Drop"
   },
   {
-   "id": "mk_3go045ne29",
+   "id": "mk_rdtnb3jqtd",
    "tick": 4608,
    "name": "Outro"
   }
  ],
  "automations": [
   {
-   "id": "auto_s2il5gl79v",
+   "id": "auto_s7kdnt4vd6",
    "name": "Pad filter",
    "color": "#7fd1b9",
    "target": {
     "type": "channel",
-    "id": "ch_4g3ddhwcaz",
+    "id": "ch_j8hn7u9sjv",
     "param": "filterCutoff"
    },
    "length": 1536,
@@ -2538,7 +2538,7 @@
    ]
   },
   {
-   "id": "auto_2u5zjibx4u",
+   "id": "auto_m9ekfc9dsp",
    "name": "Energy",
    "color": "#7fd1b9",
    "target": {
@@ -2570,7 +2570,7 @@
    ]
   },
   {
-   "id": "auto_hg069ao2ah",
+   "id": "auto_tb7ja5ktn9",
    "name": "Strobe",
    "color": "#7fd1b9",
    "target": {
@@ -2838,7 +2838,7 @@
    ]
   },
   {
-   "id": "auto_szsjnnp534",
+   "id": "auto_qn7r8w4546",
    "name": "Lead 3D X",
    "color": "#7fd1b9",
    "target": {
@@ -2919,7 +2919,7 @@
    ]
   },
   {
-   "id": "auto_v1035i7e8u",
+   "id": "auto_mphlt5tm33",
    "name": "Lead 3D Y",
    "color": "#7fd1b9",
    "target": {
@@ -3000,13 +3000,13 @@
    ]
   },
   {
-   "id": "auto_nep5v6n3m8",
+   "id": "auto_5ceyloo3gl",
    "name": "Reverb throw",
    "color": "#7fd1b9",
    "target": {
     "type": "effect",
     "index": 5,
-    "effectId": "fx_wegawyzg81",
+    "effectId": "fx_6p0hy8xquj",
     "param": "mix"
    },
    "length": 1536,
@@ -3024,7 +3024,7 @@
  ],
  "mixer": [
   {
-   "id": "mx_5j5ep810bt",
+   "id": "mx_p679y2ntby",
    "name": "Master",
    "color": null,
    "volume": 1,
@@ -3035,7 +3035,7 @@
    "sends": [],
    "effects": [
     {
-     "id": "fx_tc488uent5",
+     "id": "fx_md3k6hxfk1",
      "type": "limiter",
      "enabled": true,
      "params": {
@@ -3054,7 +3054,7 @@
    }
   },
   {
-   "id": "mx_hwkmtf5bv2",
+   "id": "mx_538kk75m1p",
    "name": "Kick",
    "color": null,
    "volume": 0.8,
@@ -3073,7 +3073,7 @@
    }
   },
   {
-   "id": "mx_sklhfpj1vf",
+   "id": "mx_pyup7sa9g2",
    "name": "Clap",
    "color": null,
    "volume": 0.8,
@@ -3092,7 +3092,7 @@
    }
   },
   {
-   "id": "mx_2heqpcyd9b",
+   "id": "mx_f3id3glinh",
    "name": "Hats",
    "color": null,
    "volume": 0.8,
@@ -3111,7 +3111,7 @@
    }
   },
   {
-   "id": "mx_nvjbwn3xf3",
+   "id": "mx_tvvthlihcn",
    "name": "Bass",
    "color": null,
    "volume": 0.8,
@@ -3130,7 +3130,7 @@
    }
   },
   {
-   "id": "mx_yp2fp1db21",
+   "id": "mx_r1cbw6ex94",
    "name": "Pad",
    "color": null,
    "volume": 0.8,
@@ -3141,7 +3141,7 @@
    "sends": [],
    "effects": [
     {
-     "id": "fx_wegawyzg81",
+     "id": "fx_6p0hy8xquj",
      "type": "reverb",
      "enabled": true,
      "params": {
@@ -3162,7 +3162,7 @@
    }
   },
   {
-   "id": "mx_2at1fgyqhj",
+   "id": "mx_6o7itgsm4h",
    "name": "Lead",
    "color": null,
    "volume": 0.8,
@@ -3181,7 +3181,7 @@
    }
   },
   {
-   "id": "mx_i0ndu1jitt",
+   "id": "mx_c8ppqcbf7v",
    "name": "Insert 7",
    "color": null,
    "volume": 0.8,
@@ -3200,7 +3200,7 @@
    }
   },
   {
-   "id": "mx_49x1vnqdom",
+   "id": "mx_oc6ac97opu",
    "name": "Insert 8",
    "color": null,
    "volume": 0.8,
@@ -3219,7 +3219,7 @@
    }
   },
   {
-   "id": "mx_qcavhf09t5",
+   "id": "mx_ifb6n6p4be",
    "name": "Insert 9",
    "color": null,
    "volume": 0.8,
@@ -3238,7 +3238,7 @@
    }
   },
   {
-   "id": "mx_4r1s07f9kv",
+   "id": "mx_su0vv6ygau",
    "name": "Insert 10",
    "color": null,
    "volume": 0.8,
@@ -3257,7 +3257,7 @@
    }
   },
   {
-   "id": "mx_t8o1qigjo3",
+   "id": "mx_rwkbcbszle",
    "name": "Insert 11",
    "color": null,
    "volume": 0.8,
@@ -3276,7 +3276,7 @@
    }
   },
   {
-   "id": "mx_to7e2b3itk",
+   "id": "mx_wz2mn6ipxn",
    "name": "Insert 12",
    "color": null,
    "volume": 0.8,
@@ -3295,7 +3295,7 @@
    }
   },
   {
-   "id": "mx_cimwrc1twn",
+   "id": "mx_7l426g9qi4",
    "name": "Insert 13",
    "color": null,
    "volume": 0.8,
@@ -3314,7 +3314,7 @@
    }
   },
   {
-   "id": "mx_rfij1m2y2u",
+   "id": "mx_0djn6fwl38",
    "name": "Insert 14",
    "color": null,
    "volume": 0.8,
@@ -3333,7 +3333,7 @@
    }
   },
   {
-   "id": "mx_zf1lw23a5i",
+   "id": "mx_tfqykfqg8z",
    "name": "Insert 15",
    "color": null,
    "volume": 0.8,
@@ -3352,7 +3352,7 @@
    }
   },
   {
-   "id": "mx_at1wezjnk1",
+   "id": "mx_z3886vz5qf",
    "name": "Insert 16",
    "color": null,
    "volume": 0.8,
@@ -3375,7 +3375,7 @@
   "enabled": true,
   "monitor": "stereo"
  },
- "createdAt": "2026-11-17T23:22:52.239Z",
- "updatedAt": "2026-11-17T23:22:52.751Z",
+ "createdAt": "2026-11-17T23:44:28.465Z",
+ "updatedAt": "2026-11-17T23:44:29.080Z",
  "rev": 32
 }

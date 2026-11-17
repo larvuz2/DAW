@@ -282,3 +282,49 @@ test('phase 2: every control and the GGS Synth on the first frame, then only wha
   bridge.stop();
   assert.deepEqual(watched.at(-1), ['ch_lead', false, 'av'], 'and they stop when it goes off');
 });
+
+test('phase 2 recovers: a lost frame or a takeover sends everything next; a channel that goes away gets a last value', (t) => {
+  t.after(() => mock.timers.reset());
+  const { engine, state, step, sent, bridge } = setup();
+  state.project = applyOps(state.project, [{ type: 'channel/add', channel: createChannel({ id: 'ch_lead', name: 'Lead', kind: 'ggs' }) }]);
+  const watched = new Map();
+  engine.watchGgs = (id, on, who) => watched.set(`${id}/${who}`, on);
+  engine.ggsLive = () => null;
+  engine.ggsVoices = () => 0;
+  step();
+  assert.ok(!step().param, 'nothing changed');
+  // the connection was down for a frame: the next one carries everything
+  bridge.send = (f) => { sent.push(f); return false; };
+  step();
+  bridge.send = (f) => { sent.push(f); return true; };
+  const after = step();
+  assert.equal(after.full, 1);
+  assert.equal(Object.keys(after.param).length, state.project.channels.length);
+  assert.ok(!step().full);
+  // this tab takes over the OSC port from another: everything again
+  state.avStatus = { state: 'busy', listeners: 0 };
+  step();
+  state.avStatus = { state: 'osc', listeners: 0 };
+  assert.equal(step().full, 1);
+  // nobody hears this tab: the voices stop reporting
+  assert.equal(watched.get('ch_lead/av'), true);
+  state.avStatus = { state: 'off', listeners: 0 };
+  step();
+  assert.equal(watched.get('ch_lead/av'), false, 'no reports for nobody');
+  state.avStatus = { state: 'osc', listeners: 0 };
+  step();
+  assert.equal(watched.get('ch_lead/av'), true);
+  // the GGS channel becomes a kick, and a channel is deleted: their last values say so
+  const kickId = state.project.channels[0].id;
+  state.project = applyOps(state.project, [
+    { type: 'channel/update', id: 'ch_lead', patch: { instrument: { kind: 'kick' } } },
+    { type: 'channel/remove', id: kickId }
+  ]);
+  const gone = step();
+  assert.equal(gone.ggs.lead.voices, 0);
+  assert.ok(Object.values(gone.ggs.lead.src).every((v) => v === 0));
+  assert.deepEqual(gone.param.kick, { mute: 1 });
+  assert.equal(watched.get('ch_lead/av'), false);
+  const next = step();
+  assert.ok(!next.ggs?.lead && !next.param?.kick, 'once');
+});

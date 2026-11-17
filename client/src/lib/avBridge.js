@@ -9,7 +9,7 @@
 // doesn't slow the timers of a tab that is playing sound).
 import {
   AV_FPS, PPQ, avMap, channelSlugs, automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, ticksPerBar, usedInserts,
-  effectiveValuesAt, ggsTelemetry, MACRO_PARAMS
+  effectiveValuesAt, ggsTelemetry, targetValuesAt, MACRO_PARAMS, GGS_SOURCES
 } from '@greanteadawy/core';
 
 const MAP_EVERY = 2 * AV_FPS; // the map again every 2 s, for a visual app that starts after the studio
@@ -56,6 +56,10 @@ export class AvBridge {
     this.session = null;
     this.lastDue = -Infinity; // the last frame's horizon: the notes sent so far started before it
     this.sentValues = new Map(); // phase 2: address → the value last sent (only changes go out, all once a second)
+    this.forceFull = false;
+    this.lastState = undefined;
+    this.chSlugs = new Set(); // channels and GGS channels of the last frame (one that goes away gets a last value)
+    this.ggsSlugs = new Set();
     this.watched = new Set(); // GGS channels whose voices report their modulation for us
     engine.noteTap = this;
     // (Chromium runs a 16.67 ms interval every 16 ms: 62.5 frames a second. A frame is due every 1/60 s on average.)
@@ -237,7 +241,9 @@ export class AvBridge {
     if (p !== this.autoProject || at !== this.autoAt) {
       this.autoProject = p;
       this.autoAt = at;
-      this.autoValues = automationValuesAt(p, at);
+      // (what automation does to each target: worked out once a frame, for the lanes and for phase 2)
+      this.targets = targetValuesAt(p, at);
+      this.autoValues = automationValuesAt(p, at, { targets: this.targets });
     }
     frame.auto = this.autoValues.auto;
     frame.user = this.autoValues.user;
@@ -251,9 +257,16 @@ export class AvBridge {
       if (key !== this.mapKey) { this.mapKey = key; this.frames = 0; }
     }
     if (this.frames % MAP_EVERY === 0) frame.map = this.map;
+    // (taking over from another tab, the visuals have only heard the other one: everything goes in the next frame)
+    const state = st.avStatus?.state;
+    if (state !== this.lastState) {
+      if (state === 'osc') this.forceFull = true;
+      this.lastState = state;
+    }
     this.phase2(frame, p, tick, playing && song, slugs);
     this.frames++;
-    this.send(frame);
+    // (a frame that couldn't be sent took its changes with it: send everything as soon as it can)
+    if (this.send(frame) === false) this.forceFull = true;
   }
 
   /**
@@ -262,7 +275,8 @@ export class AvBridge {
    */
   phase2(frame, p, tick, automated, slugs) {
     const { engine } = this;
-    const full = this.frames % FULL_EVERY === 0;
+    const full = this.forceFull || this.frames % FULL_EVERY === 0;
+    this.forceFull = false;
     const sent = this.sentValues;
     if (full) {
       frame.full = 1;
@@ -278,7 +292,7 @@ export class AvBridge {
     if (p !== this.effProject || at !== this.effAt) {
       this.effProject = p;
       this.effAt = at;
-      this.eff = effectiveValuesAt(p, at, { automated });
+      this.eff = effectiveValuesAt(p, at, { automated, targets: automated ? this.targets : null });
     }
     const { param, bus, fx } = this.eff;
     const pick = (prefix, values) => {
@@ -290,6 +304,9 @@ export class AvBridge {
       const v = pick(`ch/${slug}`, param[slug]);
       if (v) (frame.param ||= {})[slug] = v;
     }
+    // a channel that is gone (deleted, renamed) falls silent for the visuals, once
+    for (const slug of this.chSlugs) if (!(slug in param)) ((frame.param ||= {})[slug] = { mute: 1 });
+    this.chSlugs = new Set(Object.keys(param));
     for (const n in bus) {
       const v = pick(`bus/${n}`, bus[n]);
       if (v) (frame.busParam ||= {})[n] = v;
@@ -300,14 +317,20 @@ export class AvBridge {
         if (v) ((frame.fx ||= {})[n] ||= {})[slug] = v;
       }
     }
-    // the GGS Synth: its voices report while we watch (asking again every frame is free, and covers a new rig)
+    // the GGS Synth: its voices report while we watch (asking again every frame is free, and covers a new rig) — and
+    // only while someone hears the frames: the reports cost the audio thread a little
     const ggs = new Set();
+    const ggsSlugs = new Set();
+    const watch = !this.idle();
     for (const c of p.channels) {
       if (c.instrument.kind !== 'ggs') continue;
       const slug = slugs.get(c.id);
       ggs.add(c.id);
-      engine.watchGgs(c.id, true, 'av');
-      this.watched.add(c.id);
+      ggsSlugs.add(slug);
+      if (watch) {
+        engine.watchGgs(c.id, true, 'av');
+        this.watched.add(c.id);
+      }
       const t = ggsTelemetry(c.instrument.params, engine.ggsLive(c.id), { macros: MACRO_PARAMS.map((k) => param[slug]?.[k] ?? 0) });
       const out = {};
       const voices = engine.ggsVoices(c.id) ?? 0;
@@ -323,10 +346,16 @@ export class AvBridge {
       if (Object.keys(out).length) (frame.ggs ||= {})[slug] = out;
     }
     for (const id of this.watched) {
-      if (ggs.has(id)) continue;
+      if (watch && ggs.has(id)) continue;
       engine.watchGgs(id, false, 'av');
       this.watched.delete(id);
     }
+    // a GGS channel that is gone or is another instrument now: its notes and sources go quiet, once
+    for (const slug of this.ggsSlugs) {
+      if (ggsSlugs.has(slug)) continue;
+      ((frame.ggs ||= {})[slug] = { voices: 0, src: Object.fromEntries(GGS_SOURCES.map((k) => [k, 0])) });
+    }
+    this.ggsSlugs = ggsSlugs;
   }
 }
 

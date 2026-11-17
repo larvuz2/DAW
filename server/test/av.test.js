@@ -201,6 +201,26 @@ test('one tab is heard: a stopped tab with the bridge on gives way to one that p
   await new Promise((r) => setTimeout(r, 1100)); // let the port go quiet for the next test
 });
 
+test('frames close together all go out (two timer callbacks, a read after a stall); a flood does not', async () => {
+  await new Promise((r) => setTimeout(r, 1100)); // (the port is quiet from the tests before)
+  const tab = openSocket(srv.base, admin.cookie);
+  await tab.opened;
+  const n = received.length;
+  // three frames in one go, as TCP may deliver them after the server was busy
+  for (const bpm of [71, 72, 73]) tab.ws.send(JSON.stringify({ type: 'av', frame: frame({ bpm }) }));
+  await waitFor(() => received.slice(n).some((x) => x[0] === '/gtd/transport/bpm' && x[1] === 73));
+  assert.deepEqual(received.slice(n).filter((x) => x[0] === '/gtd/transport/bpm').map((x) => x[1]), [71, 72, 73]);
+  // a flood: a few go out at once, then the average rate (~120 a second) holds
+  await new Promise((r) => setTimeout(r, 100));
+  const m = received.length;
+  for (let i = 0; i < 200; i++) tab.ws.send(JSON.stringify({ type: 'av', frame: frame({ bpm: 90 }) }));
+  await new Promise((r) => setTimeout(r, 300));
+  const out = received.slice(m).filter((x) => x[0] === '/gtd/transport/bpm').length;
+  assert.ok(out >= 4 && out < 60, `${out} of 200`);
+  tab.ws.send(JSON.stringify({ type: 'av', frame: { playing: 0, final: true } }));
+  tab.ws.close();
+});
+
 test('Claude draws a visual lane: add_automation target user, lane 1..8, nothing else needed', async () => {
   const token = (await admin.post('/api/me/token')).body.token;
   const client = await mcpClient(srv.base, token);

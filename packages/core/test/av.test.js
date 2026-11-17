@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import {
   createDefaultProject, applyOps, normalizeProject, PPQ, AV_USER_LANES, AV_BANDS, AV_SPECTRUM_BANDS, avSlug, channelSlugs, avMap, usedInserts,
   automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, avFrameToOsc, encodeOsc, decodeOsc, AV_MAP_MAX_BYTES, diffProjects,
-  effectiveValuesAt, ggsTelemetry, GGS_SOURCES, GGS_TARGETS, effectSlugs, createChannel, normalizeParam, denormalizeParam, EFFECTS
+  effectiveValuesAt, ggsTelemetry, GGS_SOURCES, GGS_TARGETS, effectSlugs, createChannel, normalizeParam, denormalizeParam, EFFECTS,
+  targetValuesAt, AV_PHASE2_BUDGET
 } from '../src/index.js';
 import { MOD_SOURCES, MOD_TARGETS } from '@greanteadawy/synth-dsp';
 
@@ -327,7 +328,7 @@ test('phase 2 addresses: params, buses, effects and the GGS Synth, clamped, junk
     param: { kick: { volume: 0.8, mute: 1, 'bad key': 1 }, 'Bad Slug': { volume: 1 } },
     busParam: { 0: { volume: 2 }, x: { pan: 1 } },
     fx: { 1: { delay: { mix: 0.5, enabled: 1 }, 'Del ay': { mix: 1 } } },
-    ggs: { lead: { voices: 3, src: { env1: 0.5, lfo1: -2 }, dst: { f1Cutoff: [2000, 0.6], pitch: 'x' } } }
+    ggs: { lead: { voices: 3, src: { env1: 0.5, bend: -2, lfo1: -9 }, dst: { f1Cutoff: [2000, 0.6], pitch: 'x' } } }
   });
   const val = (a) => msgs.find(([x]) => x === a)?.slice(1).map((v) => v.i ?? v.f);
   assert.deepEqual(val('/gtd/ch/kick/param/volume'), [0.8]);
@@ -335,7 +336,8 @@ test('phase 2 addresses: params, buses, effects and the GGS Synth, clamped, junk
   assert.deepEqual(val('/gtd/bus/0/param/volume'), [1]);
   assert.deepEqual(val('/gtd/fx/1/delay/mix'), [0.5]);
   assert.deepEqual(val('/gtd/ggs/lead/voices'), [3]);
-  assert.deepEqual(val('/gtd/ggs/lead/src/lfo1'), [-1]);
+  assert.deepEqual(val('/gtd/ggs/lead/src/bend'), [-2], 'bend goes to ±4 octaves');
+  assert.deepEqual(val('/gtd/ggs/lead/src/lfo1'), [-4]);
   assert.deepEqual(val('/gtd/ggs/lead/dst/f1Cutoff'), [2000]);
   assert.ok(near(val('/gtd/ggs/lead/dst/f1Cutoff/n')[0], 0.6, 1e-6));
   assert.ok(!msgs.some(([a]) => /bad|Bad|Del ay|\/x\/|pitch/.test(a)), msgs.map(([a]) => a).join(' '));
@@ -343,4 +345,59 @@ test('phase 2 addresses: params, buses, effects and the GGS Synth, clamped, junk
   const all = avFrameToOsc({ user: [0, 0, 0, 0, 0, 0, 0, 0], param: { kick: { volume: 1 } }, ggs: { lead: { voices: 1 } }, latency: 0.01, map: { channels: [] } }).map(([a]) => a);
   assert.ok(all.indexOf('/gtd/user/8') < all.indexOf('/gtd/ch/kick/param/volume'));
   assert.ok(all.indexOf('/gtd/ggs/lead/voices') < all.indexOf('/gtd/latency'));
+});
+
+test('phase 2 as the engine plays it: the master as insert 0, a 3D object’s pan, insert solo, an inert LFO rate', () => {
+  let p = createDefaultProject();
+  p = applyOps(p, [
+    { type: 'automation/add', automation: { id: 'm0', target: { type: 'mixer', index: 0, param: 'volume' }, length: BAR, points: [{ t: 0, v: 0.1 }, { t: BAR, v: 0.1 }] } },
+    { type: 'clip/add', clips: [{ id: 'k0', kind: 'automation', refId: 'm0', track: 6, start: 0, length: BAR }] }
+  ]);
+  assert.ok(near(effectiveValuesAt(p, BAR / 2).bus[0].volume, 0.1), 'add_automation insert 0 moves the master fader too');
+  // a 3D object: its pan knob does nothing, its x is where it sits in stereo
+  let q = applyOps(p, [
+    { type: 'project/update', patch: { spatial: { enabled: true } } },
+    { type: 'mixer/update', index: 1, patch: { pan: -1, spatial: { enabled: true, x: 0.5 } } }
+  ]);
+  assert.ok(q.spatial.enabled && q.mixer[1].spatial.enabled, 'set up as a 3D object');
+  assert.ok(near(effectiveValuesAt(q, 0).bus[1].pan, 0.75), `pan ${effectiveValuesAt(q, 0).bus[1].pan}`);
+  q = applyOps(q, [
+    { type: 'automation/add', automation: { id: 'sx', target: { type: 'mixer', index: 1, param: 'spatialX' }, length: BAR, points: [{ t: 0, v: 0 }, { t: BAR, v: 0 }] } },
+    { type: 'clip/add', clips: [{ id: 'ks', kind: 'automation', refId: 'sx', track: 7, start: 0, length: BAR }] }
+  ]);
+  assert.equal(effectiveValuesAt(q, BAR / 2).bus[1].pan, 0, 'moved hard left by its x automation');
+  // insert solo: the others fall silent, unless they play into the soloed one; the master never does
+  const solo = applyOps(p, [{ type: 'mixer/update', index: 2, patch: { solo: true } }, { type: 'mixer/update', index: 3, patch: { output: 2 } }]);
+  const b = effectiveValuesAt(solo, 0).bus;
+  assert.deepEqual([b[0].mute, b[1].mute, b[2].mute, b[3].mute], [0, 1, 0, 0]);
+  // a route to the rate of a free-running LFO does nothing: its 0 … 1 stays at rest too
+  const live = new Float32Array(MOD_SOURCES.length + MOD_TARGETS.length);
+  live[MOD_SOURCES.length + MOD_TARGETS.indexOf('lfo1Rate')] = 0.8;
+  const free = ggsTelemetry({ lfo1Trig: 'free', lfo1Sync: 'off', lfo1Rate: 2 }, live);
+  assert.deepEqual(free.dst.lfo1Rate, [2, 0.5]);
+  const note = ggsTelemetry({ lfo1Trig: 'note', lfo1Sync: 'off', lfo1Rate: 2 }, live);
+  assert.ok(note.dst.lfo1Rate[0] > 2 && note.dst.lfo1Rate[1] > 0.5);
+});
+
+test('phase 2 at scale: a frame of a big song stays cheap, and a huge frame is held to a budget', () => {
+  let p = createDefaultProject();
+  const autos = Array.from({ length: 200 }, (_, i) => ({ type: 'automation/add', automation: { id: `a${i}`, target: { type: 'user', index: (i % 8) + 1 }, length: BAR, points: [{ t: 0, v: 0 }, { t: BAR, v: 1 }] } }));
+  const clips = Array.from({ length: 3200 }, (_, i) => ({ id: `c${i}`, kind: 'automation', refId: `a${i % 200}`, track: i % 20, start: Math.floor(i / 20) * BAR, length: BAR }));
+  p = applyOps(p, [...autos, { type: 'clip/add', clips }]);
+  const frame = (tick) => {
+    const targets = targetValuesAt(p, tick);
+    automationValuesAt(p, tick, { targets });
+    effectiveValuesAt(p, tick, { targets });
+  };
+  frame(0); // (the clip index is built once per project state)
+  const t0 = performance.now();
+  for (let f = 0; f < 60; f++) frame(BAR * 160 * (f / 60));
+  const perFrame = (performance.now() - t0) / 60;
+  assert.ok(perFrame < 6, `${perFrame.toFixed(2)} ms a frame for 3200 clips (16.7 ms is the whole frame)`);
+  // the budget
+  const fxs = Object.fromEntries(Array.from({ length: 128 }, (_, n) => [n, Object.fromEntries(Array.from({ length: 32 }, (_, e) => [`fx_${e}`, Object.fromEntries(Array.from({ length: 64 }, (_, k) => [`p${k}`, 0.5]))]))]));
+  const t1 = performance.now();
+  const msgs = avFrameToOsc({ fx: fxs, ggs: Object.fromEntries(Array.from({ length: 64 }, (_, g) => [`g${g}`, { src: { env1: 1 }, dst: { pitch: [0, 0.5] } }])) });
+  assert.ok(msgs.length <= AV_PHASE2_BUDGET + 20, `${msgs.length} messages`);
+  assert.ok(performance.now() - t1 < 200);
 });

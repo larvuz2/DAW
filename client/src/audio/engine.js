@@ -818,9 +818,10 @@ export class AudioEngine {
 
   // ------------------------------------------------------------------ meters
 
-  /** Peak level per mixer insert (0..~1.5). */
-  /** The synth editor opened (on = true) or closed on a GGS channel: its voices report their modulation while it is open. */
-  /** who: 'editor' (the synth editor) or 'av' (the audio → visual bridge): reports go on while either watches. */
+  /**
+   * Someone wants (on) or no longer wants a GGS channel's voices to report their modulation: who = 'editor' (the synth
+   * editor open on it) or 'av' (the audio → visual bridge). The reports go on while either watches.
+   */
   watchGgs(channelId, on, who = 'editor') {
     this.strips.get(channelId)?.ggs?.setWatch(on, who);
   }
@@ -888,6 +889,7 @@ export class AudioEngine {
     return this.strips.get(channelId)?.ggs?.live ?? null;
   }
 
+  /** Peak level per mixer insert (0..~1.5). */
   getLevels() {
     const buf = this.meterBuf;
     return this.inserts.map((ins) => {

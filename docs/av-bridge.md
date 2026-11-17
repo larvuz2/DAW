@@ -106,17 +106,23 @@ second. They come after the visual lanes and before the latency.
 |---|---|---|
 | `/gtd/ch/{channel}/param/{volume\|pan\|filterCutoff\|filterRes\|pitch\|mute}` | f | the channel strip, 0…1: its setting, or what automation makes it while the song plays (stopped, the engine puts automated controls back to their settings). volume 1 = +1.9 dB (0.8 = 0 dB), pan 0.5 = centre, filterCutoff log 20 Hz … 20 kHz, filterRes log 0.1 … 20, pitch −24 … +24 semitones (0.5 = none; a playing pitch clip adds to it), mute 1 = silent (muted, or another channel soloed) |
 | `/gtd/ch/{channel}/param/macro{1…8}` | f | a GGS channel's macros, 0…1 (setting or automation) |
-| `/gtd/bus/{n}/param/{volume\|pan\|mute}` | f | each mixer insert in use, the same way (0 = master; its 0 dB is 0.8) |
+| `/gtd/bus/{n}/param/{volume\|pan\|mute}` | f | each mixer insert in use, the same way (0 = master; its 0 dB is 0.8; automation saved as insert 0 counts for it). mute 1 = silent: muted, or another insert soloed that it doesn't play into. A 3D object's pan is where its x puts it (its pan knob does nothing) |
 | `/gtd/fx/{n}/{effect}/{param}` | f | every effect on insert n: `enabled` 0/1, each number param 0…1 of its range (log params on a log scale, as automation draws them), switches 0/1. `{effect}` is its type, a second one of the same type `_2` (`reverb`, `reverb_2`); the map lists them. A plugin effect sends `enabled` only |
 | `/gtd/ggs/{channel}/voices` | i | how many notes the channel is sounding (releases included) |
-| `/gtd/ggs/{channel}/src/{source}` | f | its 25 modulation sources as the newest note has them: `env1…4` 0…1, `lfo1…4` −1…1, `velocity`, `pressure`, `timbre` 0…1, `bend`, `key`, `random` −1…1, `releaseVel` 0…1, `macro1…8` 0…1, `chaos1…2` −1…1. Nothing sounding: 0 (the macros where they stand) |
+| `/gtd/ggs/{channel}/src/{source}` | f | its 25 modulation sources as the newest note has them: `env1…4` 0…1, `lfo1…4` −1…1, `velocity`, `pressure`, `timbre` 0…1, `bend` −4…4 (octaves: ±1 = ±12 semitones), `key`, `random` −1…1, `releaseVel` 0…1, `macro1…8` 0…1, `chaos1…2` −1…1. Nothing sounding: 0 (the macros where they stand) |
 | `/gtd/ggs/{channel}/dst/{target}` | f | its 39 modulation targets where the matrix has taken them, in the unit of their knob: `f1Cutoff`/`f2Cutoff` Hz, `pitch`/`osc{A,B,C}Pitch` semitones, `osc{A,B,C}Pos` 0…1 of the wavetable, `level`, `pan`, `lfo{1…4}Rate` Hz or ×tempo… Nothing sounding: their settings |
-| `/gtd/ggs/{channel}/dst/{target}/n` | f | the same as 0…1 of its control's range (cutoffs on a log scale); for an offset without a range (pitch, LFO rate) 0.5 + depth/2, so 0.5 = unmodulated |
+| `/gtd/ggs/{channel}/dst/{target}/n` | f | the same as 0…1 of its control's range (cutoffs on a log scale); for an offset without a range (pitch, LFO rate) 0.5 + depth/2, so 0.5 = unmodulated (a route to a free-running LFO's rate does nothing: 0.5) |
 
 The sources and targets are the GGS Synth's own (the bible's table 6.2 describes each). A voice reports them about 30
 times a second, so they step at 30 Hz inside 60 frames; they follow the audio thread, a few ms ahead of what reaches
-the speakers (like the notes: see `/gtd/latency`). While the bridge is on every GGS channel's voices report —
-as when the synth editor is open on a channel — which costs a little CPU on the audio thread and nothing in the sound.
+the speakers (like the notes: see `/gtd/latency`). While the bridge is on and someone hears it, every GGS channel's
+voices report — as when the synth editor is open on a channel — which costs a little CPU on the audio thread and
+nothing in the sound.
+
+A channel that goes away (deleted, renamed, or a GGS channel turned into another instrument) gets a last value once:
+`/gtd/ch/{channel}/param/mute 1`, and `/gtd/ggs/{channel}/voices 0` with its sources at 0. A frame that could not be
+sent, or a tab that takes over the OSC port, makes the next frame a full one. One frame becomes at most 4096 phase 2
+messages (a whole big project is about 1500).
 
 ### Occasional
 

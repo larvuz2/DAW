@@ -7,6 +7,8 @@ import { httpError } from './errors.js';
 import { activeProjectId } from './backend.js';
 import { MAX_FRAME_BYTES, MIN_FRAME_MS, claimAv } from './av.js';
 
+const AV_BURST = 4; // frames a tab may send back to back before the average rate applies
+
 export class Hub {
   /** av: the audio → visual bridge (server/src/av.js), which sends the playing tab's frames over OSC */
   constructor({ store, samples, users, sessions = null, av = null }) {
@@ -260,10 +262,14 @@ export class Hub {
     this.avSlots ??= new Map();
     let slot = this.avSlots.get(client.userId);
     if (!slot) this.avSlots.set(client.userId, (slot = { owner: null, at: 0, playing: false }));
-    // at most ~120 frames a second from a tab (the last frame of the one heard always goes: it says the music stopped)
+    // at most ~120 frames a second from a tab on average, with room for a few close together (two timer callbacks
+    // in a row, frames read together after a stall: dropping one would lose its notes and its changed values); the
+    // last frame of the tab heard always goes, it says the music stopped
     const heard = this.av?.slot.owner === client || slot.owner === client;
-    if (now - (client.avAt || 0) < MIN_FRAME_MS && !(final && heard)) return;
+    client.avTokens = Math.min(AV_BURST, (client.avTokens ?? AV_BURST) + (now - (client.avAt || now)) / MIN_FRAME_MS);
     client.avAt = now;
+    if (client.avTokens < 1 && !(final && heard)) return;
+    client.avTokens = Math.max(0, client.avTokens - 1);
     const r = this.av ? this.av.frame(client, this.users.get(client.userId), frame, now) : { osc: false, reason: 'off' };
     if (claimAv(slot, client, frame, now)) {
       let text = null;
