@@ -386,7 +386,8 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .ovw-node rect, .ovw-node path { fill: #11161b; stroke: var(--line); stroke-width: 1.2; }
 .ovw-node text { fill: var(--muted); font: 600 9px var(--mono); text-anchor: middle; }
 .ovw-node.src { cursor: pointer; outline: none; }
-.ovw-node.src:hover rect, .ovw-node.src:focus-visible rect { fill: #1c242c; }
+.ovw-node.src:hover rect { fill: #1c242c; }
+.ovw-node.src:focus-visible rect, .ovw-route-toggle:focus-visible rect { stroke: #fff; stroke-width: 2; }
 .ovw-node.src.off { opacity: 0.4; }
 .ovw-node.filter rect { stroke: var(--accent); fill: rgba(245, 159, 66, 0.1); }
 .ovw-node.filter text { fill: var(--accent); }
@@ -395,7 +396,7 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 .ovw-node.amp text { fill: var(--accent-2); }
 .ovw-route-toggle { cursor: pointer; outline: none; }
 .ovw-route-toggle rect { fill: #11161b; stroke: var(--panel-4); }
-.ovw-route-toggle:hover rect, .ovw-route-toggle:focus-visible rect { stroke: var(--accent); }
+.ovw-route-toggle:hover rect { stroke: var(--accent); }
 .ovw-route-toggle text { fill: var(--text); font: 9px var(--mono); text-anchor: middle; }
 
 /* the header: preset, macros, voice */
@@ -453,16 +454,22 @@ code, kbd, pre { font-family: var(--mono); font-size: 11px; }
 @container (max-width: 760px) { .ovw-grid > .ovw-mod { grid-column: span 6 !important; } .ovw-grid > .ovw-mod[data-module='header'], .ovw-grid > .ovw-mod[data-module='sources'] { grid-column: span 12 !important; } }
 @container (max-width: 480px) { .ovw-grid > .ovw-mod { grid-column: span 12 !important; } }
 
-/* full screen (for recording a video): only the modules, bigger, the toolbar on hover */
-.ovw:fullscreen { background: var(--bg); padding: 18px 22px; overflow: auto; }
-.ovw:fullscreen .ovw-bar { position: fixed; top: 6px; right: 12px; z-index: 5; opacity: 0; transition: opacity 0.2s; background: rgba(19, 23, 28, 0.92); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); }
-.ovw:fullscreen .ovw-bar:hover, .ovw:fullscreen .ovw-bar:has(:focus-visible) { opacity: 1; }
-.ovw:fullscreen .ovw-grid { gap: 12px; }
-.ovw:fullscreen .ovw-mod { padding: 10px 12px 12px; border-radius: 10px; }
-.ovw:fullscreen .ovw-display.tall { height: 170px; }
-.ovw:fullscreen .ovw-display.mid { height: 130px; }
-.ovw:fullscreen .ovw-display.short { height: 84px; }
-.ovw:fullscreen .ovw-display.scope { min-height: 210px; }
+/* full screen (for recording a video): the modules alone over the page, the toolbar in a strip of its own that shows
+   when pointed at; menus, dialogs and messages (z-index 900+) still come above */
+.ovw.solo { position: fixed; inset: 0; z-index: 800; background: var(--bg); padding: 34px 22px 18px; overflow: auto; }
+.ovw.solo .ovw-bar { position: fixed; top: 3px; right: 12px; z-index: 1; opacity: 0; transition: opacity 0.2s; background: rgba(19, 23, 28, 0.92); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); }
+.ovw.solo .ovw-bar:hover, .ovw.solo .ovw-bar:has(:focus-visible) { opacity: 1; }
+@media (hover: none) { .ovw.solo .ovw-bar { opacity: 0.6; } }
+.ovw.solo .ovw-grid { gap: 12px; }
+.ovw.solo .ovw-mod { padding: 10px 12px 12px; border-radius: 10px; }
+.ovw.solo .ovw-display.tall { height: 170px; }
+.ovw.solo .ovw-display.mid { height: 130px; }
+.ovw.solo .ovw-display.short { height: 84px; }
+.ovw.solo .ovw-display.scope { min-height: 210px; }
+/* where the grid has fallen to two columns or one, widths are not the user's to set */
+@container (max-width: 760px) { .ovw-width-tools { display: none; } }
+.ovw-width-tools { display: inline-flex; align-items: center; gap: 1px; }
+@media (pointer: coarse) { .ovw-mod-tools .tbtn { min-width: 30px; height: 30px; font-size: 13px; } .ovw-grip { font-size: 20px; padding: 0 6px; } }
 
 /* GGS Synth: envelope editor, filter curve, preset browser, wavetable grid, parameter table */
 .ggs-envedit { margin-bottom: 6px; }

@@ -57,11 +57,13 @@ test('a new Overview tab after the others, which stay as they were', async () =>
   // the other tabs keep the head (preset, macros) and the source bar on top
   await expect(page.locator('.ggs-head')).toBeVisible();
   await expect(page.locator('.ggs-sources')).toBeVisible();
+  const sources = await page.locator('.ggs-src').count();
+  expect(sources).toBeGreaterThan(20);
   await tab('Overview');
   // there, they are modules of their own instead
   await expect(page.locator('.ggs-head')).toHaveCount(0);
   await expect(page.locator('.ggs-sources')).toHaveCount(0);
-  expect(await modules()).toEqual(['header', 'oscA', 'oscB', 'oscC', 'subnoise', 'filter1', 'routing', 'filter2', 'amp', 'envelopes', 'lfos', 'chaos', 'sources', 'fx', 'scope', 'matrix', 'pad']);
+  await expect.poll(modules).toEqual(['header', 'oscA', 'oscB', 'oscC', 'subnoise', 'filter1', 'routing', 'filter2', 'amp', 'envelopes', 'lfos', 'chaos', 'sources', 'fx', 'scope', 'matrix', 'pad']);
   // pictures, not just knobs: every canvas has something drawn on it
   const blank = await page.locator('.ovw-display:not(.scope) canvas').evaluateAll((cs) => cs.filter((c) => {
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
@@ -70,7 +72,7 @@ test('a new Overview tab after the others, which stay as they were', async () =>
   }).length);
   expect(blank).toBe(0);
   await expect(page.locator('.ovw-routing')).toBeVisible();
-  await expect(page.locator('.ovw-src')).toHaveCount(25);
+  await expect(page.locator('.ovw-src')).toHaveCount(sources); // the same sources as the bar of the other tabs
   await tab('Oscillators');
   await expect(page.locator('.ggs-head')).toBeVisible();
   await tab('Overview');
@@ -92,12 +94,21 @@ test('it edits the patch: the routing diagram, a knob, a source dropped on a kno
   await res.focus();
   await page.keyboard.press('ArrowUp');
   await expect.poll(async () => (await params()).f1Res).toBeGreaterThan(before.f1Res ?? 0);
-  // and takes a dragged source like any other
-  const routes = (p) => [...Array(64)].map((_, i) => i + 1).filter((i) => p[`mod${i}Src`] === 'chaos2' && p[`mod${i}Dst`] === 'f2Cutoff');
+  // and the module shows the new value (modules redraw when their channel changes)
+  await expect(res).toHaveAttribute('aria-valuenow', String((await params()).f1Res));
+  // and takes a dragged source like any other (the LFOs sit just above the sources: no scrolling during the drag)
+  const routes = (p) => [...Array(64)].map((_, i) => i + 1).filter((i) => p[`mod${i}Src`] === 'chaos2' && p[`mod${i}Dst`] === 'lfo1Rate');
   expect(routes(await params())).toHaveLength(0);
-  await page.locator('.ovw-src[data-source="chaos2"]').dragTo(page.locator('[data-module=filter2] .knob', { hasText: 'Cutoff' }));
+  await page.locator('[data-module=lfos]').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await page.locator('.ovw-src[data-source="chaos2"]').dragTo(page.locator('[data-module=lfos] .knob', { hasText: 'Rate' }));
   await expect.poll(async () => routes(await params()).length).toBe(1);
   await expect(page.locator('.ovw-matrix li', { hasText: 'Chaos 2' })).toHaveCount(1);
+  // Space on the diagram reroutes a source; it does not also start the song
+  const dest = (await params()).oscBDest ?? 'f1';
+  await page.locator('.ovw-node.src[data-source=oscB]').focus();
+  await page.keyboard.press('Space');
+  await expect.poll(async () => (await params()).oscBDest).not.toBe(dest);
+  expect(await page.evaluate(() => window.greanteadawy.store.getState().playing)).toBe(false);
 });
 
 test('arrange: hide, add back, move, resize — and save the layout under a name that survives a reload', async () => {
@@ -106,14 +117,14 @@ test('arrange: hide, add back, move, resize — and save the layout under a name
   // hide two modules
   await page.getByRole('button', { name: 'Hide Chaos' }).click();
   await page.getByRole('button', { name: 'Hide Touch pad' }).click();
-  expect(await modules()).not.toContain('chaos');
+  await expect.poll(modules).not.toContain('chaos');
   await expect(page.locator('.ovw-changed')).toBeVisible();
   // bring one back from the menu: it comes at the end
   await page.locator('.ovw-add').selectOption('chaos');
-  expect((await modules()).at(-1)).toBe('chaos');
+  await expect.poll(async () => (await modules()).at(-1)).toBe('chaos');
   // one place earlier
   await page.getByRole('button', { name: 'Move Chaos earlier' }).click();
-  expect((await modules()).slice(-2)).toEqual(['chaos', 'matrix']);
+  await expect.poll(async () => (await modules()).slice(-2)).toEqual(['chaos', 'matrix']);
   // wider
   const width = () => page.locator('[data-module=chaos]').evaluate((el) => el.style.gridColumn);
   const w0 = await width();
@@ -122,8 +133,9 @@ test('arrange: hide, add back, move, resize — and save the layout under a name
   expect(await width()).not.toBe(w0);
   expect(await width()).toMatch(/span 6/);
   // drag the scope by its grip onto the effects: it goes just before them
+  await page.locator('[data-module=fx]').evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await page.locator('[data-module=scope] .ovw-grip').dragTo(page.locator('[data-module=fx]'));
-  expect((await modules()).slice(-5)).toEqual(['sources', 'scope', 'fx', 'chaos', 'matrix']);
+  await expect.poll(async () => (await modules()).slice(-5)).toEqual(['sources', 'scope', 'fx', 'chaos', 'matrix']);
   // save it under a name
   await page.locator('.ovw-bar').getByRole('button', { name: 'Save as…' }).click();
   await page.locator('.modal input').fill('Video: drift');
@@ -136,20 +148,20 @@ test('arrange: hide, add back, move, resize — and save the layout under a name
   await expect(page.locator('.toolbar')).toBeVisible();
   await openEditor();
   await tab('Overview');
-  expect(await modules()).toEqual(saved);
+  await expect.poll(modules).toEqual(saved);
   await expect(page.locator('.ovw-bar .ui-select').first()).toHaveValue('Video: drift');
 });
 
 test('built-in layouts: a few modules for a clip, and back to the whole patch', async () => {
   const pick = page.locator('.ovw-bar .ui-select').first();
   await pick.selectOption('Filters, routing & envelopes');
-  expect(await modules()).toEqual(['filter1', 'routing', 'filter2', 'envelopes', 'amp', 'scope']);
+  await expect.poll(modules).toEqual(['filter1', 'routing', 'filter2', 'envelopes', 'amp', 'scope']);
   await pick.selectOption('Video: drift');
-  expect((await modules()).slice(-5)).toEqual(['sources', 'scope', 'fx', 'chaos', 'matrix']);
+  await expect.poll(async () => (await modules()).slice(-5)).toEqual(['sources', 'scope', 'fx', 'chaos', 'matrix']);
   // a saved layout can be deleted; the editor goes back to the first built-in one
   await page.locator('.ovw-bar').getByRole('button', { name: 'Delete' }).click();
   await expect(pick).toHaveValue('Whole patch');
-  expect(await modules()).toHaveLength(17);
+  await expect.poll(async () => (await modules()).length).toBe(17);
   await expect(pick.locator('option', { hasText: 'Video: drift' })).toHaveCount(0);
   // a built-in name cannot be taken
   await page.locator('.ovw-bar').getByRole('button', { name: 'Save as…' }).click();
@@ -158,28 +170,51 @@ test('built-in layouts: a few modules for a clip, and back to the whole patch', 
   await expect(page.locator('.toast', { hasText: 'built-in' })).toBeVisible();
 });
 
-test('full screen shows only the modules', async () => {
+test('full screen: only the modules, over the whole page — and dialogs still show above them', async () => {
   await page.locator('.ovw-bar').getByRole('button', { name: 'Full screen' }).click();
-  await expect.poll(() => page.evaluate(() => document.fullscreenElement?.classList.contains('ovw') ?? false)).toBe(true);
-  await page.evaluate(() => document.exitFullscreen());
+  await expect(page.locator('body > .ovw.solo')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
+  const box = await page.locator('.ovw.solo').boundingBox();
+  expect(box.width).toBeGreaterThan(1400);
+  // a dialog opened from full screen is seen and answered there
+  await page.locator('.ovw.solo .ovw-bar').getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('.modal')).toBeVisible();
+  await page.locator('.modal').getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  // a knob's right-click menu too
+  await page.locator('.ovw.solo [data-module=filter1] .knob', { hasText: 'Cutoff' }).click({ button: 'right' });
+  await expect(page.locator('.context-menu')).toBeVisible();
+  await page.locator('.ovw.solo [data-module=filter1] .ovw-mod-head').click();
+  await expect(page.locator('.context-menu')).toHaveCount(0);
+  await expect(page.locator('.ovw.solo')).toBeVisible();
+  // and back
+  await page.locator('.ovw.solo .ovw-bar').getByRole('button', { name: 'Exit full screen' }).click();
+  await expect(page.locator('.ovw.solo')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+  await expect(page.locator('.ggs .ovw')).toBeVisible();
 });
 
-test('the scope listens to the channel while a note plays', async () => {
+test('the scope listens to the channel while a note plays, and lets go when it closes', async () => {
+  const scopeNode = () => page.evaluate((cid) => !!window.greanteadawy.engine()?.strips.get(cid)?.scope, lead);
+  await expect.poll(scopeNode).toBe(true); // the module asked for it
   const pad = page.locator('.ovw .ggs-pad');
   await pad.scrollIntoViewIfNeeded();
   const b = await pad.boundingBox();
   await page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.4);
   await page.mouse.down();
-  const level = () => page.evaluate((cid) => {
-    const an = window.greanteadawy.engine()?.channelAnalyser(cid);
-    if (!an) return -1;
-    const x = new Float32Array(an.fftSize);
-    an.getFloatTimeDomainData(x);
-    return Math.max(...x.map(Math.abs));
-  }, lead);
-  await expect.poll(level, { timeout: 5000 }).toBeGreaterThan(0.001);
+  // its canvas draws the wave: lit pixels in the top half
+  const lit = () => page.locator('.ovw-display.scope canvas').evaluate((c) => {
+    const d = c.getContext('2d').getImageData(0, 0, c.width, Math.floor(c.height / 2)).data;
+    let n = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 100) n++;
+    return n;
+  });
+  await expect.poll(lit, { timeout: 5000 }).toBeGreaterThan(200);
   await page.mouse.up();
+  // another tab: the analyser is disconnected
+  await tab('Filters');
+  await expect.poll(scopeNode).toBe(false);
+  await tab('Overview');
 });
 
 test('no uncaught errors in the browser', async () => {

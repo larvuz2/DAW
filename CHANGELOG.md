@@ -13,10 +13,15 @@ the effects as pictures (drive curve, chorus, delay repeats, reverb tail) and a 
 Every part is a **module**: *Arrange* to drag modules to new places, move them one place, make them 2–12 columns
 wide, hide them and add them back. Six ready-made layouts (*Whole patch*, *Oscillators*, *Filters, routing &
 envelopes*, *Modulation*, *Sound & scope*, *Minimal*) and your own, saved by name in the browser. *Full screen* shows
-only the modules, for recording a video. The other tabs have not changed.
+only the modules over the whole page, for recording a video; menus and dialogs still open above them. The other tabs
+have not changed.
 
 - The engine gives the editor an analyser on a channel (`channelAnalyser`): a side branch off the fader, made only
-  when the scope asks for it, never in an offline render. Nothing you hear changes.
+  when the scope asks for it and disconnected when it closes, never in an offline render. Nothing you hear changes.
+- After an independent review: full screen covers the page instead of the editor alone (a prompt, a right-click menu
+  or a message opened in full screen was invisible); Space on the signal-flow diagram no longer also starts the song;
+  the tab works when the browser blocks site data; pictures redraw only what moves and pause off screen; unchanged
+  modules are not re-rendered by edits elsewhere; saved layouts are limited to 30 and follow other tabs.
 
 ## 0.13.3 — No sign-in on your own computer
 

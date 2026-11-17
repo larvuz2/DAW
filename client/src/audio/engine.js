@@ -830,6 +830,14 @@ export class AudioEngine {
     return s.scope;
   }
 
+  /** The scope is gone (the tab closed): disconnect its analyser, so nothing listens to the channel for nothing. */
+  releaseChannelAnalyser(channelId) {
+    const s = this.strips.get(channelId);
+    if (!s?.scope) return;
+    try { s.vol.disconnect(s.scope); } catch { /* ignore */ }
+    s.scope = null;
+  }
+
   /** Where the modulation of a GGS channel's newest note stands: Float32Array [sources…, targets…], or null. */
   ggsLive(channelId) {
     return this.strips.get(channelId)?.ggs?.live ?? null;

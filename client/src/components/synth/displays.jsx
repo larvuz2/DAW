@@ -13,13 +13,18 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /**
  * A canvas that fills its box. `draw(g, w, h, now)` paints it; it runs when `deps` change, when the box is resized,
- * and — with `live` — on each frame in which `live()` returns something new (that value is `now`).
+ * and — with `live` — on each frame in which `live()` returns something new (that value is `now`). What does not
+ * move with `now` can go in `still(g, w, h)`: it is drawn once into a cached layer (again only when `deps` or the
+ * size change), so a live frame only redraws what moved. Nothing is redrawn live while the box is off screen.
  */
-export function useCanvas(draw, deps, live = null) {
+export function useCanvas(draw, deps, live = null, still = null) {
   const wrap = useRef(null);
   const canvas = useRef(null);
   const paint = useRef(() => {});
   const last = useRef(undefined);
+  const layer = useRef({ canvas: null, key: '' });
+  const version = useRef(0);
+  const visible = useRef(true);
   paint.current = (now) => {
     const cv = canvas.current;
     const box = wrap.current;
@@ -34,22 +39,47 @@ export function useCanvas(draw, deps, live = null) {
       cv.style.height = `${h}px`;
     }
     const g = cv.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, cv.width, cv.height);
+    if (still) {
+      const l = layer.current;
+      const key = `${version.current}|${cv.width}|${cv.height}`;
+      if (l.key !== key) {
+        l.canvas = l.canvas || document.createElement('canvas');
+        l.canvas.width = cv.width;
+        l.canvas.height = cv.height;
+        const sg = l.canvas.getContext('2d');
+        sg.setTransform(dpr, 0, 0, dpr, 0, 0);
+        still(sg, w, h);
+        l.key = key;
+      }
+      g.drawImage(l.canvas, 0, 0);
+    }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, w, h);
     draw(g, w, h, now);
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { paint.current(live ? live() : null); }, deps);
+  useEffect(() => {
+    version.current++;
+    paint.current(live ? live() : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
   useEffect(() => {
     const box = wrap.current;
     if (!box || typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(() => paint.current(live ? live() : null));
     ro.observe(box);
-    return () => ro.disconnect();
+    if (!live || typeof IntersectionObserver === 'undefined') return () => ro.disconnect();
+    const io = new IntersectionObserver(([e]) => {
+      visible.current = e.isIntersecting;
+      if (e.isIntersecting) paint.current(live());
+    });
+    io.observe(box);
+    return () => { ro.disconnect(); io.disconnect(); };
   }, [live]);
   useEffect(() => {
     if (!live) return undefined;
     return onFrame(() => {
+      if (!visible.current) return;
       const v = live();
       const key = Array.isArray(v) || ArrayBuffer.isView(v) ? v : v === null || v === undefined ? null : Math.round(v * 400) / 400;
       if (key === last.current && !ArrayBuffer.isView(key)) return;
@@ -61,8 +91,8 @@ export function useCanvas(draw, deps, live = null) {
 }
 
 /** A box with a canvas in it (the size comes from CSS: `.ovw-display` and its modifiers). */
-export function Display({ draw, deps, live, className = '', label }) {
-  const { wrap, canvas } = useCanvas(draw, deps, live);
+export function Display({ draw, still, deps, live, className = '', label }) {
+  const { wrap, canvas } = useCanvas(draw, deps, live, still);
   return <div ref={wrap} className={`ovw-display ${className}`}><canvas ref={canvas} role="img" aria-label={label} /></div>;
 }
 
@@ -115,49 +145,66 @@ function normalize(wave) {
 export function WavetableStack({ table, pos, color, on = true, live = null }) {
   const frames = useMemo(() => stackOf(table), [table]);
   const count = useMemo(() => getWavetable(table).frames, [table]);
+  const geom = (w, h) => {
+    const pad = 6;
+    const dx = w * 0.2;
+    const dy = h * 0.42;
+    const fw = w - dx - pad * 2;
+    const amp = ((h - dy - pad * 2) / 2) * 0.9;
+    const origin = (depth) => [pad + dx * depth, h - pad - amp - dy * depth];
+    const trace = (g, frame, depth) => {
+      const [ox, oy] = origin(depth);
+      g.beginPath();
+      for (let i = 0; i < frame.length; i++) {
+        const x = ox + (i / (frame.length - 1)) * fw;
+        const y = oy - frame[i] * amp;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      return [ox, oy];
+    };
+    return { pad, fw, amp, origin, trace };
+  };
   return (
     <Display className="tall" label={`Wavetable ${table} at position ${Math.round(pos * 100)}%`} live={live} deps={[table, Math.round(pos * 400), color, on]}
-      draw={(g, w, h, now) => {
-        const pad = 6;
-        const dx = w * 0.2;
-        const dy = h * 0.42;
-        const fw = w - dx - pad * 2;
-        const amp = ((h - dy - pad * 2) / 2) * 0.9;
-        const origin = (depth) => [pad + dx * depth, h - pad - amp - dy * depth];
-        const trace = (frame, depth) => {
-          const [ox, oy] = origin(depth);
-          g.beginPath();
-          for (let i = 0; i < frame.length; i++) {
-            const x = ox + (i / (frame.length - 1)) * fw;
-            const y = oy - frame[i] * amp;
-            if (i) g.lineTo(x, y); else g.moveTo(x, y);
-          }
-          return [ox, oy];
-        };
+      still={(g, w, h) => {
+        // every frame, back to front (the same picture until the table, the colour or the size changes)
+        const { fw, amp, origin, trace } = geom(w, h);
         g.globalAlpha = on ? 1 : 0.4;
         for (let k = STACK - 1; k >= 0; k--) {
           const depth = k / (STACK - 1);
-          const [ox, oy] = trace(frames[k], depth);
+          const [ox, oy] = trace(g, frames[k], depth);
           g.lineTo(ox + fw, oy + amp + 2);
           g.lineTo(ox, oy + amp + 2);
           g.closePath();
           g.fillStyle = 'rgba(18,20,26,0.84)';
           g.fill();
-          trace(frames[k], depth);
+          trace(g, frames[k], depth);
           g.strokeStyle = hexA(color, 0.18 + 0.42 * (1 - depth));
           g.lineWidth = 1;
           g.stroke();
         }
+        const [ax, ay] = origin(0);
+        const [bx, by] = origin(1);
+        g.strokeStyle = GRID;
+        g.beginPath();
+        g.moveTo(ax + fw + 3, ay + amp);
+        g.lineTo(bx + fw + 3, by + amp);
+        g.stroke();
+        g.globalAlpha = 1;
+      }}
+      draw={(g, w, h, now) => {
+        const { pad, fw, amp, origin, trace } = geom(w, h);
+        g.globalAlpha = on ? 1 : 0.4;
         const lit = (p, width, glow, fill) => {
           const frame = normalize(wavetablePreview(table, p, POINTS));
-          const [ox, oy] = trace(frame, p);
+          const [ox, oy] = trace(g, frame, p);
           if (fill) {
             g.lineTo(ox + fw, oy);
             g.lineTo(ox, oy);
             g.closePath();
             g.fillStyle = hexA(color, 0.16);
             g.fill();
-            trace(frame, p);
+            trace(g, frame, p);
           }
           g.shadowColor = glow ? color : 'transparent';
           g.shadowBlur = glow ? 8 : 0;
@@ -171,13 +218,6 @@ export function WavetableStack({ table, pos, color, on = true, live = null }) {
           lit(pos, 1, false, false);
           lit(at, 1.8, true, true);
         } else lit(pos, 1.8, true, true);
-        const [ax, ay] = origin(0);
-        const [bx, by] = origin(1);
-        g.strokeStyle = GRID;
-        g.beginPath();
-        g.moveTo(ax + fw + 3, ay + amp);
-        g.lineTo(bx + fw + 3, by + amp);
-        g.stroke();
         const [mx, my] = origin(at ?? pos);
         g.fillStyle = color;
         g.beginPath();
@@ -283,7 +323,7 @@ export function RoutingDiagram({ sources, f1On, f2On, route, onCycle, onRoute })
     for (const [x, y] of to) wires.push(<path key={`${s.id}-${x}-${y}`} d={curve(from[0], from[1], x - 16, y)} stroke={s.color} className="ovw-wire" />);
   });
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="ovw-routing" role="img" aria-label={`Signal flow: filters in ${route}`}>
+    <svg viewBox={`0 0 ${W} ${H}`} className="ovw-routing" role="group" aria-label={`Signal flow: filters in ${route}`}>
       {wires}
       {serial
         ? <path d={curve(F1[0] + 16, F1[1], F2[0] + 16, f2y)} className={`ovw-wire link ${f1On ? '' : 'off'}`} />
@@ -291,7 +331,8 @@ export function RoutingDiagram({ sources, f1On, f2On, route, onCycle, onRoute })
       <path d={curve(F2[0] + 16, f2y, AMP[0] - 14, AMP[1] + 6)} className={`ovw-wire link ${f2On ? '' : 'off'}`} />
       {sources.map((s, i) => (
         <g key={s.id} className={`ovw-node src ${s.on ? '' : 'off'}`} data-source={s.id} onClick={() => onCycle(s.id)} role="button" tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCycle(s.id); } }}>
+          aria-label={`${s.label} goes to ${s.dest === 'direct' ? 'the amp' : s.dest === 'both' ? 'both filters' : s.dest === 'f1' ? 'filter 1' : 'filter 2'}: change`}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCycle(s.id); } }}>
           <title>{`${s.label} → ${s.dest === 'direct' ? 'straight to the amp' : s.dest === 'both' ? 'both filters' : s.dest === 'f1' ? 'filter 1' : 'filter 2'} (click to send it elsewhere)`}</title>
           <rect x={2} y={ys[i] - 8} width={32} height={16} rx={4} style={{ stroke: s.color }} />
           <text x={18} y={ys[i] + 3.5} style={{ fill: s.on ? s.color : undefined }}>{s.short}</text>
@@ -307,7 +348,8 @@ export function RoutingDiagram({ sources, f1On, f2On, route, onCycle, onRoute })
         <path d={`M${AMP[0] - 14},${AMP[1] - 14} L${AMP[0] + 12},${AMP[1]} L${AMP[0] - 14},${AMP[1] + 14} Z`} />
         <text x={AMP[0] - 4} y={AMP[1] + 28}>AMP</text>
       </g>
-      <g className="ovw-route-toggle" onClick={onRoute} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRoute(); } }}>
+      <g className="ovw-route-toggle" onClick={onRoute} role="button" tabIndex={0} aria-label={`Filters in ${route}: switch to ${serial ? 'parallel' : 'serial'}`}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onRoute(); } }}>
         <title>Click: filters in {serial ? 'parallel' : 'series'}</title>
         <rect x={64} y={H - 20} width={80} height={16} rx={8} />
         <text x={104} y={H - 8.5}>{serial ? 'serial ⇄' : 'parallel ⇄'}</text>
@@ -361,27 +403,38 @@ export function LfoGraph({ shape, phase, color = '#5ab8f0', live = null, source 
   const getter = useMemo(() => (live ? () => liveSource(live(), source) : null), [live, source]);
   return (
     <Display className="mid" label={`LFO: ${shape}`} live={getter} deps={[shape, Math.round(phase * 100), color]}
-      draw={(g, w, h, now) => {
+      still={(g, w, h) => {
         g.strokeStyle = GRID;
         g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
-        const pts = Array.from({ length: Math.round(w) + 1 }, (_, i) => [i, h / 2 - lfoAt(shape, (i / w) * 2 + phase) * (h / 2 - 6)]);
-        g.beginPath();
-        pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        const curve = () => {
+          g.beginPath();
+          for (let i = 0; i <= Math.round(w); i++) {
+            const y = h / 2 - lfoAt(shape, (i / w) * 2 + phase) * (h / 2 - 6);
+            if (i) g.lineTo(i, y); else g.moveTo(i, y);
+          }
+        };
+        curve();
         g.lineTo(w, h / 2); g.lineTo(0, h / 2); g.closePath();
         g.fillStyle = hexA(color, 0.12);
         g.fill();
-        stroke(g, pts, color, 1.6);
-        if (typeof now === 'number') {
-          const y = h / 2 - clamp(now, -1, 1) * (h / 2 - 6);
-          g.strokeStyle = hexA(color, 0.5);
-          g.setLineDash([3, 3]);
-          g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
-          g.setLineDash([]);
-          g.fillStyle = color;
-          g.shadowColor = color; g.shadowBlur = 8;
-          g.beginPath(); g.arc(w - 6, y, 3.5, 0, Math.PI * 2); g.fill();
-          g.shadowBlur = 0;
-        }
+        curve();
+        g.strokeStyle = color;
+        g.lineWidth = 1.6;
+        g.lineJoin = 'round';
+        g.stroke();
+      }}
+      draw={(g, w, h, now) => {
+        if (typeof now !== 'number') return;
+        const y = h / 2 - clamp(now, -1, 1) * (h / 2 - 6);
+        g.strokeStyle = hexA(color, 0.5);
+        g.lineWidth = 1;
+        g.setLineDash([3, 3]);
+        g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+        g.setLineDash([]);
+        g.fillStyle = color;
+        g.shadowColor = color; g.shadowBlur = 8;
+        g.beginPath(); g.arc(w - 6, y, 3.5, 0, Math.PI * 2); g.fill();
+        g.shadowBlur = 0;
       }} />
   );
 }
@@ -390,18 +443,27 @@ export function ChaosGraph({ type, character, steps, color = '#ef7fb0', live = n
   const getter = useMemo(() => (live ? () => liveSource(live(), source) : null), [live, source]);
   return (
     <Display className="mid" label={`Chaos: ${type}`} live={getter} deps={[type, Math.round(character * 100), steps]}
-      draw={(g, w, h, now) => {
+      still={(g, w, h) => {
         g.strokeStyle = GRID;
         g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
         const pts = chaosPreview({ type, character, steps }, Math.round(w), 12, 3);
-        stroke(g, Array.from(pts, (v, i) => [i, h / 2 - v * (h / 2 - 5)]), color, 1.4);
-        if (typeof now === 'number') {
-          const y = h / 2 - clamp(now, -1, 1) * (h / 2 - 5);
-          g.fillStyle = color;
-          g.shadowColor = color; g.shadowBlur = 8;
-          g.beginPath(); g.arc(w - 6, y, 3.5, 0, Math.PI * 2); g.fill();
-          g.shadowBlur = 0;
+        g.beginPath();
+        for (let i = 0; i < pts.length; i++) {
+          const y = h / 2 - pts[i] * (h / 2 - 5);
+          if (i) g.lineTo(i, y); else g.moveTo(i, y);
         }
+        g.strokeStyle = color;
+        g.lineWidth = 1.4;
+        g.lineJoin = 'round';
+        g.stroke();
+      }}
+      draw={(g, w, h, now) => {
+        if (typeof now !== 'number') return;
+        const y = h / 2 - clamp(now, -1, 1) * (h / 2 - 5);
+        g.fillStyle = color;
+        g.shadowColor = color; g.shadowBlur = 8;
+        g.beginPath(); g.arc(w - 6, y, 3.5, 0, Math.PI * 2); g.fill();
+        g.shadowBlur = 0;
       }} />
   );
 }
@@ -418,7 +480,10 @@ export function SourceSpark({ source, live, color }) {
     let at = 0;
     let quiet = true;
     let frames = 0;
-    return onFrame(() => {
+    let visible = true;
+    const io = typeof IntersectionObserver === 'undefined' || !ref.current ? null : new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
+    io?.observe(ref.current);
+    const stop = onFrame(() => {
       const cv = ref.current;
       if (!cv) return;
       // ~30 points a second is plenty for a line 40 pixels wide
@@ -430,6 +495,7 @@ export function SourceSpark({ source, live, color }) {
       hist[at] = nowQuiet ? 0 : clamp(raw, -1, 1);
       at = (at + 1) % hist.length;
       n = Math.min(hist.length, n + 1);
+      if (!visible) return; // still recorded, drawn when it is back on screen
       const w = 40;
       const h = 18;
       if (cv.width !== w * 2) { cv.width = w * 2; cv.height = h * 2; }
@@ -447,6 +513,7 @@ export function SourceSpark({ source, live, color }) {
       g.lineWidth = 1.2;
       g.stroke();
     });
+    return () => { stop(); io?.disconnect(); };
   }, [source, live, color, both]);
   return <canvas ref={ref} className="ovw-spark" style={{ width: 40, height: 18 }} aria-hidden="true" />;
 }
@@ -533,28 +600,35 @@ export function ChorusWobble({ mix, rate, depth, color }) {
  * The sound of this channel right now, as a waveform and a spectrum, from an analyser on the channel strip (a side
  * branch: what is heard does not change). Quiet when nothing plays.
  */
-export function OutputScope({ analyser, color = '#f59f42' }) {
+export function OutputScope({ analyser, release, color = '#f59f42' }) {
   const wrap = useRef(null);
   const canvas = useRef(null);
   useEffect(() => {
-    const an = analyser();
     const time = new Float32Array(2048);
     const freq = new Float32Array(1024);
+    let node = null;
     let frames = 0;
     let quiet = false;
-    return onFrame(() => {
+    let drawnW = 0;
+    let drawnH = 0;
+    let visible = true;
+    const io = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
+    if (wrap.current) io?.observe(wrap.current);
+    const stop = onFrame(() => {
       const cv = canvas.current;
       const box = wrap.current;
-      const node = an || analyser();
-      if (!cv || !box || !node || ++frames % 2) return;
-      // silence is drawn once, not 30 times a second
+      node = node || analyser();
+      if (!cv || !box || !node || !visible || ++frames % 2) return;
+      const w = Math.max(10, box.clientWidth);
+      const h = Math.max(10, box.clientHeight);
       node.getFloatTimeDomainData(time);
       let loud = 0;
       for (let i = 0; i < 2048; i += 8) loud = Math.max(loud, Math.abs(time[i]));
-      if (loud < 1e-4 && quiet && cv.width === Math.round(box.clientWidth * Math.min(2, window.devicePixelRatio || 1))) return;
+      // silence is drawn once, not 30 times a second (unless the box changed size)
+      if (loud < 1e-4 && quiet && drawnW === w && drawnH === h) return;
       quiet = loud < 1e-4;
-      const w = Math.max(10, box.clientWidth);
-      const h = Math.max(10, box.clientHeight);
+      drawnW = w;
+      drawnH = h;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.width = `${w}px`; cv.style.height = `${h}px`; }
       const g = cv.getContext('2d');
@@ -567,10 +641,19 @@ export function OutputScope({ analyser, color = '#f59f42' }) {
       let peak = 0.02;
       for (let i = 0; i < 1024; i++) peak = Math.max(peak, Math.abs(time[start + i]));
       g.strokeStyle = GRID;
+      g.lineWidth = 1;
       g.beginPath(); g.moveTo(0, top / 2); g.lineTo(w, top / 2); g.moveTo(0, top + 1); g.lineTo(w, top + 1); g.stroke();
-      const pts = [];
-      for (let i = 0; i < 1024; i += 2) pts.push([(i / 1023) * w, top / 2 - (time[start + i] / peak) * (top / 2 - 4) * Math.min(1, peak * 4)]);
-      stroke(g, pts, color, 1.4);
+      const scale = (top / 2 - 4) * Math.min(1, peak * 4) / peak;
+      g.beginPath();
+      for (let i = 0; i < 1024; i += 2) {
+        const x = (i / 1023) * w;
+        const y = top / 2 - time[start + i] * scale;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.strokeStyle = color;
+      g.lineWidth = 1.4;
+      g.lineJoin = 'round';
+      g.stroke();
       node.getFloatFrequencyData(freq);
       const sr = node.context.sampleRate;
       const bins = freq.length;
@@ -592,6 +675,11 @@ export function OutputScope({ analyser, color = '#f59f42' }) {
       g.stroke();
       for (const hz of [100, 1000, 10000]) text(g, hz >= 1000 ? `${hz / 1000}k` : String(hz), xOf(hz), h - 2, { align: 'center', size: 8 });
     });
-  }, [analyser, color]);
+    return () => {
+      stop();
+      io?.disconnect();
+      if (node) release?.();
+    };
+  }, [analyser, release, color]);
   return <div ref={wrap} className="ovw-display scope"><canvas ref={canvas} role="img" aria-label="Output waveform and spectrum of this channel" /></div>;
 }

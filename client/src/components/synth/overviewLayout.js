@@ -29,6 +29,10 @@ export const MODULES = {
   pad: { label: 'Touch pad', w: 7 }
 };
 export const MODULE_IDS = Object.keys(MODULES);
+const isModule = (id) => typeof id === 'string' && Object.hasOwn(MODULES, id);
+/** How many layouts can be saved under a name. */
+export const MAX_SAVED = 30;
+const cleanName = (name) => String(name ?? '').slice(0, 40).trim();
 
 const L = (name, ...rows) => ({ name, builtIn: true, items: rows.flat().map(([id, w]) => ({ id, w })) });
 
@@ -66,10 +70,10 @@ const clampWidth = (w) => Math.max(MIN_WIDTH, Math.min(COLUMNS, Math.round(Numbe
 
 /** A copy of a layout as it should be: known modules only, each once, widths on the grid. */
 export function normalizeLayout(raw, name = 'Custom') {
-  const out = { name: typeof raw?.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 40) : name, items: [] };
+  const out = { name: (typeof raw?.name === 'string' && cleanName(raw.name)) || name, items: [] };
   const seen = new Set();
   for (const it of Array.isArray(raw?.items) ? raw.items : []) {
-    if (!it || !MODULES[it.id] || seen.has(it.id)) continue;
+    if (!it || !isModule(it.id) || seen.has(it.id)) continue;
     seen.add(it.id);
     out.items.push({ id: it.id, w: clampWidth(it.w ?? MODULES[it.id].w) });
   }
@@ -111,31 +115,39 @@ export function hideModule(layout, id) {
 
 /** Bring a hidden module back, at the end (or before `beforeId`), at its usual width. */
 export function showModule(layout, id, beforeId = null) {
-  if (!MODULES[id] || layout.items.some((it) => it.id === id)) return layout;
+  if (!isModule(id) || layout.items.some((it) => it.id === id)) return layout;
   return moveModule({ ...layout, items: [...layout.items, { id, w: MODULES[id].w }] }, id, beforeId);
 }
 
-// ---- remembered in this browser: the arrangement being used, and the ones saved under a name
-const KEY = 'gtd.ggs.overview';
+/** The same modules in the same order at the same widths (the name aside). */
+export const sameItems = (a, b) => a.items.length === b.items.length && a.items.every((it, i) => it.id === b.items[i].id && it.w === b.items[i].w);
 
-/** { current, saved: [layouts] } from storage — whatever is there, read safely. */
-export function loadLayouts(storage = globalThis.localStorage) {
+// ---- remembered in this browser: the arrangement being used, and the ones saved under a name
+export const STORAGE_KEY = 'gtd.ggs.overview';
+const KEY = STORAGE_KEY;
+// localStorage itself can throw when it is read (site data blocked): it is only touched inside a try
+const storageOf = (storage) => (storage === undefined ? globalThis.localStorage : storage);
+
+/** { current, saved: [layouts] } from storage (localStorage when none is given) — whatever is there, read safely. */
+export function loadLayouts(storage) {
   let raw = null;
-  try { raw = JSON.parse(storage?.getItem(KEY) || 'null'); } catch { raw = null; }
+  try { raw = JSON.parse(storageOf(storage)?.getItem(KEY) || 'null'); } catch { raw = null; }
   const saved = (Array.isArray(raw?.saved) ? raw.saved : []).map((l) => normalizeLayout(l)).filter((l) => l.items.length)
-    .filter((l, i, all) => all.findIndex((x) => x.name === l.name) === i && !BUILT_IN_LAYOUTS.some((b) => b.name === l.name)).slice(0, 30);
+    .filter((l, i, all) => all.findIndex((x) => x.name === l.name) === i && !BUILT_IN_LAYOUTS.some((b) => b.name === l.name)).slice(0, MAX_SAVED);
   const current = Array.isArray(raw?.current?.items) ? normalizeLayout(raw.current, raw.current.name) : defaultLayout();
   return { current, saved };
 }
 
-export function storeLayouts({ current, saved }, storage = globalThis.localStorage) {
-  try { storage?.setItem(KEY, JSON.stringify({ current, saved })); } catch { /* private mode or full: the layout lives for this visit only */ }
+export function storeLayouts({ current, saved }, storage) {
+  try { storageOf(storage)?.setItem(KEY, JSON.stringify({ current, saved })); } catch { /* blocked or full: the layout lives for this visit only */ }
 }
 
 /** Save `layout` under `name`: a new entry, or the one of that name replaced. Built-in names are not overwritten. */
 export function saveAs(saved, layout, name) {
-  const clean = String(name || '').trim().slice(0, 40);
+  const clean = cleanName(name);
   if (!clean) throw new Error('Give the layout a name');
+  if (!layout.items.length) throw new Error('Every module is hidden: add one before saving the layout');
+  if (saved.length >= MAX_SAVED && !saved.some((l) => l.name === clean)) throw new Error(`There are already ${MAX_SAVED} saved layouts: delete one first`);
   if (BUILT_IN_LAYOUTS.some((b) => b.name.toLowerCase() === clean.toLowerCase())) throw new Error(`"${clean}" is one of the built-in layouts: choose another name`);
   const entry = normalizeLayout({ ...layout, name: clean, builtIn: false, edited: false }, clean);
   return [...saved.filter((l) => l.name !== clean), entry];

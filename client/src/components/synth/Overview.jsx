@@ -6,7 +6,8 @@
 //
 // It edits the same params as the other tabs, through the same controls (`ed.C`): a knob here has its rings, its
 // live dot, its modulation menu and takes dropped sources exactly as it does there.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { SOURCE_DESTS, CHAOS_COUNT, CHAOS_INFO, FILTER_INFO, MACRO_COUNT, MOD_SLOTS, MOD_SOURCE_INFO, describeRoute, modSourceLabel, modTargetLabel, paramsToSection, sectionToParams, syncBeats } from '@greanteadawy/synth-dsp';
 import { useStore } from '../../state/store.js';
 import { getEngine } from '../../audio/index.js';
@@ -23,7 +24,8 @@ import {
   WavetableStack, UnisonFan, SubNoiseView, RoutingDiagram, EnvelopeCurve, LfoGraph, ChaosGraph, SourceSpark, DriveCurve, DelayTaps, ReverbTail, ChorusWobble, OutputScope
 } from './displays.jsx';
 import {
-  MODULES, BUILT_IN_LAYOUTS, COLUMNS, normalizeLayout, hiddenModules, moveModule, nudgeModule, resizeModule, hideModule, showModule, loadLayouts, storeLayouts, saveAs
+  MODULES, BUILT_IN_LAYOUTS, COLUMNS, STORAGE_KEY, normalizeLayout, hiddenModules, moveModule, nudgeModule, resizeModule, hideModule, showModule, sameItems,
+  loadLayouts, storeLayouts, saveAs
 } from './overviewLayout.js';
 
 const MODULE_MIME = 'application/x-gtd-module';
@@ -157,7 +159,7 @@ function AmpModule({ ed }) {
   return (
     <div className="ovw-amp">
       <EnvelopeCurve env={paramsToSection(full, 'envelope', 1)} color={ed.envColors[0]} />
-      <div className="ovw-knobs">{C('level', { size: KNOB })}{C('velSens', { size: KNOB, label: 'Vel' })}{C('glide', { size: KNOB })}{C('polyphony', { size: KNOB, label: 'Poly' })}</div>
+      <div className="ovw-knobs">{C('level', { size: KNOB })}{C('velSens', { size: KNOB, label: 'Vel' })}{C('relVelSens', { size: KNOB, label: 'Rel vel' })}{C('glide', { size: KNOB })}{C('polyphony', { size: KNOB, label: 'Poly' })}</div>
       <div className="ovw-knobs">{C('mono')}{C('legato')}{C('quality')}</div>
     </div>
   );
@@ -303,9 +305,10 @@ function FxModule({ ed }) {
 function ScopeModule({ ed }) {
   const id = ed.channel.id;
   const analyser = useCallback(() => getEngine()?.channelAnalyser?.(id) ?? null, [id]);
+  const release = useCallback(() => getEngine()?.releaseChannelAnalyser?.(id), [id]);
   return (
     <div className="ovw-scope">
-      <OutputScope analyser={analyser} />
+      <OutputScope analyser={analyser} release={release} />
       <p className="ovw-desc">This channel now: its wave (top) and its spectrum (bottom). Hold the pad or play notes.</p>
     </div>
   );
@@ -336,6 +339,14 @@ const RENDER = {
   pad: (ed) => <PadModule ed={ed} />
 };
 
+/**
+ * One module's contents. Ops on other channels, the transport or the song re-render the editor; a module only redraws
+ * when what it shows can have changed (`ed.stamp`: this channel, the route an Alt-drag edits).
+ */
+const ModuleBody = memo(function ModuleBody({ id, ed }) {
+  return RENDER[id](ed);
+}, (a, b) => a.id === b.id && a.ed.stamp === b.ed.stamp);
+
 /** A module's title: its own name, with the oscillator's colour and the filter's type where that helps. */
 function titleOf(id, ed) {
   if (id.startsWith('osc')) return <b style={{ color: ed.oscColors[id.slice(3)] }}>{MODULES[id].label}</b>;
@@ -352,21 +363,35 @@ export function Overview({ ed }) {
   const [arranging, setArranging] = useState(false);
   const [dragging, setDragging] = useState(null);
   const [over, setOver] = useState(null);
-  const root = useRef(null);
+  const [solo, setSolo] = useState(false);
   const layout = layouts.current;
   const all = useMemo(() => [...BUILT_IN_LAYOUTS, ...layouts.saved], [layouts.saved]);
+
+  // remembered in this browser; layouts saved in another tab show up here too
+  const loaded = useRef(true);
+  useEffect(() => {
+    if (loaded.current) { loaded.current = false; return; }
+    storeLayouts(layouts);
+  }, [layouts]);
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== STORAGE_KEY) return;
+      const { saved } = loadLayouts();
+      // only when the saved list really changed: two tabs must not keep answering each other
+      setLayouts((s) => (JSON.stringify(s.saved) === JSON.stringify(saved) ? s : { ...s, saved }));
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   const change = (fn) => setLayouts((s) => {
-    const next = { ...s, current: { ...fn(s.current), edited: true } };
-    storeLayouts(next);
-    return next;
+    const moved = fn(s.current);
+    return sameItems(moved, s.current) ? s : { ...s, current: { ...moved, edited: true } };
   });
-  const choose = (name) => setLayouts((s) => {
+  const choose = (name) => {
     const found = all.find((l) => l.name === name);
-    if (!found) return s;
-    const next = { ...s, current: normalizeLayout(found, found.name) };
-    storeLayouts(next);
-    return next;
-  });
+    if (found) setLayouts((s) => ({ ...s, current: normalizeLayout(found, found.name) }));
+  };
   const save = async () => {
     const name = await st.prompt({ title: 'Save this layout', value: layout.builtIn ? '' : layout.name, label: 'Name' });
     if (name === null || name === undefined) return;
@@ -377,27 +402,45 @@ export function Overview({ ed }) {
       st.toast(e.message, 'warn');
       return;
     }
-    const clean = saved.at(-1).name;
-    const next = { saved, current: saved.at(-1) };
-    storeLayouts(next);
-    setLayouts(next);
-    st.toast(`Layout "${clean}" saved`, 'success', 1800);
+    setLayouts({ saved, current: saved.at(-1) });
+    st.toast(`Layout "${saved.at(-1).name}" saved`, 'success', 1800);
   };
-  const remove = () => setLayouts((s) => {
-    const next = { saved: s.saved.filter((l) => l.name !== s.current.name), current: normalizeLayout(BUILT_IN_LAYOUTS[0]) };
-    storeLayouts(next);
-    return next;
-  });
+  const remove = () => setLayouts((s) => ({ saved: s.saved.filter((l) => l.name !== s.current.name), current: normalizeLayout(BUILT_IN_LAYOUTS[0]) }));
   const isSaved = layouts.saved.some((l) => l.name === layout.name);
   const hidden = hiddenModules(layout);
+
+  // full screen: the modules alone over the whole page (menus, dialogs and messages still show above them), and the
+  // browser's full screen around the page when it has one (not every phone does)
+  const entered = useRef(false);
+  const leave = useCallback(() => {
+    setSolo(false);
+    if (entered.current && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    entered.current = false;
+  }, []);
   const fullScreen = () => {
-    const el = root.current;
-    if (document.fullscreenElement) document.exitFullscreen?.();
-    else {
-      document.activeElement?.blur?.(); // the toolbar hides until hovered: it must not stay up because its button has focus
-      el?.requestFullscreen?.().catch(() => st.toast('This browser did not allow full screen', 'warn'));
+    if (solo) { leave(); return; }
+    document.activeElement?.blur?.(); // the toolbar hides until hovered: it must not stay up because its button has focus
+    setSolo(true);
+    const page = document.documentElement;
+    if (!document.fullscreenElement && page.requestFullscreen) {
+      page.requestFullscreen().then(() => { entered.current = true; }).catch(() => {});
     }
   };
+  useEffect(() => {
+    if (!solo) return undefined;
+    const onChange = () => { if (!document.fullscreenElement && entered.current) { entered.current = false; setSolo(false); } };
+    const onKey = (e) => {
+      const now = useStore.getState();
+      if (e.key === 'Escape' && !now.modal && !now.contextMenu) { e.stopPropagation(); leave(); } // a dialog or a menu closes first
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [solo, leave]);
+  useEffect(() => () => { if (entered.current && document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); }, []);
 
   // moving modules by dragging their grip onto another module (it goes before it) or onto the end
   const dragStart = (id) => (e) => {
@@ -414,7 +457,7 @@ export function Overview({ ed }) {
   const drop = (id) => (e) => {
     e.preventDefault();
     const moved = e.dataTransfer.getData(MODULE_MIME) || dragging;
-    if (moved && moved !== id) change((l) => (moved && hidden.includes(moved) ? showModule(l, moved, id) : moveModule(l, moved, id)));
+    if (moved && moved !== id) change((l) => moveModule(l, moved, id));
     setDragging(null);
     setOver(null);
   };
@@ -423,8 +466,8 @@ export function Overview({ ed }) {
     ...BUILT_IN_LAYOUTS.map((l) => ({ value: l.name, label: l.name, group: 'Built in' })),
     ...layouts.saved.map((l) => ({ value: l.name, label: l.name, group: 'Saved' }))
   ];
-  return (
-    <div className={`ovw ${arranging ? 'arranging' : ''}`} ref={root} data-nodrag>
+  const view = (
+    <div className={`ovw ${arranging ? 'arranging' : ''} ${solo ? 'solo' : ''}`} data-nodrag>
       <div className="ovw-bar">
         <span className="ovw-bar-label">Layout</span>
         <Select value={all.some((l) => l.name === layout.name) ? layout.name : ''} options={all.some((l) => l.name === layout.name) ? options : [{ value: '', label: `${layout.name} (changed)` }, ...options]}
@@ -443,8 +486,9 @@ export function Overview({ ed }) {
         {isSaved && <button className="btn tiny" onClick={remove} title="Forget this saved layout">Delete</button>}
         {layout.edited && all.some((l) => l.name === layout.name) && <button className="btn tiny" onClick={() => choose(layout.name)} title="Back to the layout as it was saved">Revert</button>}
         <span className="ovw-bar-gap" />
-        <button className="btn tiny" onClick={fullScreen} title="Show only these modules, on the whole screen (Esc to leave) — for recording a video">
-          <Icon name="max" size={12} /> Full screen
+        <button className="btn tiny" onClick={fullScreen} aria-pressed={solo}
+          title={solo ? 'Back to the editor (Esc)' : 'Show only these modules, on the whole screen (Esc to leave) — for recording a video'}>
+          <Icon name={solo ? 'restore' : 'max'} size={12} /> {solo ? 'Exit full screen' : 'Full screen'}
         </button>
       </div>
       <div className="ovw-grid" style={{ '--cols': COLUMNS }}>
@@ -460,14 +504,16 @@ export function Overview({ ed }) {
                 <span className="ovw-mod-tools">
                   <button className="tbtn small" aria-label={`Move ${MODULES[id].label} earlier`} title="Earlier" disabled={index === 0} onClick={() => change((l) => nudgeModule(l, id, -1))}>◀</button>
                   <button className="tbtn small" aria-label={`Move ${MODULES[id].label} later`} title="Later" disabled={index === layout.items.length - 1} onClick={() => change((l) => nudgeModule(l, id, 1))}>▶</button>
-                  <button className="tbtn small" aria-label={`Make ${MODULES[id].label} narrower`} title="Narrower" disabled={w <= 2} onClick={() => change((l) => resizeModule(l, id, -1))}>−</button>
-                  <span className="ovw-width" title="Columns of 12">{w}</span>
-                  <button className="tbtn small" aria-label={`Make ${MODULES[id].label} wider`} title="Wider" disabled={w >= COLUMNS} onClick={() => change((l) => resizeModule(l, id, 1))}>+</button>
+                  <span className="ovw-width-tools">
+                    <button className="tbtn small" aria-label={`Make ${MODULES[id].label} narrower`} title="Narrower" disabled={w <= 2} onClick={() => change((l) => resizeModule(l, id, -1))}>−</button>
+                    <span className="ovw-width" title="Columns of 12">{w}</span>
+                    <button className="tbtn small" aria-label={`Make ${MODULES[id].label} wider`} title="Wider" disabled={w >= COLUMNS} onClick={() => change((l) => resizeModule(l, id, 1))}>+</button>
+                  </span>
                   <button className="tbtn small" aria-label={`Hide ${MODULES[id].label}`} title="Hide (add it back from “+ Add a module”)" onClick={() => change((l) => hideModule(l, id))}>×</button>
                 </span>
               )}
             </header>
-            <div className="ovw-body">{RENDER[id](ed)}</div>
+            <div className="ovw-body"><ModuleBody id={id} ed={ed} /></div>
           </section>
         ))}
         {arranging && (
@@ -481,4 +527,6 @@ export function Overview({ ed }) {
       </div>
     </div>
   );
+  // in full screen the same view is drawn over the page, outside the window (which would clip it and sit under others)
+  return solo ? createPortal(view, document.body) : view;
 }

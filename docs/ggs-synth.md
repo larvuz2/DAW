@@ -223,9 +223,14 @@ undone like any other.
 dropped on, or at the end), ◀ ▶ to move it one place, − + to make it narrower or wider (2 to 12 columns of a
 12-column grid) and × to hide it; **+ Add a module** brings a hidden one back. **Layout** has ready-made arrangements
 (*Whole patch*, *Oscillators*, *Filters, routing & envelopes*, *Modulation*, *Sound & scope*, *Minimal*) and the ones you
-save with **Save as…** (kept in this browser, with the arrangement you were using). **Full screen** shows only the
-modules, bigger, with the toolbar out of the way until you point at it — Esc to leave. In a narrow window the modules
-fall into two columns, then one.
+save with **Save as…** (kept in this browser, with the arrangement you were using; up to 30, and a layout saved in
+another tab shows up here too). **Full screen** shows only the modules, bigger, over the whole page (and in the
+browser's full screen where it has one), with the toolbar out of the way until you point at it; menus and dialogs
+still open above it. Esc or *Exit full screen* to leave. In a narrow window the modules fall into two columns, then
+one (their widths are then set by the window).
+
+Pictures that move with the note only redraw what moved, and stop while scrolled out of sight; the scope's analyser is
+disconnected when the tab closes.
 
 A knob turned while notes sound changes them immediately. Changes to what a voice is made of — switching an
 oscillator, picking another wavetable or filter model, changing the routing — are **click-free**: that part of the

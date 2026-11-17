@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MODULES, MODULE_IDS, BUILT_IN_LAYOUTS, COLUMNS, MIN_WIDTH, normalizeLayout, defaultLayout, hiddenModules, moveModule, nudgeModule, resizeModule,
-  hideModule, showModule, loadLayouts, storeLayouts, saveAs
+  hideModule, showModule, sameItems, loadLayouts, storeLayouts, saveAs, MAX_SAVED, STORAGE_KEY
 } from '../src/components/synth/overviewLayout.js';
 
 const ids = (l) => l.items.map((it) => it.id);
@@ -35,11 +35,19 @@ test('normalizeLayout repairs whatever it is given', () => {
   assert.equal(l.name, 'Mine');
   assert.deepEqual(l.items, [{ id: 'oscA', w: COLUMNS }, { id: 'fx', w: MIN_WIDTH }, { id: 'scope', w: MODULES.scope.w }]);
   assert.deepEqual(normalizeLayout(null, 'X'), { name: 'X', items: [] });
+  // names of the object's own machinery are not modules
+  assert.deepEqual(normalizeLayout({ items: [{ id: 'constructor' }, { id: '__proto__' }, { id: 'toString' }, { id: 'oscA' }] }).items.map((it) => it.id), ['oscA']);
+  assert.equal(showModule(defaultLayout(), 'constructor').items.length, MODULE_IDS.length);
+  // a name cut to 40 characters loses the space it was cut at
+  assert.equal(normalizeLayout({ name: `${'a'.repeat(39)} b`, items: [] }).name, 'a'.repeat(39));
   assert.deepEqual(normalizeLayout({ items: 'oops' }).items, []);
 });
 
 test('move, nudge, resize, hide and show keep every other module where it was', () => {
   const l = defaultLayout();
+  assert.ok(sameItems(l, defaultLayout()));
+  assert.ok(sameItems(moveModule(l, 'oscA', 'oscB'), l), 'dropped on its next neighbour: nothing moved');
+  assert.ok(!sameItems(moveModule(l, 'oscB', 'oscA'), l));
   const moved = moveModule(l, 'scope', 'header');
   assert.deepEqual(ids(moved), ['scope', ...ids(l).filter((id) => id !== 'scope')]);
   assert.deepEqual(ids(moveModule(l, 'header', null)), [...ids(l).slice(1), 'header']);
@@ -79,6 +87,19 @@ test('saved layouts: a name is needed, a built-in name is refused, the same name
   assert.equal(ids(saved[0])[0], 'header');
   saved = saveAs(saved, l, 'Video 2');
   assert.deepEqual(saved.map((s) => s.name), ['Video 1', 'Video 2']);
+  // the same name however it is cut: one entry
+  saved = saveAs([], l, `${'b'.repeat(39)} x`);
+  saved = saveAs(saved, l, `${'b'.repeat(39)} y`);
+  assert.equal(saved.length, 1);
+  // nothing to save, and a limit that is the same whether saving or loading
+  assert.throws(() => saveAs([], { name: 'x', items: [] }, 'Empty'), /hidden/);
+  let many = [];
+  for (let i = 0; i < MAX_SAVED; i++) many = saveAs(many, l, `L${i}`);
+  assert.throws(() => saveAs(many, l, 'One more'), /delete one/);
+  assert.equal(saveAs(many, defaultLayout(), 'L3').length, MAX_SAVED, 'replacing one is still allowed');
+  const store = memory();
+  storeLayouts({ current: many.at(-1), saved: many }, store);
+  assert.deepEqual(loadLayouts(store).saved.map((x) => x.name), many.map((x) => x.name));
 });
 
 test('storage: round trip, and anything broken or hostile falls back to the default', () => {
@@ -103,4 +124,15 @@ test('storage: round trip, and anything broken or hostile falls back to the defa
   assert.doesNotThrow(() => storeLayouts({ current, saved }, throwing));
   // and no storage at all
   assert.deepEqual(loadLayouts(null), { current: defaultLayout(), saved: [] });
+  // localStorage that throws as soon as it is touched (site data blocked)
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
+  try {
+    assert.deepEqual(loadLayouts(), { current: defaultLayout(), saved: [] });
+    assert.doesNotThrow(() => storeLayouts({ current, saved }));
+  } finally {
+    if (had) Object.defineProperty(globalThis, 'localStorage', had);
+    else delete globalThis.localStorage;
+  }
+  assert.equal(STORAGE_KEY, 'gtd.ggs.overview');
 });

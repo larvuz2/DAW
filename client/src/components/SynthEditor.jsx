@@ -1,7 +1,7 @@
 // The GGS Synth editor: shown in the Channel window for channels whose instrument is the GGS Synth. Every control is
 // one of the synth's flat params (packages/synth-dsp/src/params.js) and every change is a channel/update op, so it
 // is undoable, synced live and heard on notes that are already sounding.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sanitizeParams } from '@greanteadawy/core';
 import {
   GGS_PARAMS, GGS_PRESET_INFO, OSC_IDS, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO, MOD_TARGET_INFO, FILTER_TYPES, FILTER_INFO,
@@ -484,9 +484,11 @@ export function SynthEditor({ channel }) {
     label: macroNames[`macro${i}`], color: '#c86be0', size, live: true, className: macroUsed(full, i) ? '' : 'unused', menu: macroMenu(i),
     title: `Macro ${i}${macroUsed(full, i) ? `: ${macroNames[`macro${i}`]}` : ' — free: drag its chip (M' + i + ') from the source bar onto a knob'}. Right-click to automate it in the playlist; the dot shows where automation has it.`
   });
-  // what the Overview's modules use: the same controls and actions as the other tabs
+  // what the Overview's modules use: the same controls and actions as the other tabs. `stamp` changes when what they
+  // show can change (this channel, the route Alt-drag edits): other ops leave the modules alone.
+  const stamp = useMemo(() => ({ channel, active }), [channel, active]);
   const ed = {
-    channel, info, full, defaults: DEFAULTS, routes, used, usedSources, live, liveOf, sourceName, C, val, set, setMany, setDrag, macroKnob,
+    stamp, channel, info, full, defaults: DEFAULTS, routes, used, usedSources, live, liveOf, sourceName, C, val, set, setMany, setDrag, macroKnob,
     pickPreset, exportPatch, importPatch, showInMatrix, addRoute, removeRoute, TouchPad,
     oscColors: OSC_COLORS, envColors: ENV_COLORS, filterOptions: FILTER_OPTIONS, chaosOptions: CHAOS_OPTIONS
   };
