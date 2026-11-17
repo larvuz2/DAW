@@ -421,7 +421,7 @@ export class AudioEngine {
     const pitch = ch.pitch + autoPitch;
     const k = Math.max(0, Math.min(127, key + pitch));
     if (ch.chokeGroup) {
-      for (const v of this.voices) if (v.chokeGroup === ch.chokeGroup && v.start < time + 0.0005 && !v.done) v.kill(time);
+      for (const v of this.voices) if (v.chokeGroup === ch.chokeGroup && v.start < time + 0.0005 && !v.done) this.cutVoice(v, time);
     }
     const p = ch.instrument.params;
     // (0 in standard tuning: no note is touched, and renders stay what they were)
@@ -434,7 +434,7 @@ export class AudioEngine {
         // A voice glides in equal-tempered terms and its own tuning offset is added on top: start where the last
         // note really was (in 19 equal steps an octave is 19 keys — without this the glide began 4 semitones off).
         if (glideFrom && (last.tune || tune)) glideFrom *= 2 ** (((last.tune || 0) - tune) / 1200);
-        last.kill(time);
+        this.cutVoice(last, time);
       }
     }
     // plugin instruments: at most `polyphony` voices per channel (each DSP voice is its own worklet processor) —
@@ -446,7 +446,7 @@ export class AudioEngine {
       // first, oldest first; held notes only when that isn't enough
       const released = (v) => v.noteEnd !== null && v.noteEnd <= time;
       sounding.sort((a, b) => (released(b) - released(a)) || a.start - b.start);
-      for (let i = 0; i <= sounding.length - poly; i++) sounding[i].kill(time);
+      for (let i = 0; i <= sounding.length - poly; i++) this.cutVoice(sounding[i], time);
     }
     // GGS voices play into the channel's own effects, everything else straight into the strip
     const bus = strip.ggs ? strip.ggs.input : strip.input;
@@ -477,6 +477,12 @@ export class AudioEngine {
     if (p.mono) this.monoLast.set(channelId, v);
     this.noteTap?.on(channelId, k, velocity, time, duration, v);
     return v;
+  }
+
+  /** A note cut short by another (choke group, mono, the polyphony limit): it ends at `time`, and the visuals hear so. */
+  cutVoice(v, time) {
+    v.kill(time);
+    this.noteTap?.cut(v, time);
   }
 
   /**

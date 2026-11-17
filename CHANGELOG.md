@@ -26,6 +26,12 @@ anything that reads OSC — and as JSON to WebSocket listeners. The addresses ar
 - **The bible** (`docs/av-bible.pdf`, Spanish) now documents the bridge as built: how to switch it on, the confirmed
   conventions, the address map, the visual lanes, the fixture, and what phases 2 and 3 add. Corrected: the GGS Synth
   has 39 modulation targets (not 40); the 51 instrument kinds are 50 instruments and the plugin slot.
+- **One tab is heard:** a tab that plays takes over from one that is only open with the setting on; WebSocket
+  listeners hear one tab too; a tab nobody hears sends two frames a second instead of sixty. Notes cut short by a
+  choke group, a mono synth or the polyphony limit end when they are cut; switching off ends every note the visuals
+  were told about. Several clips on one visual lane follow the engine's rule (the one playing, else the last).
+  `/gtd/map` stays under 8 KB (macOS's UDP limit) by leaving things out, never by cutting the JSON. A host name in
+  `AV_OSC` is looked up once a minute, not once per message. Only admins are shown the OSC address.
 - Fixed: the ☰ menu's ticks (*Follow Claude*) could show a stale state.
 - Nothing here changes the sound: the bridge's meters are side branches made only while it is on, and offline
   renders never use it.

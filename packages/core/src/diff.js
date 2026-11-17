@@ -249,6 +249,7 @@ export function diffProjects(a, b, { maxLines = 60, maxNotes = 10, ids = true } 
     if (t.type === 'channel') return `${project.channels.find((c) => c.id === t.id)?.name || t.id} ${t.param}`;
     if (t.type === 'mixer') return `insert ${t.index} ${t.param}`;
     if (t.type === 'effect') return `insert ${t.index} effect ${t.param}`;
+    if (t.type === 'user') return `visual lane ${t.index}`;
     return `${t.type} ${t.param || ''}`.trim();
   };
   const oldAutos = byId(a.automations);

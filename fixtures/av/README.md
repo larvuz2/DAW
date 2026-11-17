@@ -7,7 +7,7 @@ audio → visual bridge really sent while it played (see `docs/av-bridge.md` for
 |---|---|
 | `song.gtd.json` | the project (File → Import project file opens it in the studio) |
 | `song.mid` | the notes, one track per channel, 96 ticks per beat |
-| `osc-capture.jsonl.gz` | every OSC message the bridge sent, with its arrival time (77716 messages, 2071 frames at 59.9 per second) |
+| `osc-capture.jsonl.gz` | every OSC message the bridge sent, with its arrival time (77770 messages, 2072 frames at 59.9 per second) |
 | `capture-summary.json` | how many of each address, the markers with their times — to check a receiver against |
 | stems + mix | `01-kick.wav` … `06-lead.wav` and `mix.wav` (16-bit, 44.1 kHz stereo, 35.3 s: the 32 s song + its tail, all starting at bar 1): too big for the repository — make them with `npm run fixture:av` or ask for the zip |
 
@@ -30,14 +30,14 @@ Automation (`/gtd/auto/{id}`, 0…1, from the moment its clip starts, held after
 
 | id | name | moves |
 |---|---|---|
-| `auto_vck56cvofv` | Pad filter | the pad's filter cutoff, bars 5–8 (0 = 20 Hz … 1 = 20 kHz, log) |
-| `auto_q8i12srknh` | Energy | visual lane 1 (nothing in the sound) |
-| `auto_c9kptusmws` | Strobe | visual lane 2 (nothing in the sound) |
-| `auto_ukw50e9nxf` | Lead 3D X | the lead's position left (0) … right (1), bars 9–12 |
-| `auto_8032xr1o6y` | Lead 3D Y | the lead's position back (0) … front (1), bars 9–12 |
+| `auto_yd3hlh5ua0` | Pad filter | the pad's filter cutoff, bars 5–8 (0 = 20 Hz … 1 = 20 kHz, log) |
+| `auto_3z0obtn5po` | Energy | visual lane 1 (nothing in the sound) |
+| `auto_cufv8xlqr1` | Strobe | visual lane 2 (nothing in the sound) |
+| `auto_5rh87azpiy` | Lead 3D X | the lead's position left (0) … right (1), bars 9–12 |
+| `auto_tnnyzpcuye` | Lead 3D Y | the lead's position back (0) … front (1), bars 9–12 |
 
 The 3D position isn't a bridge message of its own yet (phase 3); its X/Y automation is: the circle arrives as
-`/gtd/auto/auto_ukw50e9nxf` and `/gtd/auto/auto_8032xr1o6y`.
+`/gtd/auto/auto_5rh87azpiy` and `/gtd/auto/auto_tnnyzpcuye`.
 
 ## The capture
 
@@ -46,8 +46,8 @@ Gzipped JSON lines: a header, then one line per message, in arrival order:
 
 ```
 {"format":"gtd-av-capture","version":1,"song":{…},"recorded":"…","line":"[t_ms, address, types, ...values]"}
-[58.3,"/gtd/transport/playing","i",0]
-[2099.8,"/gtd/ch/pad/note","ifff",45,0.75,2,2.1005]
+[63.4,"/gtd/transport/playing","i",0]
+[2105.6,"/gtd/ch/pad/note","ifff",45,0.75,2,2.1005]
 ```
 
 `t` is milliseconds since the capture started: the bridge goes on at 0 (stopped, at bar 1: map, Intro), play is pressed

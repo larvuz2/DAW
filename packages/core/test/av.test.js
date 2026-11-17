@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createDefaultProject, applyOps, normalizeProject, PPQ, AV_USER_LANES, AV_BANDS, AV_SPECTRUM_BANDS, avSlug, channelSlugs, avMap, usedInserts,
-  automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, avFrameToOsc, encodeOsc, decodeOsc
+  automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, avFrameToOsc, encodeOsc, decodeOsc, AV_MAP_MAX_BYTES, diffProjects
 } from '../src/index.js';
 
 const BAR = PPQ * 4;
@@ -200,4 +200,46 @@ test('a frame becomes OSC messages in order: transport, events (note ends before
   assert.deepEqual(avFrameToOsc(null), []);
   const junk = avFrameToOsc({ tick: 'x', bpm: Infinity, notes: 'no', ch: [1, 2], buses: null, master: 5, map: 'x' });
   assert.ok(junk.length >= 7 && junk.every(([a]) => a.startsWith('/gtd/')));
+});
+
+test('two clips on one visual lane: the one playing decides, else the one that ended last', () => {
+  let p = createDefaultProject();
+  p = applyOps(p, [
+    { type: 'automation/add', automation: { id: 'g1', name: 'Glow intro', target: { type: 'user', index: 1 }, length: BAR * 4, points: [{ t: 0, v: 0 }, { t: BAR * 4, v: 0.9 }] } },
+    { type: 'automation/add', automation: { id: 'g2', name: 'Glow drop', target: { type: 'user', index: 1 }, length: BAR * 4, points: [{ t: 0, v: 0 }, { t: BAR * 4, v: 1 }] } },
+    { type: 'clip/add', clips: [
+      { id: 'k2', kind: 'automation', refId: 'g2', track: 4, start: BAR * 4, length: BAR * 4 },
+      { id: 'k1', kind: 'automation', refId: 'g1', track: 3, start: 0, length: BAR * 4 }
+    ] }
+  ]);
+  assert.ok(near(automationValuesAt(p, BAR * 2).user[0], 0.45, 0.01));
+  assert.ok(near(automationValuesAt(p, BAR * 5).user[0], 0.25, 0.01), 'the drop clip plays: the intro held value does not win');
+  assert.ok(near(automationValuesAt(p, BAR * 20).user[0], 1, 0.01), 'after both: the one that ended last');
+  // the project's order of automations doesn't matter
+  const flipped = { ...p, automations: [...p.automations].reverse() };
+  assert.deepEqual(automationValuesAt(flipped, BAR * 5).user, automationValuesAt(p, BAR * 5).user);
+  // and a change summary names the lane
+  const before = createDefaultProject();
+  assert.ok(diffProjects(before, { ...before, automations: p.automations }).lines.some((l) => /visual lane 1/.test(l)));
+});
+
+test('OSC strings never carry a zero byte; undefined names are not slugs; a big map is shortened, never cut', () => {
+  const [, name, tick] = decodeOsc(encodeOsc('/gtd/marker', [{ s: 'Dr\0op' }, { i: 7 }]));
+  assert.deepEqual([name, tick], ['Drop', 7]);
+  const msgs = avFrameToOsc({ notes: [{ ch: undefined, key: 1 }, { ch: null, key: 2 }], offs: [{ key: 3 }], marker: { name: 'A\0B', tick: 0 }, map: { channels: [{ slug: undefined }] } });
+  assert.ok(!msgs.some(([a]) => /undefined|null/.test(a)), msgs.map(([a]) => a).join(' '));
+  assert.equal(msgs.find(([a]) => a === '/gtd/marker')[1].s, 'AB');
+  const channels = Array.from({ length: 60 }, (_, i) => ({ slug: `ch_${i}`, id: `ch_${i}`, name: '日本語の長いチャンネル名'.repeat(3), color: '#ffffff', kind: 'ggs', insert: i }));
+  const automations = Array.from({ length: 200 }, (_, i) => ({ id: `auto_${i}`, name: `Automation ${i}`, target: { type: 'user', index: 1 } }));
+  const big = avFrameToOsc({ map: { channels, buses: [], markers: [], automations } });
+  const json = big.find(([a]) => a === '/gtd/map');
+  if (json) {
+    assert.ok(new TextEncoder().encode(json[1].s).length <= AV_MAP_MAX_BYTES);
+    assert.doesNotThrow(() => JSON.parse(json[1].s), 'never a cut, broken JSON');
+  }
+  assert.equal(big.filter(([a]) => a.startsWith('/gtd/map/ch/')).length, 60, 'the per-channel map still goes out');
+  const small = avFrameToOsc({ map: { channels: channels.slice(0, 2), buses: [], markers: [], automations: automations.slice(0, 300) } });
+  const sj = JSON.parse(small.find(([a]) => a === '/gtd/map')[1].s);
+  assert.equal(sj.channels.length, 2);
+  assert.equal(sj.automations.length, 0, 'automations are left out first');
 });

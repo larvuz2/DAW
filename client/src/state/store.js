@@ -455,7 +455,9 @@ export const useStore = create((set, get) => ({
     await ensureEngine().catch(() => null);
     const status = await api.status().catch(() => null);
     const osc = status?.av?.osc;
-    get().toast(osc ? `Sending to visuals: OSC to ${osc}, about 60 times a second` : 'Sending to visuals over the WebSocket only: this server has OSC off (AV_OSC)', 'info');
+    // (on a server where only admins send OSC, the server's answer to the first frame says so)
+    if (osc) get().toast(`Sending to visuals: OSC to ${osc}, about 60 times a second`, 'info');
+    else if (!status?.av?.oscForAdmins) get().toast('Sending to visuals over the WebSocket only: this server has OSC off (AV_OSC)', 'info');
   },
 
   openPianoRoll(channelId) {

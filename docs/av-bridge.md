@@ -17,9 +17,11 @@ studio tab (plays, measures)  ──WebSocket {type:'av', frame}──▶  serve
 3. Play. Frames flow while the tab is open, playing or not (stopped, they carry the playhead and the levels of notes
    played by hand).
 
-Only one tab sends OSC at a time: the first one that sends, until it has been quiet for a second (another tab is told
-"Another studio tab is sending to the visuals"). On a server with several accounts, only an **admin's** tab drives
-OSC — the port belongs to the computer the server runs on.
+One tab is heard at a time: the one sending, until it has been quiet for a second — but a tab that **plays** takes
+over from one that is only stopped with the setting on (another tab is told "Another studio tab is sending to the
+visuals"). On a server with several accounts, only an **admin's** tab drives OSC — the port belongs to the computer
+the server runs on — and only admins are shown its address. A tab whose frames reach nobody (OSC off for it and no
+WebSocket listener, or another tab heard while it is stopped) slows down to two frames a second.
 
 ### Where the OSC goes: `AV_OSC`
 
@@ -35,7 +37,8 @@ The server prints where it sends at start-up, and `GET /api/status` says it (`av
 
 A program with the account's API token (☰ → Connect Claude) can open `ws://host:3001/ws?token=gtd_…`, send
 `{"type":"subscribe-av"}`, and receive `{"type":"av","frame":{…}}` messages: the same frames as JSON (fields below).
-It only ever gets its own account's frames.
+It only ever gets its own account's frames, from one tab at a time (the same rule as OSC); a listener that can't keep
+up loses frames rather than queueing them.
 
 ## The messages
 
@@ -69,7 +72,12 @@ A note goes out in the frame nearest the moment it is **heard** (never more than
 studio schedules it 120 ms ahead — so a visual can react on arrival. `at − /gtd/transport/time` says how far from
 that frame it really sounds: within ±8 ms, at most about one frame (−17 ms) when the browser's timer skips a beat
 (measured over the fixture's 32 s: −17.6 … +8.3 ms). When playback stops, notes that never sounded are dropped and the ones sounding get their
-`off` at once. Muted channels send no notes.
+`off` at once. A note cut short by another — a choke group (an open hat closed by the closed one), a mono synth,
+the polyphony limit — gets its `off` when it is cut. Switching the bridge off ends every note the visuals were told
+about, keys held by hand included. Muted channels send no notes.
+
+`at` and `/gtd/transport/time` are 32-bit floats on a clock that starts when the tab first makes sound: they stay
+within 1 ms for the first ~2 hours, 2 ms up to ~9 hours (reload the studio before a very long show).
 
 ### Continuous values (every frame)
 
@@ -92,7 +100,7 @@ Automation and visual lanes follow the song position (in pattern mode and while 
 | Address | Args | Meaning |
 |---|---|---|
 | `/gtd/latency` | f | the output latency of the tab (seconds), once a second |
-| `/gtd/map` | s | JSON: `{ project, id, bpm, timeSig, ppq, ticksPerBar, channels: [{slug, id, name, color, kind, insert}], buses: [{index, name}], markers: [{name, tick}], automations: [{id, name, target}] }` — when the project's shape changes and every 2 s |
+| `/gtd/map` | s | JSON: `{ project, id, bpm, timeSig, ppq, ticksPerBar, channels: [{slug, id, name, color, kind, insert}], buses: [{index, name}], markers: [{name, tick}], automations: [{id, name, target}] }` — when the project's shape changes and every 2 s. At most 8 KB (macOS refuses bigger UDP messages): a bigger map leaves out `automations`, then `markers`, and if still too big only the `/gtd/map/ch/…` messages carry it (the WebSocket frame always has all of it) |
 | `/gtd/map/ch/{channel}` | s s s i | id, colour, instrument kind, mixer insert — the map for apps that can't parse JSON |
 | `/gtd/map/bus/{n}` | s | insert name |
 
@@ -107,7 +115,8 @@ addresses (the map says so at once).
 Automation that moves nothing in the sound: a curve for the visuals to follow (a glow, a camera orbit, a colour
 fade). In the studio: **Playlist → Auto + → Visual lanes → Lane n**, then draw it in the automation editor like any
 automation; it lives in the playlist as a clip. Claude: `add_automation target={type:"user", lane:n}`. Values 0…1; a
-lane holds its last value after its clip and is 0 before it ever played.
+lane holds its last value after its clip and is 0 before it ever played. Several clips on one lane: the one playing
+decides, else the one that ended last (the engine's rule for any automated parameter).
 
 ## Trying it without the studio
 

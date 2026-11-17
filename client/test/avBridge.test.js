@@ -181,3 +181,62 @@ test('a key struck again: its end goes out before the new note; a note shorter t
   const events = frames.map((f) => avFrameToOsc(f).filter(([a]) => /\/(note|off)$/.test(a)).map(([a]) => a.split('/').pop()));
   assert.deepEqual(events, [['note'], ['off', 'note'], ['off']], JSON.stringify(events));
 });
+
+test('a note cut short (choke, mono) ends when it is cut; switching off ends exactly the notes the visuals heard', (t) => {
+  t.after(() => mock.timers.reset());
+  const { engine, project, step, sent, bridge } = setup();
+  const [a, b] = project.channels;
+  engine.transport.play(10);
+  step();
+  const t0 = engine.ctx.currentTime;
+  // an open hat (0.6 s) choked 0.1 s in by the closed one
+  const open = {};
+  engine.noteTap.on(a.id, 46, 0.8, t0 + 0.02, 0.6, open);
+  engine.noteTap.on(b.id, 42, 0.8, t0 + 0.12, 0.05, {});
+  engine.noteTap.cut(open, t0 + 0.12);
+  const events = [];
+  for (let i = 0; i < 20; i++) {
+    const f = step();
+    for (const n of f.notes || []) events.push(['note', n.key, Math.round((engine.ctx.currentTime - t0) * 1000)]);
+    for (const o of f.offs || []) events.push(['off', o.key, Math.round((engine.ctx.currentTime - t0) * 1000)]);
+  }
+  const offOpen = events.find(([k, key]) => k === 'off' && key === 46);
+  assert.ok(offOpen && offOpen[2] <= 140, `the open hat ends at the cut, not 0.6 s later: ${JSON.stringify(events)}`);
+  // mono, the same key again: the old note ends, then the new one sounds (in that order)
+  const t1 = engine.ctx.currentTime;
+  const first = {};
+  engine.noteTap.on(a.id, 60, 0.8, t1 + 0.02, 1, first);
+  for (let i = 0; i < 4; i++) step();
+  engine.noteTap.cut(first, t1 + 0.1);
+  engine.noteTap.on(a.id, 60, 0.8, t1 + 0.1, 1, {});
+  const order = [];
+  for (let i = 0; i < 10; i++) for (const [addr] of avFrameToOsc(step())) if (/\/(note|off)$/.test(addr)) order.push(addr.split('/').pop());
+  assert.deepEqual(order, ['off', 'note']);
+  // a key held by hand, and a note not yet heard, when the bridge goes off
+  const held = {};
+  engine.noteTap.on(b.id, 64, 0.7, engine.ctx.currentTime + 0.001, null, held);
+  step();
+  engine.noteTap.on(b.id, 65, 0.7, engine.ctx.currentTime + 0.1, 0.2, {});
+  bridge.stop();
+  const last = sent.at(-1);
+  assert.equal(last.final, true);
+  assert.ok(last.offs.some((o) => o.key === 64), 'the held key ends');
+  assert.ok(!last.offs.some((o) => o.key === 65), 'a note the visuals never heard gets no end');
+  assert.equal(held.avNote, null);
+});
+
+test('with nobody to hear it the bridge slows down; a tab that plays is always heard', (t) => {
+  t.after(() => mock.timers.reset());
+  const { engine, state, bridge } = setup();
+  assert.equal(bridge.idle(), false, 'before the server has said anything');
+  state.avStatus = { state: 'osc', listeners: 0 };
+  assert.equal(bridge.idle(), false);
+  state.avStatus = { state: 'off', listeners: 0 };
+  assert.equal(bridge.idle(), true);
+  state.avStatus = { state: 'admin', listeners: 1 };
+  assert.equal(bridge.idle(), false, 'a WebSocket listener is there');
+  state.avStatus = { state: 'busy', listeners: 0 };
+  assert.equal(bridge.idle(), true, 'another tab is heard and this one is stopped');
+  engine.transport.play(10);
+  assert.equal(bridge.idle(), false, 'it plays: it must keep sending to take over');
+});

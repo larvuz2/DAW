@@ -70,6 +70,8 @@ function renderAndProbe(probe, { from = 0.25, to = 0.7, mode = 'pattern' } = {})
 const hz = (key) => 440 * Math.pow(2, (key - 69) / 12);
 /** Edit the open project the way the UI does (ops through the store: optimistic, synced, undoable). */
 const dispatch = (ops) => page.evaluate((o) => window.greanteadawy.store.getState().dispatch(o), ops);
+/** Claude's edits reach the tab over the WebSocket a moment after the tool answers: wait for them before rendering. */
+const inTab = (fn, arg) => expect.poll(() => page.evaluate(fn, arg)).toBe(true);
 const ids = () => page.evaluate(() => {
   const p = window.greanteadawy.store.getState().project;
   return { pattern: p.patterns[0].id, channels: Object.fromEntries(p.channels.map((c) => [c.name, c.id])) };
@@ -176,6 +178,7 @@ test('offline renders repeat: two renders of unison, noise and random LFOs are t
 
 test('a macro can be automated: the clip moves every voice of the channel', async () => {
   await claude.call('update_channel', { channel: 'Lead', preset: 'Init', params: { oscAPos: 0, oscARand: 0, mod1Src: 'macro1', mod1Dst: 'pitch', mod1Amt: 0.5 } });
+  await inTab(() => window.greanteadawy.store.getState().project.channels.find((c) => c.name === 'Lead').instrument.params.mod1Src === 'macro1');
   const { pattern, channels } = await ids();
   await dispatch([
     { type: 'notes/set', patternId: pattern, channelId: channels.Lead, notes: [{ id: 'm1', key: 57, start: 0, length: 192, velocity: 0.8 }] },
@@ -187,6 +190,7 @@ test('a macro can be automated: the clip moves every voice of the channel', asyn
   // macro 1 held at 1 for the whole bar: +12 semitones through the matrix
   const added = await claude.call('add_automation', { name: 'Macro up', target: { type: 'channel', channel: 'Lead', param: 'macro1' }, startBar: 1, bars: 1, points: [{ bar: 0, value: 1 }, { bar: 1, value: 1 }] }).catch((e) => e.message);
   expect(added).toMatch(/\[auto_/);
+  await inTab(() => window.greanteadawy.store.getState().project.automations.some((a) => a.name === 'Macro up'));
   const moved = await renderAndProbe(probe, { mode: 'song' });
   expect(moved.levels.A4).toBeGreaterThan(moved.levels.A3 + 25);
   await claude.call('remove_automation', { automation: 'Macro up' });
@@ -873,6 +877,7 @@ test('chaos renders the same every time, and macro 8 automates', async () => {
   expect(differs).toBeGreaterThan(0.05);
   // macro 8 is an automation target like the first four: held at 1 it lifts the pitch an octave
   expect(await claude.call('add_automation', { name: 'Eight', target: { type: 'channel', channel: 'Lead', param: 'macro8' }, startBar: 1, bars: 1, points: [{ bar: 0, value: 1 }, { bar: 1, value: 1 }] })).toMatch(/Added automation "Eight"/);
+  await inTab(() => window.greanteadawy.store.getState().project.automations.some((a) => a.name === 'Eight'));
   const key = await page.evaluate((cid) => { const p = window.greanteadawy.store.getState().project; return Object.values(p.patterns[0].notes[cid])[0].key; }, channels.Lead);
   const up = await renderAndProbe({ base: hz(key), octave: hz(key + 12) }, { mode: 'song', from: 0.05, to: 0.3 });
   expect(up.levels.octave).toBeGreaterThan(up.levels.base + 20);

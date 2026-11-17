@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import { uid } from '@greanteadawy/core';
 import { httpError } from './errors.js';
 import { activeProjectId } from './backend.js';
-import { MAX_FRAME_BYTES } from './av.js';
+import { MAX_FRAME_BYTES, MIN_FRAME_MS, claimAv } from './av.js';
 
 export class Hub {
   /** av: the audio → visual bridge (server/src/av.js), which sends the playing tab's frames over OSC */
@@ -90,6 +90,9 @@ export class Hub {
     ws.on('close', () => {
       this.clients.delete(client);
       this.av?.gone(client);
+      const slot = this.avSlots?.get(client.userId);
+      if (slot?.owner === client) slot.owner = null;
+      if (client.avListener) this.avListenersChanged(client.userId);
       for (const [jobId, job] of this.jobs) {
         if (job.client === client) this.finishJob(jobId, null, httpError(503, 'The browser tab running the job was closed. Keep the studio open and try again.'));
       }
@@ -215,28 +218,66 @@ export class Hub {
       case 'subscribe-av':
         // a visual app on a WebSocket (with the account's API token): it gets the frames of this account's playing tab
         client.avListener = msg.on !== false;
-        send(client.ws, { type: 'av-status', listening: client.avListener, osc: this.av?.oscTarget ?? null });
+        send(client.ws, { type: 'av-status', listening: client.avListener, osc: this.avOscFor(client.userId) });
+        this.avListenersChanged(client.userId);
         return;
       default:
     }
   }
 
-  /** A frame of the audio → visual bridge from a playing tab: out over OSC, and to this account's listeners. */
+  /** Where OSC goes, for this account: only admins drive it, so only they are told the address. */
+  avOscFor(userId) {
+    return this.users.get(userId)?.role === 'admin' ? this.av?.oscTarget ?? null : null;
+  }
+
+  avListeners(userId) {
+    let n = 0;
+    for (const c of this.clients) if (c.userId === userId && c.avListener) n++;
+    return n;
+  }
+
+  /** A listener came or went: the account's sending tabs hear it (one with nobody to send to slows down). */
+  avListenersChanged(userId) {
+    for (const c of this.clients) if (c.userId === userId && c.avState !== undefined) this.avStatus(c, c.avState, true);
+  }
+
+  avStatus(client, state, force = false) {
+    const listeners = this.avListeners(client.userId);
+    if (!force && state === client.avState && listeners === client.avCount) return;
+    client.avState = state;
+    client.avCount = listeners;
+    send(client.ws, { type: 'av-status', state, osc: this.avOscFor(client.userId), oscForAdmins: !!this.av?.oscTarget, listeners });
+  }
+
+  /**
+   * A frame of the audio → visual bridge from a tab: out over OSC (one tab at a time), and to this account's listeners
+   * (one tab at a time too, by the same rule: a playing tab is heard over a stopped one).
+   */
   avFrame(client, frame) {
     if (!frame || typeof frame !== 'object' || Array.isArray(frame)) return;
-    const r = this.av ? this.av.frame(client, this.users.get(client.userId), frame) : { osc: false, reason: 'off' };
-    let text = null;
-    for (const c of this.clients) {
-      if (c === client || c.userId !== client.userId || !c.avListener || c.ws.readyState !== 1) continue;
-      text ??= JSON.stringify({ type: 'av', frame });
-      c.ws.send(text);
+    const now = Date.now();
+    const final = frame.final === true;
+    this.avSlots ??= new Map();
+    let slot = this.avSlots.get(client.userId);
+    if (!slot) this.avSlots.set(client.userId, (slot = { owner: null, at: 0, playing: false }));
+    // at most ~120 frames a second from a tab (the last frame of the one heard always goes: it says the music stopped)
+    const heard = this.av?.slot.owner === client || slot.owner === client;
+    if (now - (client.avAt || 0) < MIN_FRAME_MS && !(final && heard)) return;
+    client.avAt = now;
+    const r = this.av ? this.av.frame(client, this.users.get(client.userId), frame, now) : { osc: false, reason: 'off' };
+    if (claimAv(slot, client, frame, now)) {
+      let text = null;
+      for (const c of this.clients) {
+        // (a listener that can't keep up loses frames rather than growing the server's memory)
+        if (c === client || c.userId !== client.userId || !c.avListener || c.ws.readyState !== 1 || c.ws.bufferedAmount > 1 << 20) continue;
+        text ??= JSON.stringify({ type: 'av', frame });
+        c.ws.send(text);
+      }
+      if (final) slot.owner = null;
     }
-    // the tab shows where its frames go: tell it when that changes (not 60 times a second)
-    const state = r.osc ? 'osc' : r.reason === 'rate' ? client.avState : r.reason;
-    if (state !== client.avState) {
-      client.avState = state;
-      send(client.ws, { type: 'av-status', state, osc: this.av?.oscTarget ?? null });
-    }
+    // the tab shows where its frames go: told when that changes (not 60 times a second), and again after an off/on
+    this.avStatus(client, r.osc ? 'osc' : r.reason);
+    if (final) client.avState = undefined;
   }
 
   // ---------------------------------------------------------------- messaging

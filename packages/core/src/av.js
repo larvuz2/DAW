@@ -67,21 +67,35 @@ export function avMap(project) {
 /**
  * Every automation's value (0 … 1) at a song tick, the way the engine plays it: inside a clip, the curve at
  * tick − clip.start + clip.offset (looping over the automation's length); after a clip, its last value is held.
+ * A visual lane follows the engine's rule for a target several clips move: the clip playing (the one that started
+ * last, if two overlap), else the one that ended last.
  * Returns { auto: { [automationId]: v }, user: [8 values, 0 where no lane has played yet] }.
  */
 export function automationValuesAt(project, tick) {
   const auto = {};
   const ended = new Map(); // automation id → the clip that ended last before `tick`
+  const lanes = new Map(); // lane → { playing, start, end, v } of the clip that decides it
   for (const { clip, automation } of songAutomationInRange(project, 0, Number.MAX_SAFE_INTEGER)) {
-    if (tick >= clip.start && tick < clip.start + clip.length) auto[automation.id] = automationValueAt(automation, tick - clip.start + clip.offset);
-    else if (clip.start + clip.length <= tick) {
+    const end = clip.start + clip.length;
+    let v = null;
+    if (tick >= clip.start && tick < end) {
+      v = automationValueAt(automation, tick - clip.start + clip.offset);
+      auto[automation.id] = v;
+    } else if (end <= tick) {
       const last = ended.get(automation.id);
-      if (!last || clip.start + clip.length > last.clip.start + last.clip.length) ended.set(automation.id, { clip, automation });
+      if (!last || end > last.end) ended.set(automation.id, { end, v: automationValueAt(automation, clip.length - 1 + clip.offset) });
+      v = automationValueAt(automation, clip.length - 1 + clip.offset);
     }
+    const t = automation.target;
+    if (v === null || t?.type !== 'user') continue;
+    const playing = end > tick;
+    const was = lanes.get(t.index);
+    const wins = !was || (playing && (!was.playing || clip.start > was.start)) || (!playing && !was.playing && end > was.end);
+    if (wins) lanes.set(t.index, { playing, start: clip.start, end, v });
   }
-  for (const [id, { clip, automation }] of ended) if (!(id in auto)) auto[id] = automationValueAt(automation, clip.length - 1 + clip.offset);
+  for (const [id, { v }] of ended) if (!(id in auto)) auto[id] = v;
   const user = new Array(AV_USER_LANES).fill(0);
-  for (const a of project.automations || []) if (a.target?.type === 'user' && a.id in auto) user[a.target.index - 1] = auto[a.id];
+  for (const [lane, { v }] of lanes) if (lane >= 1 && lane <= AV_USER_LANES) user[lane - 1] = v;
   for (const k of Object.keys(auto)) auto[k] = r4(auto[k]);
   return { auto, user: user.map(r4) };
 }
@@ -173,6 +187,24 @@ export function createOnsetDetector({ sensitivity = 1.6, minGap = 0.08 } = {}) {
 
 const SLUG = /^[a-z0-9_]{1,48}$/;
 const ID = /^[\w-]{1,64}$/;
+const slugOk = (v) => typeof v === 'string' && SLUG.test(v);
+/** OSC strings end at a zero byte: one inside would cut the message. */
+const text = (v, max) => String(v ?? '').replace(/\0/g, '').slice(0, max);
+/**
+ * The largest /gtd/map JSON sent as one OSC message: macOS refuses UDP datagrams over 9216 bytes by default. A bigger
+ * map leaves out the automations, then the markers; one still too big goes only as /gtd/map/ch/… messages (the
+ * WebSocket frame always carries the whole map).
+ */
+export const AV_MAP_MAX_BYTES = 8000;
+function mapJson(map) {
+  const enc = new TextEncoder();
+  for (const m of [map, { ...map, automations: [] }, { ...map, automations: [], markers: [] }]) {
+    let json = '';
+    try { json = JSON.stringify(m).replace(/\0/g, ''); } catch { return ''; }
+    if (enc.encode(json).length <= AV_MAP_MAX_BYTES) return json;
+  }
+  return '';
+}
 const num = (v, lo, hi, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 
 /**
@@ -197,14 +229,14 @@ export function avFrameToOsc(frame) {
   out.push(['/gtd/transport/phase/beat', f((tick % ppq) / ppq)]);
   out.push(['/gtd/transport/phase/bar', f((tick % tpb) / tpb)]);
   if (typeof frame.time === 'number') out.push(['/gtd/transport/time', f(num(frame.time, 0, 1e9))]);
-  if (frame.marker && typeof frame.marker.name === 'string') out.push(['/gtd/marker', { s: frame.marker.name.slice(0, 64) }, i(num(frame.marker.tick, 0, 2 ** 31 - 1))]);
+  if (frame.marker && typeof frame.marker.name === 'string') out.push(['/gtd/marker', { s: text(frame.marker.name, 64) }, i(num(frame.marker.tick, 0, 2 ** 31 - 1))]);
   // the notes that end before the ones that start: a key struck again in the same frame ends, then sounds again
   for (const n of Array.isArray(frame.offs) ? frame.offs.slice(0, 256) : []) {
-    if (!SLUG.test(n?.ch)) continue;
+    if (!slugOk(n?.ch)) continue;
     out.push([`/gtd/ch/${n.ch}/off`, i(num(n.key, 0, 127)), f(num(n.rel, 0, 1, 0.5))]);
   }
   for (const n of Array.isArray(frame.notes) ? frame.notes.slice(0, 256) : []) {
-    if (!SLUG.test(n?.ch)) continue;
+    if (!slugOk(n?.ch)) continue;
     out.push([`/gtd/ch/${n.ch}/note`, i(num(n.key, 0, 127)), f(num(n.vel, 0, 1)), f(num(n.dur, 0, 3600)), f(num(n.at, 0, 1e9))]);
   }
   const m = frame.master || {};
@@ -218,22 +250,21 @@ export function avFrameToOsc(frame) {
     if (/^\d{1,3}$/.test(n)) out.push([`/gtd/bus/${Number(n)}/peak`, f(num(v, 0, 1))]);
   }
   for (const [slug, v] of Object.entries(frame.ch && typeof frame.ch === 'object' ? frame.ch : {}).slice(0, 256)) {
-    if (SLUG.test(slug)) out.push([`/gtd/ch/${slug}/level`, f(num(v, 0, 1))]);
+    if (slugOk(slug)) out.push([`/gtd/ch/${slug}/level`, f(num(v, 0, 1))]);
   }
   for (const [id, v] of Object.entries(frame.auto && typeof frame.auto === 'object' ? frame.auto : {}).slice(0, 512)) {
     if (ID.test(id)) out.push([`/gtd/auto/${id}`, f(num(v, 0, 1))]);
   }
   (Array.isArray(frame.user) ? frame.user.slice(0, AV_USER_LANES) : []).forEach((v, n) => out.push([`/gtd/user/${n + 1}`, f(num(v, 0, 1))]));
   if (typeof frame.latency === 'number') out.push(['/gtd/latency', f(num(frame.latency, 0, 10))]);
-  if (frame.map && typeof frame.map === 'object') {
-    let json = '';
-    try { json = JSON.stringify(frame.map).slice(0, 60000); } catch { json = ''; }
+  if (frame.map && typeof frame.map === 'object' && !Array.isArray(frame.map)) {
+    const json = mapJson(frame.map);
     if (json) out.push(['/gtd/map', { s: json }]);
     for (const c of Array.isArray(frame.map.channels) ? frame.map.channels.slice(0, 256) : []) {
-      if (!SLUG.test(c?.slug)) continue;
-      out.push([`/gtd/map/ch/${c.slug}`, { s: String(c.id ?? '').slice(0, 64) }, { s: String(c.color ?? '').slice(0, 16) }, { s: String(c.kind ?? '').slice(0, 32) }, i(num(c.insert, 0, 999))]);
+      if (!slugOk(c?.slug)) continue;
+      out.push([`/gtd/map/ch/${c.slug}`, { s: text(c.id, 64) }, { s: text(c.color, 16) }, { s: text(c.kind, 32) }, i(num(c.insert, 0, 999))]);
     }
-    for (const b of Array.isArray(frame.map.buses) ? frame.map.buses.slice(0, 128) : []) out.push([`/gtd/map/bus/${num(b?.index, 0, 999)}`, { s: String(b?.name ?? '').slice(0, 64) }]);
+    for (const b of Array.isArray(frame.map.buses) ? frame.map.buses.slice(0, 128) : []) out.push([`/gtd/map/bus/${Math.round(num(b?.index, 0, 999))}`, { s: text(b?.name, 64) }]);
   }
   return out;
 }
@@ -249,7 +280,7 @@ export function encodeOsc(address, args = []) {
   const addr = pad(enc.encode(address));
   const tags = pad(enc.encode(`,${args.map((a) => ('i' in a ? 'i' : 'f' in a ? 'f' : 's')).join('')}`));
   const parts = args.map((a) => {
-    if ('s' in a) return pad(enc.encode(a.s));
+    if ('s' in a) return pad(enc.encode(String(a.s).replace(/\0/g, '')));
     const b = new Uint8Array(4);
     const view = new DataView(b.buffer);
     if ('i' in a) view.setInt32(0, a.i | 0);

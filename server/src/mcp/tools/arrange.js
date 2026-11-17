@@ -293,8 +293,11 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
     let t;
     if (target.type === 'user') {
       if (!target.lane) throw new Error(`target.lane is required for type=user: the visual lane 1..${AV_USER_LANES}`);
+      const extra = ['param', 'channel', 'insert', 'effectId'].filter((k) => target[k] !== undefined);
+      if (extra.length) throw new Error(`A visual lane (type=user) takes only lane, not ${extra.join(', ')}: it moves nothing in the sound`);
       t = { type: 'user', index: target.lane };
-    } else if (!target.param) throw new Error(`target.param is required for type=${target.type}`);
+    } else if (target.lane !== undefined) throw new Error(`target.lane is only for type=user (a visual lane); type=${target.type} takes param`);
+    else if (!target.param) throw new Error(`target.param is required for type=${target.type}`);
     else if (target.type === 'channel') t = { type: 'channel', id: findChannel(p, target.channel).id, param: target.param };
     else if (target.type === 'mixer') t = { type: 'mixer', index: target.insert, param: target.param };
     else if (target.type === 'effect') {

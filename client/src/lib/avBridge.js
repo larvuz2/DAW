@@ -24,9 +24,17 @@ export class AvBridge {
     this.timer = null;
     this.notes = []; // { channelId, key, vel, dur, at } waiting for their moment
     this.offs = []; // { channelId, key, rel, at, start }
+    this.held = new Set(); // voices of keys held by hand (their end comes with noteOff)
   }
 
   get running() { return this.timer !== null; }
+
+  idle() {
+    const st = this.getState().avStatus;
+    if (!st) return false;
+    if (st.state === 'busy') return !this.engine.transport.playing; // (a tab that plays takes over: it must be heard)
+    return (st.state === 'off' || st.state === 'admin') && !st.listeners;
+  }
 
   start() {
     if (this.timer) return;
@@ -52,8 +60,13 @@ export class AvBridge {
       const t = performance.now();
       if (t < this.nextAt - 8) return;
       this.nextAt = t - this.nextAt < 50 ? this.nextAt + 1000 / AV_FPS : t + 1000 / AV_FPS;
+      // nobody to hear it (no OSC for this tab and no listener, or another tab is heard while this one is stopped):
+      // two frames a second keep it known, without sending 60 for nothing over a remote connection
+      if (this.idle() && ++this.skipped < AV_FPS / 2) return;
+      this.skipped = 0;
       this.tick();
     }, 1000 / AV_FPS);
+    this.skipped = 0;
   }
 
   stop() {
@@ -64,12 +77,20 @@ export class AvBridge {
     if (engine.noteTap === this) engine.noteTap = null;
     engine.releaseChannelMeters();
     try { engine.out.disconnect(this.analyser); } catch { /* ignore */ }
-    // the visuals hear that the music stopped; `final` frees the OSC port for another tab
+    // the visuals hear that the music stopped, and every note they were told about ends (keys still held too);
+    // `final` frees the OSC port for another tab
     const st = this.getState();
-    const offs = this.offs.filter((o) => o.start <= engine.ctx.currentTime).map((o) => this.offOut(o, this.slugs(st.project)));
+    const slugs = this.slugs(st.project);
+    const sent = (o) => o.start <= this.lastDue; // (notes not yet sent were never heard by the visuals)
+    const offs = this.offs.filter(sent).map((o) => this.offOut(o, slugs));
+    for (const voice of this.held) {
+      if (sent(voice.avNote)) offs.push(this.offOut({ ...voice.avNote, rel: 0.5 }, slugs));
+      voice.avNote = null;
+    }
     this.send({ playing: 0, bpm: st.project?.bpm ?? 120, tick: 0, ppq: PPQ, offs: offs.filter(Boolean), final: true });
     this.notes = [];
     this.offs = [];
+    this.held.clear();
   }
 
   // ---- the engine calls these (realtime only; offline renders have no tap)
@@ -77,15 +98,31 @@ export class AvBridge {
   on(channelId, key, velocity, time, duration, voice) {
     this.followSession(this.engine.ctx.currentTime);
     this.notes.push({ channelId, key, vel: velocity, dur: duration ?? 0, at: time });
-    if (duration != null) this.offs.push({ channelId, key, rel: 0.5, at: time + duration, start: time });
-    else voice.avNote = { channelId, key, start: time }; // held by hand: its end comes with noteOff
+    if (duration != null) {
+      voice.avOff = { channelId, key, rel: 0.5, at: time + duration, start: time };
+      this.offs.push(voice.avOff);
+    } else {
+      voice.avNote = { channelId, key, start: time }; // held by hand: its end comes with noteOff
+      this.held.add(voice);
+    }
   }
 
   off(voice, releaseVelocity) {
     const n = voice.avNote;
     if (!n) return;
     voice.avNote = null;
+    this.held.delete(voice);
     this.offs.push({ ...n, rel: releaseVelocity ?? 0.5, at: this.engine.ctx.currentTime });
+  }
+
+  /** The engine cut a note short (choke group, mono, polyphony): it ends then, not at its written end. */
+  cut(voice, time) {
+    if (voice.avOff && voice.avOff.at > time) voice.avOff.at = Math.max(voice.avOff.start, time);
+    if (voice.avNote) {
+      this.offs.push({ ...voice.avNote, rel: 0.5, at: Math.max(voice.avNote.start, time) });
+      voice.avNote = null;
+      this.held.delete(voice);
+    }
   }
 
   /**
@@ -98,7 +135,8 @@ export class AvBridge {
     if (session === this.session) return;
     if (this.session) {
       this.notes = this.notes.filter((n) => n.at <= now || n.dur === 0);
-      this.offs = this.offs.map((o) => (o.start <= now ? { ...o, at: Math.min(o.at, now) } : null)).filter(Boolean);
+      this.offs = this.offs.filter((o) => o.start <= now);
+      for (const o of this.offs) o.at = Math.min(o.at, now);
     }
     this.session = session;
   }

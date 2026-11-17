@@ -44,7 +44,7 @@ export function createApiRouter({ store, samples, users, hub, auth, config, publ
   r.use(auth.requireUser);
 
   r.get('/status', wrap(async (req, res) => {
-    res.json({ activeProjectId: await activeProjectId(store, users, req.user), user: req.user.username, ...hub.status(req.user.id), version: VERSION, maxUploadMb: config.maxUploadMb, av: { osc: hub.av?.oscTarget ?? null } });
+    res.json({ activeProjectId: await activeProjectId(store, users, req.user), user: req.user.username, ...hub.status(req.user.id), version: VERSION, maxUploadMb: config.maxUploadMb, av: { osc: hub.avOscFor(req.user.id), oscForAdmins: !!hub.av?.oscTarget } });
   }));
   r.get('/catalog', (req, res) => res.json({ instruments: describeInstruments(), effects: describeEffects(), templates: TEMPLATES }));
   r.get('/templates', (req, res) => res.json(TEMPLATES));

@@ -63,7 +63,7 @@ test('a playing tab: its frames arrive as OSC, transport first, in the order the
   assert.ok(got.indexOf('/gtd/ch/kick/note') < got.indexOf('/gtd/master/peak'));
   assert.ok(got.indexOf('/gtd/master/peak') < got.indexOf('/gtd/map'));
   await waitFor(() => tab.messages.some((m) => m.type === 'av-status'));
-  assert.deepEqual(tab.messages.find((m) => m.type === 'av-status'), { type: 'av-status', state: 'osc', osc: status.body.av.osc });
+  assert.deepEqual(tab.messages.find((m) => m.type === 'av-status'), { type: 'av-status', state: 'osc', osc: status.body.av.osc, oscForAdmins: true, listeners: 0 });
 
   // a second tab waits while the first one plays, and takes over a second after it went quiet
   const other = openSocket(srv.base, admin.cookie);
@@ -96,6 +96,8 @@ test('only an admin drives OSC; a visual app on a WebSocket gets its own account
   assert.equal(login.status, 200, JSON.stringify(login.body));
   const token = (await vj.post('/api/me/token')).body.token;
   assert.ok(token);
+  const vjStatus = (await vj.get('/api/status')).body.av;
+  assert.deepEqual(vjStatus, { osc: null, oscForAdmins: true }, "the server's OSC address is for admins");
 
   // the visual app: no Origin, the account's token, asks for the frames
   const app = new WebSocket(`${srv.base.replace('http', 'ws')}/ws?token=${token}`);
@@ -128,21 +130,75 @@ test('only an admin drives OSC; a visual app on a WebSocket gets its own account
   for (const s of [app, vjTab.ws, adminTab.ws]) s.close();
 });
 
-test('the bridge alone: rate limit, no target, sockets made once', () => {
+test('the bridge alone: a playing tab takes over from a stopped one, sockets made once, a host name looked up once', () => {
   const sent = [];
   let made = 0;
-  const createSocket = () => { made++; return { send: (buf) => sent.push(decodeOsc(buf)[0]), on() {}, unref() {} }; };
+  const createSocket = () => { made++; return { send: (buf, port, host) => sent.push([decodeOsc(buf)[0], host]), on() {}, unref() {}, close() {} }; };
   const b = new AvBridge({ target: { host: '127.0.0.1', port: 1 }, createSocket });
   const a = {};
+  const c = {};
   const adminUser = { role: 'admin' };
-  assert.deepEqual(b.frame(a, adminUser, frame(), 1000), { osc: true });
-  assert.deepEqual(b.frame(a, adminUser, frame(), 1003), { osc: false, reason: 'rate' }, 'more than ~120 a second');
-  assert.deepEqual(b.frame(a, adminUser, frame(), 1020), { osc: true });
-  assert.deepEqual(b.frame({}, adminUser, frame(), 1500), { osc: false, reason: 'busy' });
-  assert.deepEqual(b.frame({}, adminUser, frame(), 2100), { osc: true }, 'a second of quiet frees the port');
+  assert.deepEqual(b.frame(a, adminUser, frame({ playing: 0 }), 1000), { osc: true });
+  assert.deepEqual(b.frame(c, adminUser, frame({ playing: 0 }), 1100), { osc: false, reason: 'busy' }, 'two stopped tabs: the first keeps it');
+  assert.deepEqual(b.frame(c, adminUser, frame({ playing: 1 }), 1200), { osc: true }, 'the one that plays is heard');
+  assert.deepEqual(b.frame(a, adminUser, frame({ playing: 1 }), 1300), { osc: false, reason: 'busy' }, 'two playing: the one heard keeps it');
+  assert.deepEqual(b.frame(a, adminUser, frame(), 2400), { osc: true }, 'a second of quiet frees the port');
   assert.equal(made, 1);
-  assert.ok(sent.length > 20 && sent[0] === '/gtd/transport/playing');
+  assert.ok(sent.length > 20 && sent[0][0] === '/gtd/transport/playing');
   assert.deepEqual(new AvBridge({ target: null }).frame(a, adminUser, frame()), { osc: false, reason: 'off' });
+  assert.deepEqual(b.frame(a, { role: 'user' }, frame()), { osc: false, reason: 'admin' });
+
+  // a host name: one lookup (in the background), not one per message
+  let lookups = 0;
+  let answer = null;
+  const named = new AvBridge({ target: { host: 'visuals.local', port: 9 }, createSocket, lookup: (host, cb) => { lookups++; answer = () => cb(null, '10.0.0.7', 4); } });
+  const before = sent.length;
+  named.frame(a, adminUser, frame(), 1000);
+  assert.equal(sent.length, before, 'nothing goes out before the name is known');
+  answer();
+  for (let i = 0; i < 5; i++) named.frame(a, adminUser, frame(), 1000 + i * 20);
+  assert.equal(lookups, 1);
+  assert.ok(sent.slice(before).every(([, host]) => host === '10.0.0.7'));
+});
+
+test('one tab is heard: a stopped tab with the bridge on gives way to one that plays — on OSC and for listeners', async () => {
+  const token = (await admin.post('/api/me/token')).body.token;
+  const app = new WebSocket(`${srv.base.replace('http', 'ws')}/ws?token=${token}`);
+  const appMsgs = [];
+  app.on('message', (d) => appMsgs.push(JSON.parse(d.toString())));
+  await new Promise((r) => app.on('open', r));
+  app.send(JSON.stringify({ type: 'subscribe-av' }));
+  await waitFor(() => appMsgs.some((m) => m.type === 'av-status'));
+  const idle = openSocket(srv.base, admin.cookie);
+  const player = openSocket(srv.base, admin.cookie);
+  await idle.opened;
+  await player.opened;
+  const n = received.length;
+  const send = (tab, over) => tab.ws.send(JSON.stringify({ type: 'av', frame: frame(over) }));
+  // the idle tab came first and keeps sending stopped frames; the other one plays
+  for (let i = 0; i < 6; i++) {
+    send(idle, { playing: 0, bpm: 61 });
+    await new Promise((r) => setTimeout(r, 15));
+    send(player, { playing: 1, bpm: 62 });
+    await new Promise((r) => setTimeout(r, 15));
+  }
+  await waitFor(() => received.slice(n).some((x) => x[0] === '/gtd/transport/bpm' && x[1] === 62));
+  await new Promise((r) => setTimeout(r, 100));
+  const bpms = received.slice(n).filter((x) => x[0] === '/gtd/transport/bpm').map((x) => x[1]);
+  assert.equal(bpms.at(-1), 62);
+  assert.ok(bpms.lastIndexOf(61) < bpms.indexOf(62), `once the player is heard, the idle tab is not: ${bpms}`);
+  const heard = appMsgs.filter((m) => m.type === 'av').map((m) => m.frame.bpm);
+  assert.ok(heard.lastIndexOf(61) < heard.indexOf(62), `the listener hears one tab too: ${heard}`);
+  // the sending tabs know a listener is there
+  await waitFor(() => player.messages.some((m) => m.type === 'av-status' && m.listeners === 1));
+  // switching off and on again: the tab is told where its frames go again
+  send(player, { final: true, playing: 0 });
+  await new Promise((r) => setTimeout(r, 30));
+  const count = player.messages.filter((m) => m.type === 'av-status').length;
+  send(player, { playing: 1 });
+  await waitFor(() => player.messages.filter((m) => m.type === 'av-status').length > count);
+  for (const s of [app, idle.ws, player.ws]) s.close();
+  await new Promise((r) => setTimeout(r, 1100)); // let the port go quiet for the next test
 });
 
 test('Claude draws a visual lane: add_automation target user, lane 1..8, nothing else needed', async () => {
@@ -158,6 +214,10 @@ test('Claude draws a visual lane: add_automation target user, lane 1..8, nothing
   assert.ok(noLane.isError && /lane/.test(noLane.content[0].text));
   const noParam = await call({ target: { type: 'master' }, points: [{ bar: 0, value: 0 }], startBar: 1 });
   assert.ok(noParam.isError && /param/.test(noParam.content[0].text));
+  const mixed = await call({ target: { type: 'user', lane: 2, param: 'volume' }, points: [{ bar: 0, value: 0 }], startBar: 1 });
+  assert.ok(mixed.isError && /only lane, not param/.test(mixed.content[0].text));
+  const laneElsewhere = await call({ target: { type: 'master', param: 'volume', lane: 2 }, points: [{ bar: 0, value: 0 }], startBar: 1 });
+  assert.ok(laneElsewhere.isError && /lane is only for type=user/.test(laneElsewhere.content[0].text));
   const tooHigh = await call({ target: { type: 'user', lane: 9 }, points: [{ bar: 0, value: 0 }], startBar: 1 });
   assert.ok(tooHigh.isError);
   await client.close();
