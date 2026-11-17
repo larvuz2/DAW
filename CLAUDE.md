@@ -107,6 +107,7 @@ npm run test:e2e     # builds the client, runs Playwright against a throwaway se
                      # E2E_CHROMIUM=/path/to/chromium uses an installed browser instead of `playwright install`
 npm run screenshots  # regenerates docs/screenshots/*.png
 npm run docs:mcp     # regenerates docs/MCP.md from the live tool definitions
+npm run docs:av      # regenerates docs/av-bible.pdf (audio → visual bible, Spanish) from the catalogs (needs Chromium)
 npm run plugin:pack -- <folder> | --examples   # validate + zip a plugin
 npm run skills:pack  # zips skills/* for upload to Claude Desktop / claude.ai (skills/dist)
 npm start            # production server (serves client/dist)

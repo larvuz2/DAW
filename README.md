@@ -250,6 +250,7 @@ Add HTTPS for other computers with the bundled Caddy profile (`docker compose --
 | [Making music with Claude](docs/claude-mcp.md) | connecting, tokens, `render_mix`, tips |
 | [MCP reference](docs/MCP.md) | all tools and parameters (generated) |
 | [GGS Synth](docs/ggs-synth.md) | the wavetable/FM synth: signal path, modulation, presets, patch documents |
+| [Audio → visual bible](docs/av-bible.pdf) (PDF, Spanish) | everything the studio can send to TouchDesigner / Blender / Unreal: live WebSocket, REST, exports, every variable with its range, and a proposed OSC bridge (`npm run docs:av` regenerates it) |
 | [Per-note expression](docs/expression-engine.md) | pitch / pressure / slide curves, the expression lane, MPE input, MIDI |
 | [Audio benchmarks](docs/audio-benchmarks.md) | measured aliasing, tuning, CPU and the loudness policy of the synth |
 | [Spatial mixing](docs/spatial.md) | 3D objects, binaural, 5.1 / 7.1.4, ADM |
