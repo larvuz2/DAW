@@ -1,6 +1,6 @@
 {
   "name": "greanteadawy",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "private": true,
   "description": "GreanTeaDawy - a browser-based, pattern-and-playlist DAW (Node.js + React) with an MCP server so Claude can make beats with you.",
   "license": "MIT",
@@ -14,6 +14,7 @@
     "node": ">=20.19"
   },
   "scripts": {
+    "dev:local": "NO_LOGIN=1 npm run dev",
     "dev": "concurrently -k -n server,client -c magenta,cyan \"npm:dev -w server\" \"npm:dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm run start -w server",

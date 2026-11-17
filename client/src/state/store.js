@@ -153,7 +153,7 @@ export const useStore = create((set, get) => ({
   },
 
   startSession(user, status = {}) {
-    set({ auth: { phase: 'ready', user, allowRegistration: !!status.allowRegistration, mcpWithoutToken: !!status.mcpWithoutToken, error: null } });
+    set({ auth: { phase: 'ready', user, allowRegistration: !!status.allowRegistration, mcpWithoutToken: !!status.mcpWithoutToken, noLogin: !!status.noLogin, error: null } });
     sync.start(useStore);
     get().loadExportFormats();
     get().loadPlugins();

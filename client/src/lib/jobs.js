@@ -97,8 +97,8 @@ async function renderJob(jobId, job, sync) {
   };
   const mode = job.mode === 'song' && songLength(project) > 0 ? 'song' : 'pattern';
   const samples = getEngine()?.samples || new Map();
-  // (a file that is kept gets room for the song's own tail; an analysis keeps its fixed second and a half)
-  const opts = { mode, patternId: job.patternId, loops: job.loops || 2, tail: job.save ? songTail(project) : 1.5, samples, encode: false, meterLimiter: true };
+  // (the song's own tail, saved or not: two renders of one project must be as long as each other to be compared)
+  const opts = { mode, patternId: job.patternId, loops: job.loops || 2, tail: songTail(project), samples, encode: false, meterLimiter: true };
   st.toast('Claude is rendering and analysing the mix…', 'claude', 2500);
 
   const wanted = [];

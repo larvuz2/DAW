@@ -64,7 +64,12 @@ export async function createServer(config = loadConfig()) {
   const loopback = isLoopback(config.host);
   const users = await new UserStore(config.dataDir, { defaults: { mcpWithoutToken: loopback } }).init();
   const sessions = await new SessionStore(config.dataDir, { ttlDays: config.sessionTtlDays }).init();
-  const auth = createAuth({ users, sessions, ttlDays: config.sessionTtlDays });
+  if (config.noLogin && !loopback) {
+    throw new Error(`NO_LOGIN switches every sign-in off, so it only runs on this computer: HOST is "${config.host}", which other machines can reach. Leave HOST at 127.0.0.1, or unset NO_LOGIN.`);
+  }
+  // NO_LOGIN: the one account everybody is (set below, once the first run has made it)
+  let localUser = null;
+  const auth = createAuth({ users, sessions, ttlDays: config.sessionTtlDays, localUser: config.noLogin ? () => localUser : null });
   const store = await new ProjectStore(config.dataDir).init();
   const samples = await new SampleLibrary(config.dataDir).init();
   const hub = new Hub({ store, samples, users, sessions });
@@ -97,6 +102,15 @@ export async function createServer(config = loadConfig()) {
       await users.update(user.id, { activeProjectId: list[0].id });
     }
   };
+
+  if (config.noLogin) {
+    // the first admin if there is one (a data folder that was used with sign-in keeps all its projects), else a new one
+    localUser = users.firstAdmin();
+    if (!localUser) {
+      localUser = await users.create({ username: 'local', displayName: 'Me', password: crypto.randomBytes(24).toString('hex'), role: 'admin', onlyIfEmpty: true });
+      await onUserCreated(localUser, { firstAdmin: true });
+    }
+  }
 
   const app = express();
   app.disable('x-powered-by');
@@ -134,7 +148,7 @@ export async function createServer(config = loadConfig()) {
     if (isLargeBodyRoute(req)) return next();
     return defaultJson(req, res, next);
   });
-  api.use(createAuthRouter({ users, sessions, auth, store, samples, hub, onUserCreated, setupCode, isLocal, plugins }));
+  api.use(createAuthRouter({ users, sessions, auth, store, samples, hub, onUserCreated, setupCode, isLocal, plugins, noLogin: config.noLogin }));
   api.use(createApiRouter({ store, samples, users, hub, auth, config, publicUrl, ffmpeg, plugins }));
   apiErrorHandlers(api);
   app.use('/api', api);
@@ -183,6 +197,8 @@ async function main() {
     writeLock(config.dataDir, config.port, config.host);
     const url = config.publicUrl || `http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
     console.log(`\n  GreanTeaDawy  ${url}`);
+    if (config.noLogin) console.log('  NO_LOGIN is on: there is no sign-in, everyone who reaches this server is the one local account. Keep it on this computer.');
+    if (config.noLogin && (config.trustProxy || (config.publicUrl && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(config.publicUrl)))) console.log('  WARNING: NO_LOGIN with a proxy or a public URL: whoever can reach this server through it has full access.');
     if (config.allowAnyOrigin) console.log('  WARNING: ALLOW_ANY_ORIGIN is on — the browser Origin check is off. Use it only for testing on your own machine.');
     console.log(`  MCP (Streamable HTTP): ${url}/mcp  (${users.settings.mcpWithoutToken ? 'token optional' : 'API token required'})`);
     console.log(`  Data: ${config.dataDir}`);

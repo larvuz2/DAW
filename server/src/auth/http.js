@@ -63,12 +63,12 @@ export class RateLimiter {
   }
 }
 
-export function createAuth({ users, sessions, ttlDays = 30 }) {
+export function createAuth({ users, sessions, ttlDays = 30, localUser = null }) {
   /**
    * Resolve the caller. Returns { user, via: 'session' | 'token', sid? }, { invalidToken: true } or null.
    * Tokens in the query string (?token=) are only accepted where explicitly allowed (WebSocket, MCP URL).
    */
-  function identify(req, { allowQueryToken = false } = {}) {
+  function identifyCredentials(req, { allowQueryToken = false } = {}) {
     const sid = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     if (sid) {
       const s = sessions.get(sid);
@@ -86,6 +86,17 @@ export function createAuth({ users, sessions, ttlDays = 30 }) {
       return { user: u, via: 'token', tokenHash: sha256(token) };
     }
     return null;
+  }
+
+  /**
+   * Resolve the caller. With `localUser` (NO_LOGIN) a request that brings no valid credentials is that one local account,
+   * as if it had signed in with a browser session: nothing in the studio asks who is there.
+   */
+  function identify(req, opts) {
+    const a = identifyCredentials(req, opts);
+    if (a?.user || !localUser) return a;
+    const u = localUser();
+    return u ? { user: u, via: 'session', sid: null } : a;
   }
 
   function requireUser(req, res, next) {

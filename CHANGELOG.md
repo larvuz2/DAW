@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.3 — No sign-in on your own computer
+
+- **`NO_LOGIN=1`** (or **`npm run dev:local`**): no login screen, no admin setup, no "super admin" to manage. Every request
+  is the one local account — the first admin if the data folder already has one (it keeps all its projects), otherwise
+  an account the server makes on first start. The browser, the live socket and MCP all work with no cookie and no token;
+  the menu has no *Sign out* or *Manage users*. Off by default.
+- **Fix to 0.13.1:** a render for Claude (`render_mix`) that was saved ran 0.5 s longer than one that was not, so two
+  renders of the same project could not be compared like for like (the browser test for it failed). Every render of a
+  project now has the same tail.
+- The server **refuses to start** with `NO_LOGIN` unless `HOST` is a loopback address (`127.0.0.1`), and warns when a
+  proxy or a public URL is configured: with no sign-in, whoever can reach the server has everything.
+
 ## 0.13.2 — `npm run dev` works again
 
 - **First-run setup, login and every save in `npm run dev` were refused as "Cross-origin request blocked".** Vite's

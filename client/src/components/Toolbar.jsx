@@ -132,14 +132,16 @@ export function Toolbar() {
   ]);
 
   const user = useStore.getState().auth.user;
+  const noLogin = !!useStore.getState().auth.noLogin;
   const initials = (user?.displayName || user?.username || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   const userMenu = (e) => st.showContextMenu(e, [
     { header: `${user.displayName} (@${user.username})` },
     { label: 'Account settings', onClick: () => { useStore.setState({ settingsTab: 'account' }); st.openWindow('settings'); } },
     { label: 'API token & MCP', onClick: () => { useStore.setState({ settingsTab: 'api' }); st.openWindow('settings'); } },
-    user.role === 'admin' && { label: 'Manage users', onClick: () => { useStore.setState({ settingsTab: 'users' }); st.openWindow('settings'); } },
-    '-',
-    { label: 'Sign out', onClick: () => st.signOut() }
+    user.role === 'admin' && !noLogin && { label: 'Manage users', onClick: () => { useStore.setState({ settingsTab: 'users' }); st.openWindow('settings'); } },
+    // (NO_LOGIN: there is nobody to sign out)
+    !noLogin && '-',
+    !noLogin && { label: 'Sign out', onClick: () => st.signOut() }
   ].filter(Boolean));
 
   const patternMenu = (e) => st.showContextMenu(e, [

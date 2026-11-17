@@ -96,6 +96,7 @@ docs/                 user & developer docs; docs/MCP.md is generated
 ```bash
 npm install
 npm run dev          # server :3001 + Vite :5173 (proxy /api /mcp /ws)
+npm run dev:local    # the same with NO_LOGIN=1: no sign-in screen, everyone is the one local account (this computer only)
 npm test             # core, synth-dsp, server and client unit/integration tests (node:test)
 npm run bench:synth  # GGS Synth CPU per voice (compare with docs/audio-benchmarks.md)
 npm run lint         # ESLint (must be clean)
@@ -222,6 +223,7 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
 ## Gotchas
 
 - `DATA_DIR` defaults to `./data` — tests and e2e always use temp dirs; never point tests at real data.
+- `NO_LOGIN=1` (or `npm run dev:local`) makes every request the first admin (`createAuth({ localUser })`): the status route says `noLogin`, MCP needs no token, and the server refuses a non-loopback `HOST`. Tests for it: `server/test/nologin.test.js`.
 - On first start with no users the studio shows the admin setup screen; when `HOST` is not loopback a setup code is
   printed in the server log (or set `SETUP_CODE`).
 - MCP HTTP responses are SSE (needed for progress) — raw `fetch` tests must send

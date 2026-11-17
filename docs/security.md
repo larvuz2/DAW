@@ -45,6 +45,7 @@ team. This page describes the model and a checklist for exposing it.
 
 ## Web hardening
 
+- **No sign-in (`NO_LOGIN=1`)**: for running the studio on your own computer. There is no login or setup screen; every request is the one local account — the first admin, made on first start, or an existing one, so a data folder used with sign-in keeps its projects. MCP needs no token either. The server **refuses to start** unless `HOST` is a loopback address, and warns when a proxy or a public URL is configured. `npm run dev:local` is `npm run dev` with it on.
 - **CSRF**: state-changing requests with an `Origin` must match the `Host` (or `PUBLIC_URL`) — `ALLOW_ANY_ORIGIN=1` switches this off, for testing on your own machine only (the server says so in its log); WebSocket upgrades are
   checked the same way. Cookies are SameSite=Lax.
 - **DNS rebinding**: `Host` header allow-list (`ALLOWED_HOSTS`, defaults to localhost names on loopback).

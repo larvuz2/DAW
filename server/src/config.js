@@ -49,6 +49,9 @@ export function loadConfig(env = process.env) {
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     sessionTtlDays: envInt(env.SESSION_TTL_DAYS, 30, 1, 3650),
     publicUrl: env.PUBLIC_URL || '',
+    // No sign-in at all: every request is the one local account (the first admin, made on first start). For running the
+    // studio on your own computer; refused unless HOST is a loopback address.
+    noLogin: /^(1|true|yes|on)$/i.test(env.NO_LOGIN || ''),
     // Switches the browser Origin check (CSRF protection) off: for testing on your own machine, through a preview
     // pane or a tunnel whose address the server does not know. Never on a server other people can reach.
     allowAnyOrigin: /^(1|true|yes|on)$/i.test(env.ALLOW_ANY_ORIGIN || ''),
