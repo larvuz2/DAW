@@ -31,8 +31,9 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
   src/diff.js         diffProjects: what changed between two project states, in words (diff_versions, dry runs,
                       the Versions window)      src/suggest.js  nearest / didYouMean for error messages
   src/renders.js      audioFingerprint, nullTest (subtract two renders), maskingReport (Bark bands), compareRenders
-  src/av.js           audio → visual bridge: channel slugs, avMap, automation/visual-lane values at a tick, spectrum
-                      features, onset detector, avFrameToOsc (the OSC address map: add, never rename), encodeOsc/decodeOsc
+  src/av.js           audio → visual bridge: channel slugs, avMap, automation/visual-lane values at a tick, effective
+                      control values + GGS telemetry (phase 2), spectrum features, onset detector, avFrameToOsc (the
+                      OSC address map: add, never rename), encodeOsc/decodeOsc
   src/builders.js     chord/bass/melody/roll generators
   src/templates.js    genre starter projects: build() + the menu order; each genre is src/templates/<id>.js { label, spec }
   src/analysis.js     LUFS/peak/spectrum/tempo/key/pitch + createLevelMeter (streaming, used for render stems)
@@ -209,7 +210,10 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   addresses, never rename or change argument types; keep a frame's order (transport → events, offs before notes →
   continuous → latency → map). Notes go out when they sound (the engine calls `noteTap.on/off`; nothing per sample),
   meters exist only while the bridge is on, and nothing in it may change the sound or offline renders. Automation
-  `{ type: 'user', index: 1…8 }` is a visual lane: `resolveTarget` ignores it on purpose.
+  `{ type: 'user', index: 1…8 }` is a visual lane: `resolveTarget` ignores it on purpose. Phase 2 values (controls,
+  GGS telemetry) go out on change plus all once a second; effective values follow the engine's automation rule
+  (`targetValuesAt` = `chaseAutomation`): change one, change both. GGS reports are watched per `who` (`setWatch(on,
+  'editor' | 'av')`).
 - **Spatial**: an insert with `spatial.enabled` is a 3D object; the `SpatialRig` (not the stereo router) connects it.
   Exports are rendered by the `spatial` job; positions automate `spatialX/Y/Z`. See `docs/spatial.md`.
 - **Samples**: a sample's audio can be replaced (wave editor "Replace original", `edit_sample saveAs=replace`): the id stays,

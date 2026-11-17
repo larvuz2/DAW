@@ -123,6 +123,9 @@ try {
   await call('set_spatial', { enabled: true, monitor: 'stereo' });
   await call('place_object', { insert: 'Lead', position: 'front' });
   await call('move_object', { insert: 'Lead', path: 'circle', startBar: 9, bars: 4, turns: 1 });
+  // a reverb throw on the pad in the outro: its mix is a phase 2 value that moves (/gtd/fx/5/reverb/mix)
+  await call('add_effect', { insert: 5, type: 'reverb', params: { mix: 0.2, decay: 3 } });
+  await call('add_automation', { name: 'Reverb throw', target: { type: 'effect', insert: 5, effectId: 'reverb', param: 'mix' }, points: [{ bar: 0, value: 0.2 }, { bar: 4, value: 0.8 }], startBar: 13, bars: 4, track: 9 });
   await call('save_version', { name: 'AV fixture' });
 
   // ---- play it with the bridge on, and capture what the bridge sends
@@ -191,7 +194,8 @@ try {
     Energy: 'visual lane 1 (nothing in the sound)',
     Strobe: 'visual lane 2 (nothing in the sound)',
     'Lead 3D X': "the lead's position left (0) … right (1), bars 9–12",
-    'Lead 3D Y': "the lead's position back (0) … front (1), bars 9–12"
+    'Lead 3D Y': "the lead's position back (0) … front (1), bars 9–12",
+    'Reverb throw': "the pad's reverb mix, bars 13–16 (also /gtd/fx/5/reverb/mix)"
   };
   const autoRows = project.automations.map((a) => `| \`${a.id}\` | ${a.name} | ${MOVES[a.name] || ''} |`).join('\n');
   const autoId = (name) => project.automations.find((a) => a.name === name)?.id;
@@ -241,6 +245,14 @@ ${autoRows}
 
 The 3D position isn't a bridge message of its own yet (phase 3); its X/Y automation is: the circle arrives as
 \`/gtd/auto/${autoId('Lead 3D X')}\` and \`/gtd/auto/${autoId('Lead 3D Y')}\`.
+
+## Phase 2 in the capture
+
+Every control as it stands, when it changes and all once a second: \`/gtd/ch/{kick…lead}/param/…\` (the pad's
+\`filterCutoff\` is a channel control: it opens in the build), \`/gtd/bus/{0…6}/param/…\`, \`/gtd/fx/0/limiter/…\` and
+\`/gtd/fx/5/reverb/…\` (its \`mix\` rises in the outro). And the live modulation of the three GGS channels, \`bass\`, \`pad\`
+and \`lead\`: \`/gtd/ggs/{channel}/voices\`, \`…/src/env1\` (each note's amp envelope), \`…/src/lfo1\`, \`…/src/chaos1\`…,
+\`…/dst/f1Cutoff\` (Hz) and \`…/dst/f1Cutoff/n\` (0…1), and the rest of the 25 sources and 39 targets.
 
 ## The capture
 

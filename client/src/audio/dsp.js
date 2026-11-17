@@ -117,20 +117,8 @@ export function compressorAutoMakeupDb(thresholdDb, kneeDb, ratio) {
 }
 export const gainToDb = (g) => (g <= 0.00001 ? -Infinity : 20 * Math.log10(g));
 
-/** Map normalized 0..1 to a param range (log or linear). */
-export function denormalize(v, def) {
-  const { min, max, curve } = def;
-  if (curve === 'log' && min > 0) return min * Math.pow(max / min, v);
-  if (curve === 'cube') return min + (max - min) * v * v * v;
-  return min + (max - min) * v;
-}
-
-export function normalize(value, def) {
-  const { min, max, curve } = def;
-  if (curve === 'log' && min > 0) return Math.log(value / min) / Math.log(max / min);
-  if (curve === 'cube') return Math.cbrt((value - min) / (max - min));
-  return (value - min) / (max - min);
-}
+// 0..1 ↔ a param's range: one definition in core (the audio → visual bridge reads effect values with it too)
+export { denormalizeParam as denormalize, normalizeParam as normalize } from '@greanteadawy/core';
 
 /** Safely set an AudioParam now (smoothly, to avoid zipper noise). */
 const initialized = new WeakSet();

@@ -8,11 +8,13 @@
 // Timers, not animation frames: requestAnimationFrame stops in a hidden or covered tab, setInterval keeps going (Chrome
 // doesn't slow the timers of a tab that is playing sound).
 import {
-  AV_FPS, PPQ, avMap, channelSlugs, automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, ticksPerBar, usedInserts
+  AV_FPS, PPQ, avMap, channelSlugs, automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, ticksPerBar, usedInserts,
+  effectiveValuesAt, ggsTelemetry, MACRO_PARAMS
 } from '@greanteadawy/core';
 
 const MAP_EVERY = 2 * AV_FPS; // the map again every 2 s, for a visual app that starts after the studio
 const LATENCY_EVERY = AV_FPS; // the output latency once a second
+const FULL_EVERY = AV_FPS; // phase 2 values go out when they change, and all of them once a second
 const r4 = (v) => Math.round(v * 10000) / 10000;
 
 export class AvBridge {
@@ -53,6 +55,8 @@ export class AvBridge {
     this.mapProject = null;
     this.session = null;
     this.lastDue = -Infinity; // the last frame's horizon: the notes sent so far started before it
+    this.sentValues = new Map(); // phase 2: address → the value last sent (only changes go out, all once a second)
+    this.watched = new Set(); // GGS channels whose voices report their modulation for us
     engine.noteTap = this;
     // (Chromium runs a 16.67 ms interval every 16 ms: 62.5 frames a second. A frame is due every 1/60 s on average.)
     this.nextAt = 0;
@@ -76,6 +80,8 @@ export class AvBridge {
     const { engine } = this;
     if (engine.noteTap === this) engine.noteTap = null;
     engine.releaseChannelMeters();
+    for (const id of this.watched) engine.watchGgs(id, false, 'av');
+    this.watched.clear();
     try { engine.out.disconnect(this.analyser); } catch { /* ignore */ }
     // the visuals hear that the music stopped, and every note they were told about ends (keys still held too);
     // `final` frees the OSC port for another tab
@@ -245,8 +251,82 @@ export class AvBridge {
       if (key !== this.mapKey) { this.mapKey = key; this.frames = 0; }
     }
     if (this.frames % MAP_EVERY === 0) frame.map = this.map;
+    this.phase2(frame, p, tick, playing && song, slugs);
     this.frames++;
     this.send(frame);
+  }
+
+  /**
+   * Phase 2: every control as it stands (settings, or automation while the song plays) and the GGS Synth's live
+   * modulation — only what changed since the last frame, and everything once a second (`full`).
+   */
+  phase2(frame, p, tick, automated, slugs) {
+    const { engine } = this;
+    const full = this.frames % FULL_EVERY === 0;
+    const sent = this.sentValues;
+    if (full) {
+      frame.full = 1;
+      sent.clear(); // (it fills again with what exists now: nothing of a deleted channel lingers)
+    }
+    const changed = (key, v) => {
+      if (!full && sent.get(key) === v) return false;
+      sent.set(key, v);
+      return true;
+    };
+    // (settings only change with an edit: computed again when the project or, while automation plays, the tick does)
+    const at = automated ? Math.floor(tick) : -1;
+    if (p !== this.effProject || at !== this.effAt) {
+      this.effProject = p;
+      this.effAt = at;
+      this.eff = effectiveValuesAt(p, at, { automated });
+    }
+    const { param, bus, fx } = this.eff;
+    const pick = (prefix, values) => {
+      let out = null;
+      for (const k in values) if (changed(`${prefix}/${k}`, values[k])) (out ||= {})[k] = values[k];
+      return out;
+    };
+    for (const slug in param) {
+      const v = pick(`ch/${slug}`, param[slug]);
+      if (v) (frame.param ||= {})[slug] = v;
+    }
+    for (const n in bus) {
+      const v = pick(`bus/${n}`, bus[n]);
+      if (v) (frame.busParam ||= {})[n] = v;
+    }
+    for (const n in fx) {
+      for (const slug in fx[n]) {
+        const v = pick(`fx/${n}/${slug}`, fx[n][slug]);
+        if (v) ((frame.fx ||= {})[n] ||= {})[slug] = v;
+      }
+    }
+    // the GGS Synth: its voices report while we watch (asking again every frame is free, and covers a new rig)
+    const ggs = new Set();
+    for (const c of p.channels) {
+      if (c.instrument.kind !== 'ggs') continue;
+      const slug = slugs.get(c.id);
+      ggs.add(c.id);
+      engine.watchGgs(c.id, true, 'av');
+      this.watched.add(c.id);
+      const t = ggsTelemetry(c.instrument.params, engine.ggsLive(c.id), { macros: MACRO_PARAMS.map((k) => param[slug]?.[k] ?? 0) });
+      const out = {};
+      const voices = engine.ggsVoices(c.id) ?? 0;
+      if (changed(`ggs/${slug}/voices`, voices)) out.voices = voices;
+      const src = pick(`ggs/${slug}/src`, t.src);
+      if (src) out.src = src;
+      for (const k in t.dst) {
+        const [v, n] = t.dst[k];
+        const a = changed(`ggs/${slug}/dst/${k}`, v);
+        const b = changed(`ggs/${slug}/dst/${k}/n`, n);
+        if (a || b) (out.dst ||= {})[k] = t.dst[k];
+      }
+      if (Object.keys(out).length) (frame.ggs ||= {})[slug] = out;
+    }
+    for (const id of this.watched) {
+      if (ggs.has(id)) continue;
+      engine.watchGgs(id, false, 'av');
+      this.watched.delete(id);
+    }
   }
 }
 

@@ -10,6 +10,22 @@ const bool = (key, label, def) => ({ key, label, type: 'bool', default: def });
 /** A channel reference (channel id, or null = none) — e.g. the trigger of a note-driven sidechain. */
 const channelRef = (key, label) => ({ key, label, type: 'channel', default: null });
 
+/** A param's value as 0..1 of its range (log, cube or linear, as its definition says): what automation points hold. */
+export function normalizeParam(value, def) {
+  const { min, max, curve } = def;
+  if (curve === 'log' && min > 0) return Math.log(value / min) / Math.log(max / min);
+  if (curve === 'cube') return Math.cbrt((value - min) / (max - min));
+  return (value - min) / (max - min);
+}
+
+/** The inverse of normalizeParam: 0..1 back to the param's range. */
+export function denormalizeParam(v, def) {
+  const { min, max, curve } = def;
+  if (curve === 'log' && min > 0) return min * Math.pow(max / min, v);
+  if (curve === 'cube') return min + (max - min) * v * v * v;
+  return min + (max - min) * v;
+}
+
 export const SYNC_DIVISIONS = ['1/32', '1/16', '1/16d', '1/8t', '1/8', '1/8d', '1/4t', '1/4', '1/4d', '1/2', '1/1'];
 
 /** Length of a tempo-synced division in beats (quarter notes). */

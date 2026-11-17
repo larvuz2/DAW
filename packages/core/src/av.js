@@ -1,10 +1,14 @@
 // The audio → visual bridge, the parts shared by the browser (which measures), the server (which sends OSC) and the
-// tests: channel slugs, the map of the project for visual scenes, automation and visual-lane values at a tick,
+// tests: channel slugs, the map of the project for visual scenes, automation and visual-lane values at a tick, the
+// effective values of channel, bus and effect controls (phase 2), the GGS Synth's live modulation in real units,
 // spectrum features (levels, six bands, 32 log bands, centroid), a small onset detector, and the frame → OSC mapping
 // with its encoder. The addresses are the contract with the visual side (docs/av-bible.pdf, chapter 7): add, never
 // rename.
-import { PPQ, AV_USER_LANES, ticksPerBar } from './constants.js';
+import { PPQ, AV_USER_LANES, MAX_VOLUME, ticksPerBar } from './constants.js';
 import { songAutomationInRange, automationValueAt } from './timeline.js';
+import { EFFECTS, normalizeParam } from './effects.js';
+import { MACRO_PARAMS } from './model.js';
+import { MOD_SOURCES, MOD_TARGETS, modTargetSpec, targetValue, ggsDefaults } from '@greanteadawy/synth-dsp';
 
 export const AV_FPS = 60;
 export const AV_BANDS = [['sub', 20, 60], ['low', 60, 250], ['lowMid', 250, 500], ['mid', 500, 2000], ['highMid', 2000, 6000], ['high', 6000, 20000]];
@@ -51,6 +55,20 @@ export function usedInserts(project) {
   return [...used].filter((i) => Number.isInteger(i) && i >= 0 && i < (project?.mixer?.length || 1)).sort((a, b) => a - b);
 }
 
+/** The effects of one insert by address: their type in lower case, a second one of the same type _2 ("reverb_2"). */
+export function effectSlugs(effects) {
+  const out = new Map();
+  const taken = new Set();
+  for (const e of effects || []) {
+    const base = avSlug(e.type);
+    let slug = base;
+    for (let n = 2; taken.has(slug); n++) slug = `${base}_${n}`;
+    taken.add(slug);
+    out.set(e.id, slug);
+  }
+  return out;
+}
+
 /** What a visual scene needs to set itself up: channels (slug, id, colour, instrument, mixer insert), buses, markers. */
 export function avMap(project) {
   if (!project) return null;
@@ -59,9 +77,38 @@ export function avMap(project) {
     project: project.name, id: project.id, bpm: project.bpm, timeSig: project.timeSig, ppq: PPQ, ticksPerBar: ticksPerBar(project),
     channels: project.channels.map((c) => ({ slug: slugs.get(c.id), id: c.id, name: c.name, color: c.color, kind: c.instrument.kind, insert: c.mixerTrack })),
     buses: usedInserts(project).map((index) => ({ index, name: project.mixer[index].name })),
+    effects: usedInserts(project).flatMap((insert) => {
+      const fx = project.mixer[insert].effects;
+      const slugs = effectSlugs(fx);
+      return fx.map((e) => ({ insert, slug: slugs.get(e.id), type: e.type, id: e.id }));
+    }),
     markers: [...(project.markers || [])].sort((a, b) => a.tick - b.tick).map((m) => ({ name: m.name, tick: m.tick })),
     automations: (project.automations || []).map((a) => ({ id: a.id, name: a.name, target: a.target }))
   };
+}
+
+/** One string per automation target (what the engine keys its automated params by). */
+export const targetKey = (t) => `${t?.type}|${t?.id ?? ''}|${t?.index ?? ''}|${t?.effectId ?? ''}|${t?.param ?? ''}`;
+
+/**
+ * What automation does to each target at a song tick, the engine's way (Transport.chaseAutomation): the clip playing
+ * (the one that started last, if two overlap), else the one that ended last — its last value is held. Returns
+ * Map targetKey → { v (0 … 1), playing }. (Pitch is per note: only a clip playing moves it — see effectiveValuesAt.)
+ */
+export function targetValuesAt(project, tick) {
+  const out = new Map();
+  for (const { clip, automation } of songAutomationInRange(project, 0, Number.MAX_SAFE_INTEGER)) {
+    const end = clip.start + clip.length;
+    if (clip.start > tick) continue;
+    const playing = end > tick;
+    const key = targetKey(automation.target);
+    const was = out.get(key);
+    const wins = !was || (playing && (!was.playing || clip.start > was.start)) || (!playing && !was.playing && end > was.end);
+    if (!wins) continue;
+    const v = automationValueAt(automation, playing ? tick - clip.start + clip.offset : clip.length - 1 + clip.offset);
+    out.set(key, { v, playing, start: clip.start, end });
+  }
+  return out;
 }
 
 /**
@@ -74,30 +121,119 @@ export function avMap(project) {
 export function automationValuesAt(project, tick) {
   const auto = {};
   const ended = new Map(); // automation id → the clip that ended last before `tick`
-  const lanes = new Map(); // lane → { playing, start, end, v } of the clip that decides it
   for (const { clip, automation } of songAutomationInRange(project, 0, Number.MAX_SAFE_INTEGER)) {
     const end = clip.start + clip.length;
-    let v = null;
-    if (tick >= clip.start && tick < end) {
-      v = automationValueAt(automation, tick - clip.start + clip.offset);
-      auto[automation.id] = v;
-    } else if (end <= tick) {
+    if (tick >= clip.start && tick < end) auto[automation.id] = automationValueAt(automation, tick - clip.start + clip.offset);
+    else if (end <= tick) {
       const last = ended.get(automation.id);
       if (!last || end > last.end) ended.set(automation.id, { end, v: automationValueAt(automation, clip.length - 1 + clip.offset) });
-      v = automationValueAt(automation, clip.length - 1 + clip.offset);
     }
-    const t = automation.target;
-    if (v === null || t?.type !== 'user') continue;
-    const playing = end > tick;
-    const was = lanes.get(t.index);
-    const wins = !was || (playing && (!was.playing || clip.start > was.start)) || (!playing && !was.playing && end > was.end);
-    if (wins) lanes.set(t.index, { playing, start: clip.start, end, v });
   }
   for (const [id, { v }] of ended) if (!(id in auto)) auto[id] = v;
-  const user = new Array(AV_USER_LANES).fill(0);
-  for (const [lane, { v }] of lanes) if (lane >= 1 && lane <= AV_USER_LANES) user[lane - 1] = v;
+  const targets = targetValuesAt(project, tick);
+  const user = Array.from({ length: AV_USER_LANES }, (_, i) => r4(targets.get(targetKey({ type: 'user', index: i + 1 }))?.v ?? 0));
   for (const k of Object.keys(auto)) auto[k] = r4(auto[k]);
-  return { auto, user: user.map(r4) };
+  return { auto, user };
+}
+
+const unit = (v) => r4(clamp01(Number.isFinite(v) ? v : 0));
+const logUnit = (v, lo, hi) => Math.log(Math.max(lo, v) / lo) / Math.log(hi / lo);
+
+/**
+ * Phase 2: where every control stands at a song tick, 0 … 1 of its range — its own setting, or what automation makes
+ * it while the song plays (`automated`: playing in song mode; stopped, the engine puts automated controls back to
+ * their settings). { param: { [channelSlug]: { volume, pan, filterCutoff, filterRes, pitch, mute, macro1…8 (GGS) } },
+ * bus: { [insert]: { volume, pan, mute } } (inserts in use), fx: { [insert]: { [effectSlug]: { enabled, …params } } } }.
+ * The same 0 … 1 automation points use: volume 1 = 1.25 (+1.9 dB), filterCutoff log 20 Hz … 20 kHz, filterRes log
+ * 0.1 … 20, pitch −24 … +24 semitones (with a playing pitch clip added), mute 1 = the channel is silent (muted, or
+ * another one is soloed); effect params by their definitions (log ones log), switches 0 / 1.
+ */
+export function effectiveValuesAt(project, tick, { automated = true } = {}) {
+  const autos = automated ? targetValuesAt(project, tick) : new Map();
+  const val = (t, own) => unit(autos.get(targetKey(t))?.v ?? own);
+  const slugs = channelSlugs(project);
+  const anySolo = project.channels.some((c) => c.solo);
+  const param = {};
+  for (const c of project.channels) {
+    const t = (p) => ({ type: 'channel', id: c.id, param: p });
+    const bend = autos.get(targetKey(t('pitch')));
+    const p = {
+      volume: val(t('volume'), c.volume / MAX_VOLUME),
+      pan: val(t('pan'), (c.pan + 1) / 2),
+      filterCutoff: val(t('filterCutoff'), logUnit(c.filterCutoff, 20, 20000)),
+      filterRes: val(t('filterRes'), logUnit(c.filterRes, 0.1, 20)),
+      pitch: unit((c.pitch + (bend?.playing ? Math.round(bend.v * 48 - 24) : 0) + 24) / 48),
+      mute: c.mute || (anySolo && !c.solo) ? 1 : 0
+    };
+    if (c.instrument.kind === 'ggs') for (const k of MACRO_PARAMS) p[k] = val(t(k), c.instrument.params[k] ?? 0);
+    param[slugs.get(c.id)] = p;
+  }
+  const bus = {};
+  const fx = {};
+  for (const i of usedInserts(project)) {
+    const m = project.mixer[i];
+    const t = (p) => (i === 0 ? { type: 'master', param: p } : { type: 'mixer', index: i, param: p });
+    bus[i] = { volume: val(t('volume'), m.volume / MAX_VOLUME), pan: val(t('pan'), (m.pan + 1) / 2), mute: m.mute ? 1 : 0 };
+    const fxSlugs = effectSlugs(m.effects);
+    for (const e of m.effects) {
+      const v = { enabled: e.enabled === false ? 0 : 1 };
+      // (a plugin's params are its own business: only whether it is on)
+      if (e.type !== 'plugin') {
+        for (const d of EFFECTS[e.type]?.params || []) {
+          if (d.type === 'number') v[d.key] = val({ type: 'effect', index: i, effectId: e.id, param: d.key }, normalizeParam(e.params?.[d.key] ?? d.default, d));
+          else if (d.type === 'bool') v[d.key] = (e.params?.[d.key] ?? d.default) ? 1 : 0;
+        }
+      }
+      (fx[i] ||= {})[fxSlugs.get(e.id)] = v;
+    }
+  }
+  return { param, bus, fx };
+}
+
+/** The GGS Synth's modulation sources and targets as the bridge names them (without "none"). */
+export const GGS_SOURCES = MOD_SOURCES.filter((s) => s !== 'none');
+export const GGS_TARGETS = MOD_TARGETS.filter((t) => t !== 'none');
+const specCache = new WeakMap();
+function targetSpecs(params) {
+  let specs = specCache.get(params);
+  if (!specs) {
+    const full = { ...ggsDefaults(), ...params };
+    specs = MOD_TARGETS.map((t) => (t === 'none' ? null : modTargetSpec(t, full)));
+    specCache.set(params, specs);
+  }
+  return specs;
+}
+
+/** A modulated target as 0 … 1: its place in its control's range, or for an offset with no range (pitch, LFO rate), 0.5 + d / 2. */
+function targetUnit(spec, value, d) {
+  if (Number.isFinite(spec.min) && Number.isFinite(spec.max) && spec.max > spec.min) {
+    if (spec.kind === 'oct' && spec.min > 0) return clamp01(logUnit(value, spec.min, spec.max));
+    return clamp01((value - spec.min) / (spec.max - spec.min));
+  }
+  return clamp01(0.5 + d / 2);
+}
+
+/**
+ * Phase 2: a GGS channel's live modulation, from what its newest note reports (`live`: [sources…, targets…] as the
+ * voices send it, or null when no note sounds). { src: { env1: 0 … 1, lfo1: −1 … 1, … }, dst: { f1Cutoff: [Hz, 0 … 1],
+ * … } }: each target in the units of its knob (targetValue) and 0 … 1. Nothing sounding: sources 0 (the macros where
+ * `macros` says they stand), targets at rest.
+ */
+export function ggsTelemetry(params, live, { macros = null } = {}) {
+  const src = {};
+  const dst = {};
+  for (let i = 1; i < MOD_SOURCES.length; i++) src[MOD_SOURCES[i]] = r4(live ? live[i] || 0 : 0);
+  // (the macros belong to the channel, not to a note: with nothing sounding they still stand where they are)
+  if (!live && macros) MACRO_PARAMS.forEach((k, i) => { src[k] = r4(macros[i] ?? 0); });
+  const specs = targetSpecs(params || {});
+  for (let j = 1; j < MOD_TARGETS.length; j++) {
+    const spec = specs[j];
+    if (!spec) continue;
+    const d = live ? live[MOD_SOURCES.length + j] || 0 : 0;
+    const value = spec.inert ? spec.base : targetValue(spec, d);
+    dst[MOD_TARGETS[j]] = [r4(Number.isFinite(value) ? value : 0), r4(targetUnit(spec, value, d))];
+  }
+  return { src, dst };
 }
 
 /** The index of the marker whose section `tick` is in (the last one at or before it), or −1. */
@@ -188,17 +324,20 @@ export function createOnsetDetector({ sensitivity = 1.6, minGap = 0.08 } = {}) {
 const SLUG = /^[a-z0-9_]{1,48}$/;
 const ID = /^[\w-]{1,64}$/;
 const slugOk = (v) => typeof v === 'string' && SLUG.test(v);
+const KEY = /^[A-Za-z0-9_]{1,48}$/;
+const INDEX = /^\d{1,3}$/;
+const entries = (o, max) => (o && typeof o === 'object' && !Array.isArray(o) ? Object.entries(o).slice(0, max) : []);
 /** OSC strings end at a zero byte: one inside would cut the message. */
 const text = (v, max) => String(v ?? '').replace(/\0/g, '').slice(0, max);
 /**
  * The largest /gtd/map JSON sent as one OSC message: macOS refuses UDP datagrams over 9216 bytes by default. A bigger
- * map leaves out the automations, then the markers; one still too big goes only as /gtd/map/ch/… messages (the
+ * map leaves out the automations, then the effects, then the markers; one still too big goes only as /gtd/map/ch/… messages (the
  * WebSocket frame always carries the whole map).
  */
 export const AV_MAP_MAX_BYTES = 8000;
 function mapJson(map) {
   const enc = new TextEncoder();
-  for (const m of [map, { ...map, automations: [] }, { ...map, automations: [], markers: [] }]) {
+  for (const m of [map, { ...map, automations: [] }, { ...map, automations: [], effects: [] }, { ...map, automations: [], effects: [], markers: [] }]) {
     let json = '';
     try { json = JSON.stringify(m).replace(/\0/g, ''); } catch { return ''; }
     if (enc.encode(json).length <= AV_MAP_MAX_BYTES) return json;
@@ -256,6 +395,31 @@ export function avFrameToOsc(frame) {
     if (ID.test(id)) out.push([`/gtd/auto/${id}`, f(num(v, 0, 1))]);
   }
   (Array.isArray(frame.user) ? frame.user.slice(0, AV_USER_LANES) : []).forEach((v, n) => out.push([`/gtd/user/${n + 1}`, f(num(v, 0, 1))]));
+  // phase 2: controls as they stand (only what changed, everything once a second), and the GGS Synth's modulation
+  for (const [slug, vals] of entries(frame.param, 256)) {
+    if (!slugOk(slug)) continue;
+    for (const [k, v] of entries(vals, 64)) if (KEY.test(k)) out.push([`/gtd/ch/${slug}/param/${k}`, f(num(v, 0, 1))]);
+  }
+  for (const [n, vals] of entries(frame.busParam, 128)) {
+    if (!INDEX.test(n)) continue;
+    for (const [k, v] of entries(vals, 16)) if (KEY.test(k)) out.push([`/gtd/bus/${Number(n)}/param/${k}`, f(num(v, 0, 1))]);
+  }
+  for (const [n, effects] of entries(frame.fx, 128)) {
+    if (!INDEX.test(n)) continue;
+    for (const [fx, vals] of entries(effects, 32)) {
+      if (!slugOk(fx)) continue;
+      for (const [k, v] of entries(vals, 64)) if (KEY.test(k)) out.push([`/gtd/fx/${Number(n)}/${fx}/${k}`, f(num(v, 0, 1))]);
+    }
+  }
+  for (const [slug, g] of entries(frame.ggs, 64)) {
+    if (!slugOk(slug) || !g || typeof g !== 'object') continue;
+    if (g.voices !== undefined) out.push([`/gtd/ggs/${slug}/voices`, i(num(g.voices, 0, 1024))]);
+    for (const [k, v] of entries(g.src, 64)) if (KEY.test(k)) out.push([`/gtd/ggs/${slug}/src/${k}`, f(num(v, -1, 1))]);
+    for (const [k, v] of entries(g.dst, 64)) {
+      if (!KEY.test(k) || !Array.isArray(v)) continue;
+      out.push([`/gtd/ggs/${slug}/dst/${k}`, f(num(v[0], -1e6, 1e6))], [`/gtd/ggs/${slug}/dst/${k}/n`, f(num(v[1], 0, 1))]);
+    }
+  }
   if (typeof frame.latency === 'number') out.push(['/gtd/latency', f(num(frame.latency, 0, 10))]);
   if (frame.map && typeof frame.map === 'object' && !Array.isArray(frame.map)) {
     const json = mapJson(frame.map);

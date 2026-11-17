@@ -3,7 +3,8 @@
 // old one's notes, keys held by hand end with their key, the map comes again every 2 s, and switching off says so.
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createDefaultProject, PPQ, AV_FPS, avFrameToOsc } from '@greanteadawy/core';
+import { createDefaultProject, createChannel, applyOps, PPQ, AV_FPS, avFrameToOsc } from '@greanteadawy/core';
+import { MOD_SOURCES, MOD_TARGETS } from '@greanteadawy/synth-dsp';
 import { AvBridge } from '../src/lib/avBridge.js';
 
 function fakeEngine() {
@@ -239,4 +240,45 @@ test('with nobody to hear it the bridge slows down; a tab that plays is always h
   assert.equal(bridge.idle(), true, 'another tab is heard and this one is stopped');
   engine.transport.play(10);
   assert.equal(bridge.idle(), false, 'it plays: it must keep sending to take over');
+});
+
+test('phase 2: every control and the GGS Synth on the first frame, then only what changes, everything again each second', (t) => {
+  t.after(() => mock.timers.reset());
+  const { engine, state, step, bridge } = setup();
+  state.project = applyOps(state.project, [{ type: 'channel/add', channel: createChannel({ id: 'ch_lead', name: 'Lead', kind: 'ggs' }) }]);
+  const watched = [];
+  let live = null;
+  engine.watchGgs = (id, on, who) => watched.push([id, on, who]);
+  engine.ggsLive = (id) => (id === 'ch_lead' ? live : null);
+  engine.ggsVoices = (id) => (id === 'ch_lead' && live ? 2 : 0);
+  const first = step();
+  assert.equal(first.full, 1);
+  assert.equal(Object.keys(first.param).length, state.project.channels.length);
+  assert.ok(first.param.lead.macro1 !== undefined && first.param.kick.volume > 0);
+  assert.ok(first.busParam[0] && first.fx[0].limiter.enabled === 1);
+  assert.equal(Object.keys(first.ggs.lead.src).length, MOD_SOURCES.length - 1);
+  assert.equal(Object.keys(first.ggs.lead.dst).length, MOD_TARGETS.length - 1);
+  assert.equal(first.ggs.lead.voices, 0);
+  assert.deepEqual(watched[0], ['ch_lead', true, 'av'], 'the voices of every GGS channel report while the bridge is on');
+  // nothing changed: nothing of phase 2 goes out
+  const quiet = step();
+  assert.ok(!quiet.full && !quiet.param && !quiet.busParam && !quiet.fx && !quiet.ggs);
+  // a note sounds: only its moving values go out
+  live = new Float32Array(MOD_SOURCES.length + MOD_TARGETS.length);
+  live[MOD_SOURCES.indexOf('env1')] = 0.7;
+  live[MOD_SOURCES.length + MOD_TARGETS.indexOf('f1Cutoff')] = 0.2;
+  const moving = step();
+  assert.deepEqual(Object.keys(moving.ggs.lead.src), ['env1']);
+  assert.deepEqual(Object.keys(moving.ggs.lead.dst), ['f1Cutoff']);
+  assert.equal(moving.ggs.lead.voices, 2);
+  // an edit: that one value
+  state.project = applyOps(state.project, [{ type: 'channel/update', id: state.project.channels[0].id, patch: { pan: 1 } }]);
+  const edited = step();
+  assert.deepEqual(edited.param, { kick: { pan: 1 } });
+  // once a second, everything again (for a visual app that starts listening late)
+  let fulls = 0;
+  for (let i = 0; i < AV_FPS; i++) if (step().full) fulls++;
+  assert.equal(fulls, 1);
+  bridge.stop();
+  assert.deepEqual(watched.at(-1), ['ch_lead', false, 'av'], 'and they stop when it goes off');
 });

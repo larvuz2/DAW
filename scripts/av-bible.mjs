@@ -157,14 +157,14 @@ const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>
 <p>Cada variable lleva una etiqueta que dice <b>por dónde la puede recibir hoy</b> una aplicación visual:</p>
 ${table(['Etiqueta', 'Significado'], [
   [HOY, 'Disponible ya, desde fuera del navegador: por el WebSocket en vivo (<code>/ws</code>), por la API REST o por las herramientas MCP. No hace falta tocar código del estudio.'],
-  [PUENTE, 'Sale en vivo por el <b>puente audio → visual</b> (capítulo 7, fase 1, desde la versión 0.16): con <i>☰ → Send to visuals</i> encendido, la pestaña que suena la mide y el servidor la envía ~60 veces por segundo como <b>OSC</b> (por defecto a <code>127.0.0.1:7000</code>) y como JSON por WebSocket.'],
-  [PROX, 'Existe y se calcula en tiempo real dentro del motor, pero sale en una <b>fase siguiente</b> del puente (7.6): fase 2 = telemetría del GGS Synth y valores efectivos de parámetros y efectos; fase 3 = espacio 3D y expresión por nota.'],
+  [PUENTE, 'Sale en vivo por el <b>puente audio → visual</b> (capítulo 7: fase 1 desde la versión 0.16, fase 2 desde la 0.17): con <i>☰ → Send to visuals</i> encendido, la pestaña que suena la mide y el servidor la envía ~60 veces por segundo como <b>OSC</b> (por defecto a <code>127.0.0.1:7000</code>) y como JSON por WebSocket.'],
+  [PROX, 'Existe y se calcula en tiempo real dentro del motor, pero sale en la <b>fase 3</b> del puente (7.7): espacio 3D y expresión por nota en vivo — o no está previsto (forma de onda, espectro completo).'],
   [OFF, 'Se obtiene por render o exportación (WAV, stems, MIDI con expresión MPE, ADM BWF, JSON del proyecto) para trabajos no en vivo: videoclips, renders de Blender, secuencias de Unreal.']
 ], 'legend')}
-<div class="box"><b>Desde la versión 0.16 el estudio emite OSC.</b> El puente audio → visual (fase 1) envía el transporte, cada nota en el instante en que suena, niveles, ${AV_BANDS.length} bandas, un espectro de ${AV_SPECTRUM_BANDS} bandas, el centroide, los ataques, la sección del tema, los valores de automatización y ${AV_USER_LANES} carriles visuales libres — todo con las direcciones confirmadas por el lado visual (capítulo 7). Lo que falta (telemetría del GGS, valores efectivos de parámetros, posiciones 3D, expresión viva) está marcado ${PROX}. El estudio <b>no emite MIDI de salida</b>.</div>
+<div class="box"><b>Desde la versión 0.16 el estudio emite OSC.</b> El puente audio → visual envía el transporte, cada nota en el instante en que suena, niveles, ${AV_BANDS.length} bandas, un espectro de ${AV_SPECTRUM_BANDS} bandas, el centroide, los ataques, la sección del tema, los valores de automatización y ${AV_USER_LANES} carriles visuales libres (fase 1), y desde la 0.17 dónde está cada control de la mezcla y la modulación viva de cada GGS Synth (fase 2) — todo con las direcciones confirmadas por el lado visual (capítulo 7). Lo que falta (posiciones 3D, expresión viva) está marcado ${PROX}. El estudio <b>no emite MIDI de salida</b>.</div>
 
 <div class="toc"><h3>Contenido</h3><ol>
-<li>Arquitectura en una página</li><li>El tiempo: ticks, compases, swing</li><li>Conexión en vivo hoy: WebSocket</li><li>API REST y MCP</li><li>Catálogo de señales (los “endpoints”)</li><li>El GGS Synth para visuales</li><li>El puente audio → visual (OSC, implementado)</li><li>Recetas por herramienta (TouchDesigner, Blender, Unreal)</li><li>Apéndices generados desde el código</li></ol></div>
+<li>Arquitectura en una página</li><li>El tiempo: ticks, compases, swing</li><li>Conexión en vivo hoy: WebSocket</li><li>API REST y MCP</li><li>Catálogo de señales (los “endpoints”)</li><li>El GGS Synth para visuales</li><li>El puente audio → visual (OSC, fases 1 y 2)</li><li>Recetas por herramienta (TouchDesigner, Blender, Unreal)</li><li>Apéndices generados desde el código</li></ol></div>
 
 <h2>1. Arquitectura en una página</h2>
 <ul>
@@ -290,7 +290,7 @@ ${table(['Variable', 'Rango / unidad', 'Frecuencia', 'Estado', 'Idea visual'], [
   ['forma de onda del master (analizador, 2048 muestras)', '−1 … 1', 'cada cuadro', PROX, 'Osciloscopio, líneas'],
   [`espectro del master en ${AV_SPECTRUM_BANDS} bandas logarítmicas 20 Hz – 20 kHz`, `0 … 1 (= ${AV_DB_FLOOR} … ${AV_DB_CEIL} dB)`, 'cada cuadro', PUENTE, 'Barras, terreno 3D'],
   ['espectro completo (1024 bandas) y onda por canal', 'dB · −1 … 1', 'cada cuadro', PROX, '—'],
-  ['voces sonando por canal GGS (<code>ggsVoices</code>)', 'entero', 'cada cuadro', PROX, 'Densidad de partículas'],
+  ['voces sonando por canal GGS (<code>ggsVoices</code>)', 'entero', 'al cambiar', PUENTE, 'Densidad de partículas'],
   ['bandas: sub / low / lowMid / mid / highMid / high', `0 … 1 en vivo (= ${AV_DB_FLOOR} … ${AV_DB_CEIL} dB) · % de energía en el análisis`, 'cada cuadro · por análisis', `${PUENTE} · ${OFF}`, 'Colores por banda'],
   ['centroide espectral (brillo)', 'Hz', 'cada cuadro · por análisis', `${PUENTE} · ${OFF}`, 'Temperatura de color'],
   ['onsets (ataques)', 'fuerza 0 … 1 (flujo espectral), máx. uno cada 80 ms', 'por evento · por análisis', `${PUENTE} · ${OFF}`, 'Cortes de cámara'],
@@ -300,14 +300,14 @@ ${table(['Variable', 'Rango / unidad', 'Frecuencia', 'Estado', 'Idea visual'], [
 ], 'small')}
 
 <h3>5.4 Canales (instrumentos)</h3>
-<p>Cada canal: <code>id</code>, <code>name</code>, <code>color</code> (¡útil como paleta!), <code>volume</code> (0…1.25), <code>pan</code> (−1…1), <code>pitch</code> (−24…24 st), <code>mute</code>, <code>solo</code>, <code>mixerTrack</code>, <code>rootKey</code>, <code>filterCutoff</code> (20…20000 Hz), <code>filterRes</code> (0.1…20), <code>nudge</code>, <code>swingMix</code> y su instrumento <code>{ kind, preset, params }</code>. Los ${instrumentKinds.length - 1} instrumentos (más la ranura <code>plugin</code>, que toma el instrumento de un plugin del usuario) y sus parámetros están en el apéndice C. Estado: valores fijados ${HOY}; valor de cada automatización en el instante ${PUENTE} (<code>/gtd/auto/{id}</code>); valor efectivo del parámetro ${PROX}. Automatizables por canal: ${CHANNEL_AUTOMATION_PARAMS.map((p) => `<code>${p}</code>`).join(', ')} y, en un GGS Synth, <code>macro1…macro${MACRO_COUNT}</code>.</p>
+<p>Cada canal: <code>id</code>, <code>name</code>, <code>color</code> (¡útil como paleta!), <code>volume</code> (0…1.25), <code>pan</code> (−1…1), <code>pitch</code> (−24…24 st), <code>mute</code>, <code>solo</code>, <code>mixerTrack</code>, <code>rootKey</code>, <code>filterCutoff</code> (20…20000 Hz), <code>filterRes</code> (0.1…20), <code>nudge</code>, <code>swingMix</code> y su instrumento <code>{ kind, preset, params }</code>. Los ${instrumentKinds.length - 1} instrumentos (más la ranura <code>plugin</code>, que toma el instrumento de un plugin del usuario) y sus parámetros están en el apéndice C. Estado: valores fijados ${HOY}; valor de cada automatización en el instante ${PUENTE} (<code>/gtd/auto/{id}</code>); valor efectivo del control 0…1 ${PUENTE} (<code>/gtd/ch/{canal}/param/…</code>, fase 2). Automatizables por canal: ${CHANNEL_AUTOMATION_PARAMS.map((p) => `<code>${p}</code>`).join(', ')} y, en un GGS Synth, <code>macro1…macro${MACRO_COUNT}</code>.</p>
 
 <h3>5.5 Mezclador, efectos y espacio 3D</h3>
-<p>Inserts (<code>project.mixer[]</code>, el 0 es el master): <code>volume</code> (0…1.25), <code>pan</code>, <code>mute</code>, <code>solo</code>, <code>output</code>, <code>sends[]</code> y <code>effects[]</code> (<code>{ id, type, enabled, params }</code>). Hay ${effectTypes.length} tipos de efecto (apéndice D; los marcados “auto” se pueden automatizar). ¿Subió la reverb o el eco? Llega como op <code>effect/update</code> con el parámetro (<code>mix</code>, <code>decay</code>, <code>feedback</code>…) ${HOY}; el valor de su automatización instante a instante ${PUENTE}; su valor efectivo ${PROX}.</p>
+<p>Inserts (<code>project.mixer[]</code>, el 0 es el master): <code>volume</code> (0…1.25), <code>pan</code>, <code>mute</code>, <code>solo</code>, <code>output</code>, <code>sends[]</code> y <code>effects[]</code> (<code>{ id, type, enabled, params }</code>). Hay ${effectTypes.length} tipos de efecto (apéndice D; los marcados “auto” se pueden automatizar). ¿Subió la reverb o el eco? Llega como op <code>effect/update</code> con el parámetro (<code>mix</code>, <code>decay</code>, <code>feedback</code>…) ${HOY}; el valor de su automatización instante a instante y su valor efectivo 0…1 ${PUENTE} (<code>/gtd/fx/{n}/{efecto}/{param}</code>, fase 2).</p>
 <p><b>Mezcla espacial</b> (estilo Dolby Atmos): con <code>project.spatial.enabled</code>, cada insert con <code>spatial.enabled</code> es un objeto 3D con <code>x</code> (−1 izquierda … 1 derecha), <code>y</code> (−1 atrás … 1 frente), <code>z</code> (0 suelo … 1 techo) y <code>lfe</code> (0…1). Las posiciones se automatizan (${Object.keys(SPATIAL_PARAMS).map((k) => `<code>${k}</code>`).join(', ')}): <b>perfectas para mover objetos en una escena 3D</b> de Unreal o Blender ${HOY} (posición fijada) / ${PUENTE} (sus automatizaciones <code>spatialX/Y/Z</code>, 0…1, como <code>/gtd/auto/{id}</code>) / ${PROX} (<code>/gtd/spatial/{n}</code> con x, y, z reales) / ${OFF} (ADM BWF con trayectorias).</p>
 
 <h3>5.6 Automatización</h3>
-<p><code>project.automations[]</code>: <code>{ id, name, color, target, length, points: [{ t (ticks), v (0…1) }] }</code>, colocadas en la lista como clips <code>kind: "automation"</code>. Destinos: <code>{ type: "channel", id, param }</code>, <code>{ type: "mixer"|"master", index, param }</code>, <code>{ type: "effect", index, effectId, param }</code> y <code>{ type: "user", index: 1…${AV_USER_LANES} }</code> — un <b>carril visual</b> que no mueve nada del sonido y sale como <code>/gtd/user/{n}</code> (7.4). El valor es lineal entre puntos y normalizado 0…1 (el motor lo convierte a la unidad del parámetro). Con el JSON ${HOY} una app visual puede evaluar la curva ella misma; el valor en vivo ${PUENTE}: dentro de su clip, la curva; después, el último valor se mantiene (igual que en el motor).</p>
+<p><code>project.automations[]</code>: <code>{ id, name, color, target, length, points: [{ t (ticks), v (0…1) }] }</code>, colocadas en la lista como clips <code>kind: "automation"</code>. Destinos: <code>{ type: "channel", id, param }</code>, <code>{ type: "mixer"|"master", index, param }</code>, <code>{ type: "effect", index, effectId, param }</code> y <code>{ type: "user", index: 1…${AV_USER_LANES} }</code> — un <b>carril visual</b> que no mueve nada del sonido y sale como <code>/gtd/user/{n}</code> (7.5). El valor es lineal entre puntos y normalizado 0…1 (el motor lo convierte a la unidad del parámetro). Con el JSON ${HOY} una app visual puede evaluar la curva ella misma; el valor en vivo ${PUENTE}: dentro de su clip, la curva; después, el último valor se mantiene (igual que en el motor).</p>
 
 <h3>5.7 Armonía y afinación</h3>
 <p><code>project.key</code>, <code>project.scale</code> (${Object.keys(SCALES).length} escalas), <code>project.tuning</code> (${Object.keys(TUNING_SYSTEMS).length} sistemas de afinación: temperado, justa, pitagórica, mesotónica…) ${HOY}. La herramienta MCP <code>harmony</code> detecta los acordes de un tramo y su función (tónica, dominante…) ${HOY}: útil para cambiar paletas con la armonía.</p>
@@ -322,13 +322,13 @@ ${table(['Variable', 'Rango / unidad', 'Frecuencia', 'Estado', 'Idea visual'], [
   <li>${MACRO_COUNT} macros (perillas maestras que mueven varias cosas a la vez — ideales como “intensidad” para lo visual) y una matriz de ${MOD_SLOTS} rutas fuente → destino.</li>
   <li>Efectos del canal: drive, chorus, delay estéreo, reverb.</li>
 </ul>
-<h3>6.2 La telemetría que ya existe ${PROX}</h3>
-<p>Mientras el editor está abierto sobre un canal, cada voz envía ~30 veces por segundo un <code>Float32Array</code> de ${MOD_SOURCES.length + MOD_TARGETS.length} valores (<code>engine.ggsLive(channelId)</code>, la nota más reciente): primero las ${MOD_SOURCES.length} fuentes en el orden de <code>MOD_SOURCES</code>, luego los ${MOD_TARGETS.length} destinos en el orden de <code>MOD_TARGETS</code>. Las fuentes llegan en su rango natural; los destinos llegan como la <b>suma de las rutas</b> <code>d</code> que les llegan, que se convierte a la unidad real del parámetro con <code>targetValue(modTargetSpec(target, patch), d)</code> (p. ej. el corte del filtro en Hz). La fase 2 del puente la publicará para todos los canales GGS (no solo el que se mira), tal cual y ya convertida.</p>
+<h3>6.2 La telemetría en vivo ${PUENTE}</h3>
+<p>Mientras el editor está abierto sobre un canal, cada voz envía ~30 veces por segundo un <code>Float32Array</code> de ${MOD_SOURCES.length + MOD_TARGETS.length} valores (<code>engine.ggsLive(channelId)</code>, la nota más reciente): primero las ${MOD_SOURCES.length} fuentes en el orden de <code>MOD_SOURCES</code>, luego los ${MOD_TARGETS.length} destinos en el orden de <code>MOD_TARGETS</code>. Las fuentes llegan en su rango natural; los destinos llegan como la <b>suma de las rutas</b> <code>d</code> que les llegan, que se convierte a la unidad real del parámetro con <code>targetValue(modTargetSpec(target, patch), d)</code> (p. ej. el corte del filtro en Hz). Con el puente encendido, todas las voces de todos los canales GGS informan (no solo el canal que muestra el editor), y la fase 2 publica cada fuente y cada destino en su unidad real y 0…1 (7.4).</p>
 ${table(['Índice', 'Nombre', 'Rango', 'Qué es'], telemetryRows, 'small')}
 <div class="box"><b>Lo más útil para visuales del sintetizador:</b> <code>env1</code> (la forma de volumen de cada nota: ataque → caída), <code>lfo1…4</code> (oscilaciones sincronizadas al tempo: rotaciones, pulsos), <code>chaos1/2</code> (movimiento orgánico que nunca se repite), <code>pressure</code>/<code>timbre</code> (el gesto del intérprete), <code>macro1…8</code> (la “intensidad” que decide el músico), y los destinos <code>f1Cutoff</code> (brillo real del sonido en Hz) y <code>osc{A,B,C}Pos</code> (por dónde va la wavetable).</div>
 
-<h2 class="page">7. El puente audio → visual (fase 1) ${PUENTE}</h2>
-<div class="box">Implementado en la versión 0.16 con las respuestas del lado visual: OSC por UDP a <code>127.0.0.1:7000</code>, ${AV_FPS} cuadros por segundo, los nombres <code>{canal}</code> con su regla, valores 0…1, <code>/gtd/map</code> y ${AV_USER_LANES} carriles libres <code>/gtd/user/1…${AV_USER_LANES}</code>. Referencia técnica en inglés: <code>docs/av-bridge.md</code>.</div>
+<h2 class="page">7. El puente audio → visual (fases 1 y 2) ${PUENTE}</h2>
+<div class="box">Implementado en la versión 0.16 con las respuestas del lado visual: OSC por UDP a <code>127.0.0.1:7000</code>, ${AV_FPS} cuadros por segundo, los nombres <code>{canal}</code> con su regla, valores 0…1, <code>/gtd/map</code> y ${AV_USER_LANES} carriles libres <code>/gtd/user/1…${AV_USER_LANES}</code>. La fase 2 (0.17) añade dónde está cada control de la mezcla y la modulación viva del GGS Synth (7.4). Referencia técnica en inglés: <code>docs/av-bridge.md</code>.</div>
 <h3>7.1 Encenderlo</h3>
 <ol>
   <li>Abrir el estudio en la computadora donde corre la app visual (<code>npm run dev:local</code> o <code>npm start</code>).</li>
@@ -339,7 +339,7 @@ ${table(['Ajuste', 'Detalle'], [
   ['<code>AV_OSC</code> (variable de entorno del servidor)', 'Vacía: <code>127.0.0.1:7000</code> si el servidor solo escucha en esta computadora (lo normal), <b>apagado</b> si escucha en la red (Docker, un servidor). <code>host:puerto</code> lo dirige a otra máquina (<code>192.168.1.20:7000</code>, <code>host.docker.internal:7000</code>); <code>off</code> lo apaga. El servidor lo dice al arrancar y en <code>GET /api/status</code> (<code>av.osc</code>).'],
   ['Una pestaña a la vez', 'Se oye la pestaña que envía, hasta que calla un segundo; pero una pestaña que <b>suena</b> le quita el turno a una que solo está parada con el ajuste encendido. La otra recibe el aviso “Another studio tab is sending to the visuals”. Una pestaña cuyos cuadros no llegan a nadie baja a dos cuadros por segundo.'],
   ['Cuentas', 'En un servidor con varias cuentas solo la pestaña de un <b>admin</b> maneja el OSC (el puerto es de la computadora del servidor) y solo los admins ven su dirección. Los clientes WebSocket de cada cuenta reciben los cuadros de su cuenta, de una pestaña a la vez.'],
-  ['Sin el estudio', '<code>npm run av:replay</code> reproduce la captura real de <code>fixtures/av/</code> en <code>127.0.0.1:7000</code> con su ritmo original (7.7).']
+  ['Sin el estudio', '<code>npm run av:replay</code> reproduce la captura real de <code>fixtures/av/</code> en <code>127.0.0.1:7000</code> con su ritmo original (7.8).']
 ])}
 <h3>7.2 Convenciones confirmadas</h3>
 <ul>
@@ -372,16 +372,29 @@ ${table(['Dirección', 'Tipos', 'Contenido', 'Cuándo'], [
   ['<code>/gtd/bus/{n}/peak</code>', 'f', 'pico del insert n en uso (0 = master; los que reciben canales, tienen efectos o nombre)', 'cada cuadro'],
   ['<code>/gtd/ch/{canal}/level</code>', 'f', 'pico del canal después de su fader, ventana de ~23 ms', 'cada cuadro'],
   ['<code>/gtd/auto/{automationId}</code>', 'f', 'valor 0…1 de una automatización (incluidas posiciones 3D <code>spatialX/Y/Z</code>)', 'cada cuadro, desde que suena'],
-  [`<code>/gtd/user/1…${AV_USER_LANES}</code>`, 'f', 'los carriles visuales, 0…1 (7.4)', 'cada cuadro'],
+  [`<code>/gtd/user/1…${AV_USER_LANES}</code>`, 'f', 'los carriles visuales, 0…1 (7.5)', 'cada cuadro'],
   ['<code>/gtd/latency</code>', 'f', 'latencia de salida de la pestaña (s)', 'cada segundo'],
   ['<code>/gtd/map</code>', 's', 'JSON: <code>{ project, id, bpm, timeSig, ppq, ticksPerBar, channels: [{ slug, id, name, color, kind, insert }], buses: [{ index, name }], markers: [{ name, tick }], automations: [{ id, name, target }] }</code>', 'al cambiar el proyecto y cada 2 s'],
   ['<code>/gtd/map/ch/{canal}</code>', 's s s i', 'id, color, tipo de instrumento, insert — el mapa para apps que no leen JSON (el <i>OSC In CHOP</i>)', 'con el mapa'],
   ['<code>/gtd/map/bus/{n}</code>', 's', 'nombre del insert', 'con el mapa']
 ], 'small')}
-<h3>7.4 Carriles visuales: <code>/gtd/user/1…${AV_USER_LANES}</code></h3>
+<h3>7.4 Fase 2: los controles y el GGS Synth</h3>
+<p>Estos valores salen en un cuadro <b>solo cuando cambian</b> (una mezcla quieta no cuesta nada) y <b>todos una vez por segundo</b> (el cuadro JSON lleva <code>"full": 1</code>), para que una app visual que empieza tarde los tenga en menos de un segundo. Van después de los carriles visuales y antes de la latencia.</p>
+${table(['Dirección', 'Tipos', 'Contenido'], [
+  ['<code>/gtd/ch/{canal}/param/{volume|pan|filterCutoff|filterRes|pitch|mute}</code>', 'f', 'la tira del canal, 0…1: su ajuste, o lo que hace la automatización mientras suena el tema (parado, el motor devuelve los controles automatizados a su ajuste). volume 0,8 = 0 dB; pan 0,5 = centro; filterCutoff log 20 Hz … 20 kHz; filterRes log 0,1 … 20; pitch −24 … +24 semitonos (0,5 = nada; un clip de pitch sonando se suma); mute 1 = no suena (silenciado u otro canal en solo)'],
+  [`<code>/gtd/ch/{canal}/param/macro{1…${MACRO_COUNT}}</code>`, 'f', 'las macros de un canal GGS, 0…1'],
+  ['<code>/gtd/bus/{n}/param/{volume|pan|mute}</code>', 'f', 'cada insert en uso, igual (0 = master; su 0 dB es 0,8)'],
+  ['<code>/gtd/fx/{n}/{efecto}/{param}</code>', 'f', 'cada efecto del insert n: <code>enabled</code> 0/1, cada parámetro numérico 0…1 de su rango (los logarítmicos en escala log, como los dibuja la automatización), interruptores 0/1. <code>{efecto}</code> es su tipo; un segundo del mismo tipo, <code>_2</code> (<code>reverb</code>, <code>reverb_2</code>); el mapa los lista. Un efecto plugin solo manda <code>enabled</code>'],
+  ['<code>/gtd/ggs/{canal}/voices</code>', 'i', 'notas sonando en el canal (con sus colas)'],
+  ['<code>/gtd/ggs/{canal}/src/{fuente}</code>', 'f', `las ${sources.length} fuentes de la tabla 6.2 en la nota más reciente, en su rango (0…1 o −1…1); sin nada sonando, 0 (las macros donde están)`],
+  ['<code>/gtd/ggs/{canal}/dst/{destino}</code>', 'f', `los ${targets.length} destinos donde los lleva la matriz, en la unidad de su perilla (cortes en Hz, pitch en semitonos, posición de wavetable 0…1, LFO rate en Hz o ×tempo); sin nada sonando, su ajuste`],
+  ['<code>/gtd/ggs/{canal}/dst/{destino}/n</code>', 'f', 'lo mismo en 0…1 del rango de su control (cortes en log); para un desplazamiento sin rango (pitch, LFO rate) 0,5 + profundidad/2: 0,5 = sin modular']
+], 'small')}
+<p>Las voces informan unas 30 veces por segundo, así que la telemetría avanza a 30 Hz dentro de los 60 cuadros; sigue al hilo de audio, unos milisegundos por delante de lo que llega a los altavoces (como las notas: ver <code>/gtd/latency</code>). Con el puente encendido informan todas las voces de todos los canales GGS (como cuando el editor está abierto sobre un canal): cuesta algo de CPU en el hilo de audio y nada en el sonido.</p>
+<h3>7.5 Carriles visuales: <code>/gtd/user/1…${AV_USER_LANES}</code></h3>
 <p>Automatizaciones que <b>no mueven nada del sonido</b>: una curva para que la siga lo visual (un brillo, una órbita de cámara, un fundido de color). En el estudio: <i>Playlist → Auto + → Visual lanes → Lane n</i>, y se dibuja en el editor de automatización como cualquier otra; vive en la lista como un clip. Claude: <code>add_automation target={ type: "user", lane: n }</code>. Valores 0…1; mantienen su último valor después del clip y valen 0 antes de sonar por primera vez. En el proyecto: <code>{ type: "user", index: n }</code>.</p>
-<h3>7.5 Lo mismo por WebSocket (JSON)</h3>
-<p>Un programa con el token de la cuenta abre <code>ws://HOST:3001/ws?token=gtd_…</code>, envía <code>{ "type": "subscribe-av" }</code> y recibe cada cuadro como JSON (los mismos campos; <code>avFrameToOsc</code> en <code>core/av.js</code> es la traducción exacta a OSC). Un cuadro real de la captura de prueba, el del “Drop”:</p>
+<h3>7.6 Lo mismo por WebSocket (JSON)</h3>
+<p>Un programa con el token de la cuenta abre <code>ws://HOST:3001/ws?token=gtd_…</code>, envía <code>{ "type": "subscribe-av" }</code> y recibe cada cuadro como JSON (los mismos campos; <code>avFrameToOsc</code> en <code>core/av.js</code> es la traducción exacta a OSC). Un cuadro real de la captura de prueba, el del “Drop” (recortado con …):</p>
 ${code(`
 { "type": "av", "frame": {
   "playing": 1, "bpm": 120, "tick": 3073, "ppq": 96, "tpb": 384, "time": 18.1058,
@@ -393,19 +406,20 @@ ${code(`
               "bands": [0.7462, 0.7071, 0.5455, 0.3018, 0.0765, 0], "spectrum": [0.7022, …] },
   "buses": { "0": 0.1114, "1": 0.419, "4": 0.1773, … },
   "ch": { "kick": 0.7407, "bass": 0.2216, "pad": 0.1427, "lead": 0.0298, … },
-  "auto": { "auto_…": 1, … }, "user": [1, 1, 0, 0, 0, 0, 0, 0] } }
+  "auto": { "auto_…": 1, … }, "user": [1, 1, 0, 0, 0, 0, 0, 0],
+  "param": { "pad": { "filterCutoff": 0.9497 } },
+  "ggs": { "lead": { "src": { "env1": 0.3489, "env2": 0.779, "velocity": 0.8, … },
+                     "dst": { "f1Cutoff": [6943.23, 0.8458], … } },
+           "pad":  { "src": { "lfo1": 0.4835, "lfo2": -0.642, … },
+                     "dst": { "f1Cutoff": [1293.38, 0.6118], "oscAPos": [0.409, 0.409], … } }, … } } }
 `)}
-<h3>7.6 Fases siguientes ${PROX}</h3>
+<p class="muted">La fase 2 solo trae lo que cambió en este cuadro (aquí: el corte del pad, que la automatización de la sección Build dejó abierto, y la modulación de los tres GGS); un cuadro con <code>"full": 1</code>, una vez por segundo, los trae todos.</p>
+<h3>7.7 Fase siguiente ${PROX}</h3>
 ${table(['Fase', 'Dirección', 'Tipos', 'Contenido'], [
-  ['2', '<code>/gtd/ggs/{canal}/src/{fuente}</code>', 'f', `las ${sources.length} fuentes de la tabla 6.2, de todos los canales GGS`],
-  ['2', '<code>/gtd/ggs/{canal}/dst/{destino}</code> · <code>…/n</code>', 'f', `los ${targets.length} destinos en unidad real · normalizados`],
-  ['2', '<code>/gtd/ggs/{canal}/voices</code>', 'i', 'notas sonando'],
-  ['2', '<code>/gtd/ch/{canal}/param/{param}</code>', 'f', 'valor efectivo (con automatización) de volume, pan, filterCutoff…'],
-  ['2', '<code>/gtd/fx/{n}/{tipo}/{param}</code>', 'f', 'valor efectivo de un efecto (reverb mix, delay feedback…)'],
   ['3', '<code>/gtd/spatial/{n}</code>', 'f f f', 'x, y, z reales del objeto 3D del insert n (hoy: sus automatizaciones como <code>/gtd/auto/…</code>)'],
   ['3', '<code>/gtd/ch/{canal}/expr/{pitch|pressure|timbre}</code>', 'i f', 'key, valor de la expresión viva de esa nota']
 ], 'small')}
-<h3>7.7 La prueba: <code>fixtures/av/</code></h3>
+<h3>7.8 La prueba: <code>fixtures/av/</code></h3>
 <p>Un tema de 16 compases hecho para probar una escena (La menor, 120 bpm, 32 s: Intro → Build → Drop → Outro, 4 compases cada uno) y la <b>captura real</b> de lo que envió el puente mientras sonaba en un Chromium sin pantalla (${fixture ? `${thousands(fixture.messages)} mensajes, ${thousands(fixture.frames)} cuadros, ${String(fixture.framesPerSecond).replace('.', ',')} por segundo` : 'unos 78 000 mensajes'}). Carriles: <code>/gtd/user/1</code> “Energy” sigue el arreglo; <code>/gtd/user/2</code> “Strobe” destella en cada pulso del Drop; el lead es un objeto 3D que da una vuelta a la sala en el Drop. Archivos: <code>song.gtd.json</code> (se abre con <i>File → Import project file</i>), <code>song.mid</code>, <code>osc-capture.jsonl.gz</code>, <code>capture-summary.json</code> (cuántos mensajes de cada dirección, para comparar un receptor) y un <code>README.md</code> con los ids. Los stems y la mezcla (WAV) se generan con <code>npm run fixture:av</code>. Para reproducir la captura en el puerto 7000: <code>npm run av:replay</code> (<code>-- --loop</code>, <code>-- --to host:puerto</code>, <code>-- --speed 0.5</code>).</p>
 
 <h2 class="page">8. Recetas por herramienta</h2>
@@ -423,7 +437,7 @@ ${table(['Fase', 'Dirección', 'Tipos', 'Contenido'], [
 </ul>
 <h3>Unreal Engine</h3>
 <ul>
-  <li><b>Con el puente:</b> plugin <i>OSC</i> (servidor OSC en Blueprint, puerto 7000) → eventos de nota, bandas y carriles visuales hacia Niagara y materiales (las fuentes del GGS llegan en la fase 2).</li>
+  <li><b>Con el puente:</b> plugin <i>OSC</i> (servidor OSC en Blueprint, puerto 7000) → eventos de nota, bandas y carriles visuales hacia Niagara y materiales (y con la fase 2 las fuentes del GGS: <code>env1</code>, <code>lfo1</code>, <code>chaos1</code>… y el corte del filtro en Hz).</li>
   <li><b>Hoy:</b> WebSockets (C++/plugin) para el estado y las ops.</li>
   <li><b>Offline:</b> stems importados y analizados (por ejemplo con Audio Synesthesia para loudness/onsets no en tiempo real), objetos espaciales desde el ADM BWF (<code>export_spatial</code>) o desde <code>mixer[].spatial</code>.</li>
 </ul>

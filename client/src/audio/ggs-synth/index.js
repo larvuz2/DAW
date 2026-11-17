@@ -79,6 +79,7 @@ export class GgsChannel {
     this.fx = null;
     this.voices = new Map(); // sounding notes: node → what ends it here (see dispose)
     this.watching = false;
+    this.watchers = new Set(); // who wants the reports: the synth editor, the audio → visual bridge
     this.report = null; // { values: Float32Array [sources…, targets…], start, at }
     this.macros = MACROS.map((key) => {
       const src = ctx.createConstantSource();
@@ -128,11 +129,18 @@ export class GgsChannel {
     });
   }
 
-  /** The editor opened (or closed) on this channel: its voices start (stop) reporting their modulation. */
-  setWatch(on) {
-    this.watching = !!on;
-    if (!on) this.report = null;
-    for (const node of this.voices.keys()) node.port.postMessage({ type: 'watch', on: this.watching });
+  /**
+   * The editor opened (or closed) on this channel, or the audio → visual bridge went on (off): its voices report their
+   * modulation while anyone watches. Asking twice changes nothing (the bridge asks every frame).
+   */
+  setWatch(on, who = 'editor') {
+    if (on) this.watchers.add(who);
+    else this.watchers.delete(who);
+    const watching = this.watchers.size > 0;
+    if (watching === this.watching) return;
+    this.watching = watching;
+    if (!watching) this.report = null;
+    for (const node of this.voices.keys()) node.port.postMessage({ type: 'watch', on: watching });
   }
 
   /** A voice's report. The newest note wins; an older one is only shown once the newer has gone quiet. */

@@ -4,8 +4,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createDefaultProject, applyOps, normalizeProject, PPQ, AV_USER_LANES, AV_BANDS, AV_SPECTRUM_BANDS, avSlug, channelSlugs, avMap, usedInserts,
-  automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, avFrameToOsc, encodeOsc, decodeOsc, AV_MAP_MAX_BYTES, diffProjects
+  automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, avFrameToOsc, encodeOsc, decodeOsc, AV_MAP_MAX_BYTES, diffProjects,
+  effectiveValuesAt, ggsTelemetry, GGS_SOURCES, GGS_TARGETS, effectSlugs, createChannel, normalizeParam, denormalizeParam, EFFECTS
 } from '../src/index.js';
+import { MOD_SOURCES, MOD_TARGETS } from '@greanteadawy/synth-dsp';
 
 const BAR = PPQ * 4;
 const near = (a, b, eps = 1e-3) => Math.abs(a - b) <= eps;
@@ -242,4 +244,103 @@ test('OSC strings never carry a zero byte; undefined names are not slugs; a big 
   const sj = JSON.parse(small.find(([a]) => a === '/gtd/map')[1].s);
   assert.equal(sj.channels.length, 2);
   assert.equal(sj.automations.length, 0, 'automations are left out first');
+});
+
+test('phase 2: controls as they stand — their settings, or what automation makes them while the song plays', () => {
+  let p = createDefaultProject();
+  const kick = p.channels[0];
+  p = applyOps(p, [
+    { type: 'channel/add', channel: createChannel({ id: 'ch_lead', name: 'Lead Synth', kind: 'ggs' }) },
+    { type: 'channel/update', id: kick.id, patch: { volume: 1, pan: -1, filterCutoff: 632.5, pitch: 12 } },
+    { type: 'effect/add', index: 1, effect: { id: 'fx_d1', type: 'delay', params: { feedback: 0.475, tone: 6000, pingPong: false } } },
+    { type: 'effect/add', index: 1, effect: { id: 'fx_d2', type: 'delay', enabled: false } },
+    { type: 'automation/add', automation: { id: 'a_cut', target: { type: 'channel', id: kick.id, param: 'filterCutoff' }, length: BAR, points: [{ t: 0, v: 0 }, { t: BAR, v: 1 }] } },
+    { type: 'automation/add', automation: { id: 'a_bend', target: { type: 'channel', id: kick.id, param: 'pitch' }, length: BAR, points: [{ t: 0, v: 0.75 }, { t: BAR, v: 0.75 }] } },
+    { type: 'automation/add', automation: { id: 'a_mix', target: { type: 'effect', index: 1, effectId: 'fx_d1', param: 'mix' }, length: BAR, points: [{ t: 0, v: 1 }, { t: BAR, v: 1 }] } },
+    { type: 'automation/add', automation: { id: 'a_m3', target: { type: 'channel', id: 'ch_lead', param: 'macro3' }, length: BAR, points: [{ t: 0, v: 0.9 }, { t: BAR, v: 0.9 }] } },
+    { type: 'clip/add', clips: ['a_cut', 'a_bend', 'a_mix', 'a_m3'].map((refId, i) => ({ id: `k_${refId}`, kind: 'automation', refId, track: 4 + i, start: BAR, length: BAR })) }
+  ]);
+  const before = effectiveValuesAt(p, 0);
+  const k = before.param.kick;
+  assert.equal(k.volume, 0.8, 'volume 1 of 1.25');
+  assert.equal(k.pan, 0);
+  assert.ok(near(k.filterCutoff, 0.5, 0.001), 'log 20 Hz … 20 kHz: 632 Hz is halfway');
+  assert.equal(k.pitch, 0.75, '+12 of ±24 semitones');
+  assert.equal(k.mute, 0);
+  assert.ok('macro1' in before.param.lead_synth && !('macro1' in k), 'macros only on a GGS channel');
+  assert.equal(before.bus[0].volume, 0.8, 'the master at 0 dB');
+  assert.deepEqual(Object.keys(before.fx[1]), ['delay', 'delay_2']);
+  assert.ok(near(before.fx[1].delay.feedback, 0.5), 'feedback 0.475 of 0 … 0.95');
+  assert.ok(near(before.fx[1].delay.tone, normalizeParam(6000, EFFECTS.delay.params.find((d) => d.key === 'tone'))));
+  assert.equal(before.fx[1].delay.pingPong, 0);
+  assert.equal(before.fx[1].delay_2.enabled, 0);
+  assert.equal(before.fx[1].delay.mix, 0.25, 'its own mix before the clip');
+  // in the clip: the curves; the pitch clip adds to the channel's pitch (+12 + round(0.75 × 48 − 24) = +24)
+  const inside = effectiveValuesAt(p, BAR + BAR / 2);
+  assert.ok(near(inside.param.kick.filterCutoff, 0.5, 0.01));
+  assert.equal(inside.param.kick.pitch, 1);
+  assert.equal(inside.fx[1].delay.mix, 1);
+  assert.ok(near(inside.param.lead_synth.macro3, 0.9));
+  // after it: held — except pitch, which only a playing clip moves
+  const after = effectiveValuesAt(p, BAR * 5);
+  assert.ok(near(after.param.kick.filterCutoff, 1, 0.01));
+  assert.equal(after.param.kick.pitch, 0.75);
+  assert.equal(after.fx[1].delay.mix, 1);
+  // not playing the song: the settings, as the engine puts them back
+  assert.deepEqual(effectiveValuesAt(p, BAR * 5, { automated: false }), before);
+  // solo another channel: this one is silent
+  const solo = applyOps(p, [{ type: 'channel/update', id: 'ch_lead', patch: { solo: true } }]);
+  assert.equal(effectiveValuesAt(solo, 0).param.kick.mute, 1);
+  assert.equal(effectiveValuesAt(solo, 0).param.lead_synth.mute, 0);
+  // the shared normalization is its own inverse
+  for (const d of EFFECTS.delay.params.filter((x) => x.type === 'number')) assert.ok(near(denormalizeParam(normalizeParam(d.default, d), d), d.default, 1e-9), d.key);
+  assert.deepEqual([...effectSlugs([{ id: 'a', type: 'reverb' }, { id: 'b', type: 'reverb' }, { id: 'c', type: 'eq3' }]).values()], ['reverb', 'reverb_2', 'eq3']);
+});
+
+test('phase 2: the live modulation of the GGS Synth in real units and 0 … 1', () => {
+  assert.equal(GGS_SOURCES.length, MOD_SOURCES.length - 1);
+  assert.equal(GGS_TARGETS.length, MOD_TARGETS.length - 1);
+  const params = { f1Cutoff: 1000, macro2: 0.3 };
+  const rest = ggsTelemetry(params, null, { macros: [0, 0.3, 0, 0, 0, 0, 0, 0] });
+  assert.equal(Object.keys(rest.src).length, GGS_SOURCES.length);
+  assert.equal(rest.src.env1, 0);
+  assert.equal(rest.src.macro2, 0.3, 'the macros stand where they are with nothing sounding');
+  assert.deepEqual(rest.dst.f1Cutoff[0], 1000, 'a target at rest is its knob');
+  assert.deepEqual(rest.dst.pitch, [0, 0.5]);
+  const live = new Float32Array(MOD_SOURCES.length + MOD_TARGETS.length);
+  live[MOD_SOURCES.indexOf('env1')] = 0.8;
+  live[MOD_SOURCES.indexOf('lfo1')] = -0.5;
+  live[MOD_SOURCES.length + MOD_TARGETS.indexOf('f1Cutoff')] = 0.1; // +1 octave (1 = +10)
+  live[MOD_SOURCES.length + MOD_TARGETS.indexOf('pitch')] = 0.5; // +12 semitones
+  live[MOD_SOURCES.length + MOD_TARGETS.indexOf('oscAPos')] = 2; // past the end of the table
+  const t = ggsTelemetry(params, live);
+  assert.ok(near(t.src.env1, 0.8) && near(t.src.lfo1, -0.5));
+  assert.ok(near(t.dst.f1Cutoff[0], 2000, 0.5), `cutoff ${t.dst.f1Cutoff}`);
+  assert.ok(t.dst.f1Cutoff[1] > rest.dst.f1Cutoff[1]);
+  assert.deepEqual(t.dst.pitch, [12, 0.75]);
+  assert.deepEqual(t.dst.oscAPos, [1, 1], 'clamped to the control');
+  for (const [a, b] of Object.values(t.dst)) assert.ok(Number.isFinite(a) && b >= 0 && b <= 1);
+});
+
+test('phase 2 addresses: params, buses, effects and the GGS Synth, clamped, junk skipped', () => {
+  const msgs = avFrameToOsc({
+    param: { kick: { volume: 0.8, mute: 1, 'bad key': 1 }, 'Bad Slug': { volume: 1 } },
+    busParam: { 0: { volume: 2 }, x: { pan: 1 } },
+    fx: { 1: { delay: { mix: 0.5, enabled: 1 }, 'Del ay': { mix: 1 } } },
+    ggs: { lead: { voices: 3, src: { env1: 0.5, lfo1: -2 }, dst: { f1Cutoff: [2000, 0.6], pitch: 'x' } } }
+  });
+  const val = (a) => msgs.find(([x]) => x === a)?.slice(1).map((v) => v.i ?? v.f);
+  assert.deepEqual(val('/gtd/ch/kick/param/volume'), [0.8]);
+  assert.deepEqual(val('/gtd/ch/kick/param/mute'), [1]);
+  assert.deepEqual(val('/gtd/bus/0/param/volume'), [1]);
+  assert.deepEqual(val('/gtd/fx/1/delay/mix'), [0.5]);
+  assert.deepEqual(val('/gtd/ggs/lead/voices'), [3]);
+  assert.deepEqual(val('/gtd/ggs/lead/src/lfo1'), [-1]);
+  assert.deepEqual(val('/gtd/ggs/lead/dst/f1Cutoff'), [2000]);
+  assert.ok(near(val('/gtd/ggs/lead/dst/f1Cutoff/n')[0], 0.6, 1e-6));
+  assert.ok(!msgs.some(([a]) => /bad|Bad|Del ay|\/x\/|pitch/.test(a)), msgs.map(([a]) => a).join(' '));
+  // after the visual lanes, before the latency and the map
+  const all = avFrameToOsc({ user: [0, 0, 0, 0, 0, 0, 0, 0], param: { kick: { volume: 1 } }, ggs: { lead: { voices: 1 } }, latency: 0.01, map: { channels: [] } }).map(([a]) => a);
+  assert.ok(all.indexOf('/gtd/user/8') < all.indexOf('/gtd/ch/kick/param/volume'));
+  assert.ok(all.indexOf('/gtd/ggs/lead/voices') < all.indexOf('/gtd/latency'));
 });

@@ -820,8 +820,9 @@ export class AudioEngine {
 
   /** Peak level per mixer insert (0..~1.5). */
   /** The synth editor opened (on = true) or closed on a GGS channel: its voices report their modulation while it is open. */
-  watchGgs(channelId, on) {
-    this.strips.get(channelId)?.ggs?.setWatch(on);
+  /** who: 'editor' (the synth editor) or 'av' (the audio → visual bridge): reports go on while either watches. */
+  watchGgs(channelId, on, who = 'editor') {
+    this.strips.get(channelId)?.ggs?.setWatch(on, who);
   }
 
   /**

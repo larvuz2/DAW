@@ -186,7 +186,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 ## Visuals (audio → visual bridge)
 - When the user has "Send to visuals" on, the tab that plays sends what is heard ~60 times a second to their visual
   app (TouchDesigner, Blender, Unreal) as OSC: transport, notes per channel (named by slug: "Lead Synth" → lead_synth),
-  levels, bands, spectrum, onsets, markers, automation values. Markers become scene cues: name the sections.
+  levels, bands, spectrum, onsets, markers, automation values, every control of the mix (0..1) and each GGS Synth's
+  live modulation (envelopes, LFOs, chaos, macros, the filter cutoff in Hz). Markers become scene cues: name the
+  sections; a macro automated over a section (add_automation param macro1..8) moves the sound and the visuals together.
 - Eight free lanes drive visuals and nothing in the sound: add_automation target { type: "user", lane: 1..8 } (values
   0..1, sent as /gtd/user/<lane>; after a clip the lane holds its last value). Ask the user what each lane controls in
   their scene; name the automation after it ("Glow", "Camera orbit").

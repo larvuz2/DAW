@@ -35,12 +35,18 @@ test.beforeAll(async ({ browser, baseURL }) => {
   await expect(page).toHaveTitle(/Visuals e2e/);
   await claude.call('add_channel', { name: 'Kick', instrument: 'kick' });
   await claude.call('add_channel', { name: 'Lead Synth', instrument: 'synth' });
+  await claude.call('add_channel', { name: 'Pad', instrument: 'ggs', preset: 'Velvet Pad' });
   await claude.call('create_pattern', { name: 'A', bars: 1 });
   await claude.call('write_drums', { pattern: 'A', tracks: { Kick: 'x---x---x---x---' } });
   await claude.call('add_notes', { pattern: 'A', channel: 'Lead Synth', text: '1.1 A4 1/4; 1.3 C5 1/4' });
+  await claude.call('add_notes', { pattern: 'A', channel: 'Pad', text: '1.1 A3+C4+E4 3/4' });
   await claude.call('place_pattern', { pattern: 'A', startBar: 1, bars: 8 });
   await claude.call('set_markers', { add: [{ bar: 1, name: 'Intro' }, { bar: 3, name: 'Drop' }] });
   await claude.call('add_automation', { name: 'Glow', target: { type: 'user', lane: 2 }, points: [{ bar: 0, value: 0 }, { bar: 4, value: 1 }], startBar: 1 });
+  // phase 2: an effect whose mix the song moves
+  await claude.call('add_effect', { insert: 1, type: 'delay', params: { mix: 0.1 } });
+  await claude.call('add_automation', { name: 'Echo', target: { type: 'effect', insert: 1, effectId: 'delay', param: 'mix' }, points: [{ bar: 0, value: 0 }, { bar: 4, value: 1 }], startBar: 1 });
+  await expect.poll(() => store(() => window.greanteadawy.store.getState().project.automations.length)).toBe(2);
 });
 test.afterAll(async () => {
   await store(() => window.greanteadawy.store.getState().stop()).catch(() => {});
@@ -59,7 +65,8 @@ test('Send to visuals: switched on from the File menu, remembered, and it says w
   // frames start at once, stopped: the playhead at bar 1, the map, the intro marker
   await expect.poll(() => got.some((m) => m.addr === '/gtd/map'), { timeout: 5000 }).toBe(true);
   const map = JSON.parse(got.find((m) => m.addr === '/gtd/map').args[0]);
-  expect(map.channels.map((c) => c.slug)).toEqual(['kick', 'lead_synth']);
+  expect(map.channels.map((c) => c.slug)).toEqual(['kick', 'lead_synth', 'pad']);
+  expect(map.effects.map((e) => `${e.insert}/${e.slug}`)).toContain('1/delay');
   expect(map.markers.map((m) => m.name)).toEqual(['Intro', 'Drop']);
   expect(got.find((m) => m.addr === '/gtd/transport/playing').args[0]).toBe(0);
   expect(got.find((m) => m.addr === '/gtd/marker').args[0]).toBe('Intro');
@@ -70,8 +77,10 @@ test('Send to visuals: switched on from the File menu, remembered, and it says w
   await page.keyboard.press('Escape');
 });
 
+let playFrom = 0;
 test('a song plays: transport at ~60 Hz, notes when they sound, the drop, the visual lane, levels and spectrum', async () => {
   const from = got.length;
+  playFrom = from;
   const t0 = Date.now();
   await store(() => window.greanteadawy.store.getState().play({ mode: 'song' }));
   // bar 3 is 4 s in at 120 bpm
@@ -121,6 +130,43 @@ test('a song plays: transport at ~60 Hz, notes when they sound, the drop, the vi
   expect(of('/gtd/latency').length).toBeGreaterThan(1);
   // nothing in the frames is out of range
   expect(frames.filter((m) => /peak|level|user|rms|spectrum|bands/.test(m.addr) && m.args.some((v) => !(v >= 0 && v <= 1))).map((m) => m.addr)).toEqual([]);
+});
+
+test('phase 2: controls as they stand, the automated delay, and the GGS pad\'s live modulation', async () => {
+  const frames = got.slice(playFrom);
+  const of = (addr) => frames.filter((m) => m.addr === addr).map((m) => m.args);
+  // every control once a second at least, in 0 … 1
+  const vol = of('/gtd/ch/kick/param/volume');
+  expect(vol.length).toBeGreaterThanOrEqual(3);
+  expect(vol.at(-1)[0]).toBeGreaterThan(0);
+  expect(of('/gtd/ch/pad/param/macro1').length).toBeGreaterThan(0);
+  expect(of('/gtd/bus/0/param/volume').at(-1)[0]).toBeCloseTo(0.8, 3);
+  // the delay's mix follows its automation up through the clip
+  const mix = of('/gtd/fx/1/delay/mix').map((a) => a[0]);
+  expect(mix.length).toBeGreaterThan(10);
+  expect(mix.at(-1)).toBeGreaterThan(0.5);
+  expect(mix.at(-1)).toBeGreaterThan(mix[1]);
+  expect(of('/gtd/fx/1/delay/enabled').at(-1)[0]).toBe(1);
+  // the pad: voices, its amp envelope moving, every target in its unit and 0 … 1
+  expect(Math.max(...of('/gtd/ggs/pad/voices').map((a) => a[0]))).toBeGreaterThanOrEqual(3);
+  const env = of('/gtd/ggs/pad/src/env1').map((a) => a[0]);
+  expect(env.length).toBeGreaterThan(20);
+  expect(Math.max(...env)).toBeGreaterThan(0.2);
+  const cutoff = of('/gtd/ggs/pad/dst/f1Cutoff');
+  expect(cutoff.length).toBeGreaterThan(0);
+  expect(cutoff.every(([hz]) => hz >= 16 && hz <= 21000)).toBe(true);
+  expect(of('/gtd/ggs/pad/dst/f1Cutoff/n').every(([n]) => n >= 0 && n <= 1)).toBe(true);
+  // not 60 times a second for what doesn't move: the master's volume goes about once a second
+  const seconds = (frames.at(-1).t - frames[0].t) / 1000;
+  expect(of('/gtd/bus/0/param/volume').length).toBeLessThan(seconds * 3 + 3);
+  // the synth editor opened and closed on the pad doesn't switch the bridge's reports off
+  const padId = await store(() => window.greanteadawy.store.getState().project.channels.find((c) => c.name === 'Pad').id);
+  await page.evaluate((id) => window.greanteadawy.store.getState().openChannelSettings(id), padId);
+  await page.waitForTimeout(400);
+  await store(() => window.greanteadawy.store.getState().closeWindow('channelSettings'));
+  await page.waitForTimeout(300);
+  const after = got.length;
+  await expect.poll(() => got.slice(after).filter((m) => m.addr === '/gtd/ggs/pad/src/env1').length, { timeout: 4000 }).toBeGreaterThan(5);
 });
 
 test('stop: the visuals hear it at once; switching off sends the last frame and then nothing', async () => {

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.17.0 — Send to visuals, phase 2: the mix and the synth
+
+**The visuals now see the controls and the GGS Synth from the inside.** With *☰ → Send to visuals* on, the bridge
+also sends where every control of the mix stands and what each GGS Synth's modulation is doing, for every GGS channel
+at once (not only the one open in the editor):
+
+- **Controls, 0…1:** every channel strip (`/gtd/ch/{channel}/param/volume|pan|filterCutoff|filterRes|pitch|mute`, and
+  a GGS channel's eight macros), every mixer insert in use (`/gtd/bus/{n}/param/volume|pan|mute`) and every effect
+  parameter (`/gtd/fx/{n}/{effect}/{param}`, with `enabled`). Each is its setting, or what automation makes it while the
+  song plays — the engine's own rule, so a filter sweep or a reverb throw is seen as it is heard.
+- **The GGS Synth's modulation:** the 25 sources of its newest note (`/gtd/ggs/{channel}/src/env1`, `lfo1`, `chaos1`,
+  `pressure`, `macro3`…), the 39 targets where the matrix has taken them in the unit of their knob (the filter cutoff
+  in Hz, the pitch in semitones, the wavetable position) and as 0…1 (`…/dst/{target}` and `…/dst/{target}/n`), and how
+  many notes it is sounding (`/gtd/ggs/{channel}/voices`).
+- **Cheap when still:** these go out only when they change, and all of them once a second for a visual app that starts
+  late. The map lists the effects (`effects: [{insert, slug, type, id}]`).
+- The synth editor and the bridge each ask for the voices' reports; closing the editor no longer stops them while the
+  bridge is on.
+- The fixture's capture (`fixtures/av/`) now includes all of this for its three GGS channels; the bible (chapter 7)
+  and `docs/av-bridge.md` document it. Phase 3 (3D positions, live per-note expression) is next.
+- Under the hood: the 0…1 ↔ range mapping of params lives in core (`normalizeParam` / `denormalizeParam`), shared by
+  the engine's automation and the bridge.
+
 ## 0.16.0 — Send to visuals
 
 **The studio now talks to visual apps.** With *☰ → Send to visuals* on, the tab that plays measures what is heard

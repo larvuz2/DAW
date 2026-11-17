@@ -78,8 +78,9 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
   automation, monitor **binaurally** on headphones, and export binaural, **5.1 / 7.1 / 7.1.4** WAVs, object stems with
   position data or an experimental **ADM BWF** ([docs/spatial.md](docs/spatial.md)).
 - **Send to visuals** — what the studio plays, as **OSC** for TouchDesigner, Blender, Unreal (to `127.0.0.1:7000`,
-  ~60 times a second): transport, every note as it sounds, levels, bands, spectrum, onsets, sections, automation and
-  eight **visual lanes** you draw like automation. A recorded test song replays without the studio
+  ~60 times a second): transport, every note as it sounds, levels, bands, spectrum, onsets, sections, automation,
+  eight **visual lanes** you draw like automation, every control of the mix, and the GGS Synth's live envelopes, LFOs
+  and filter sweeps. A recorded test song replays without the studio
   (`npm run av:replay`) — [docs/av-bridge.md](docs/av-bridge.md).
 - **Export formats** — WAV (16/24-bit), and with ffmpeg on the server MP3, AAC, Ogg Vorbis, Opus, FLAC, Apple
   Lossless, AIFF (Settings → Audio export shows what's available).
