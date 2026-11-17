@@ -6,7 +6,7 @@ import {
 } from '@greanteadawy/core';
 import {
   GGS_PARAMS, GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, OSC_IDS, WARP_MODES, FM_SOURCES, SOURCE_DESTS, FILTER_TYPES, FILTER_ROUTES,
-  SUB_WAVES, NOISE_TYPES, LFO_SHAPES, LFO_SYNC, LFO_TRIGGERS, DRIVE_TYPES, DELAY_SYNC, QUALITIES, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO,
+  SUB_WAVES, NOISE_TYPES, LFO_SHAPES, LFO_SYNC, LFO_TRIGGERS, DRIVE_TYPES, DRIVE_RATES, MAX_UNISON, UNISON_LAWS, UNISON_STACKS, DELAY_SYNC, QUALITIES, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO,
   MOD_TARGET_INFO, MOD_SLOTS, WAVETABLE_IDS, describeWavetables, describeSynth, paramsToPatch, patchToParams, sectionToParams, modulationRoutes,
   routesToParams, checkRoute, summarizePatch, ggsDefaults, releaseTail, FILTER_INFO, filterResponse, migrateParams,
   MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, CHAOS_INFO, CHAOS_PATHS, chaosPreview, macroLabel, macroUsed, LFO_STEPS
@@ -26,8 +26,11 @@ const oscFields = {
   octave: z.number().int().min(-4).max(4).optional(),
   semi: z.number().int().min(-12).max(12).optional(),
   fine: z.number().min(-100).max(100).optional().describe('Cents'),
-  unison: z.number().int().min(1).max(8).optional().describe('Stacked detuned voices (CPU grows with it)'),
+  unison: z.number().int().min(1).max(MAX_UNISON).optional().describe('Stacked detuned copies, 1–16 (CPU grows with it)'),
   detune: z.number().min(0).max(100).optional().describe('Unison spread in cents'),
+  unisonLaw: z.enum(UNISON_LAWS).optional().describe('How the copies are spaced: linear (even, the default), super (the JP-8000 supersaw: its uneven spacing, and a detune knob that is gentle until its last part — 40–60 is the trance lead), exp (crowded round the centre), random (uneven, the same every note)'),
+  stack: z.enum(UNISON_STACKS).optional().describe('Tune every second pair of copies to another note: an octave up, a fifth up, or both in turn (needs unison ≥ 2)'),
+  unisonTable: unit.optional().describe('Spread the copies over the wavetable: each reads its own position around `position` (1 = half the table either side)'),
   blend: unit.optional().describe('Level of the outer unison voices against the middle ones'),
   spread: unit.optional().describe('Stereo width of the unison stack'),
   phase: unit.optional(),
@@ -362,7 +365,7 @@ export function registerSynthTools({ tool, backend, load }) {
     description: 'The GGS Synth\'s built-in effects, after its voices are summed: drive (soft, hard, tube, fold), chorus, tempo-synced delay and reverb — plus the output gain. A mix of 0 turns an effect off. (Mixer insert effects — EQ, compressor, sidechain pump… — are separate: add_effect.)',
     inputSchema: {
       projectId: projectIdArg, channel: channelArg,
-      drive: z.object({ amount: unit.optional(), type: z.enum(DRIVE_TYPES).optional() }).optional(),
+      drive: z.object({ amount: unit.optional(), type: z.enum(DRIVE_TYPES).optional(), oversampling: z.enum(DRIVE_RATES).optional().describe('2x (default), 4x or 8x: higher rates take the fold-back (aliasing) of bright, hard-driven sounds down by 12 dB and more per step, for more CPU') }).optional(),
       chorus: z.object({ mix: unit.optional(), rate: z.number().min(0.05).max(5).optional().describe('Hz'), depth: unit.optional() }).optional(),
       delay: z.object({
         mix: unit.optional(), sync: z.enum(DELAY_SYNC).optional().describe('Tempo division, or "free" to use time'), time: z.number().min(1).max(2000).optional().describe('ms (sync "free")'),

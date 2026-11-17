@@ -8,7 +8,11 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 ## Concepts
 - **Channels** (Channel Rack) = instruments: synthesized drums (kick, snare, clap, hat, tom, rim, cowbell, cymbal, shaker, perc),
   808 bass (bass808), subtractive synth (synth), FM synth (fm), the GGS Synth (ggs: wavetable/FM hybrid with a
-  modulation matrix and per-note expression — see "GGS Synth" below), sampler (the user's uploaded audio) and the band
+  modulation matrix and per-note expression — see "GGS Synth" below), the engine instruments — analog (two
+  band-limited oscillators with hard sync into a ladder filter: basses, sync leads, brass, PWM strings), additive
+  (64 partials shaped as one spectrum: organs, glass, choirs, bells) and modal (objects that ring: marimba,
+  vibraphone, bells, kalimba, harp, bowed bars) — each with presets (list_instruments kind="analog") and plain
+  params set with update_channel; sampler (the user's uploaded audio) and the band
   instruments: grand piano (piano), electric piano (epiano: tine/reed), drawbar organ (organ), guitar (acoustic, nylon,
   electric), bass guitar (bass: finger/pick/slap/upright) and strings (legato, staccato, pizzicato; ensemble or solo).
   World collections: flutes (flute, panflute, recorder, whistle, ocarina), beatbox (bbkick, bbsnare, bbhat, bbbass,
@@ -20,6 +24,14 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 - **Mixer**: insert 0 = Master. Each channel routes to an insert (mixerTrack). Inserts have up to 10 effects
   (eq with high/low-pass, filter, compressor (mix < 1 = parallel), delay, reverb, distortion, chorus, phaser, bitcrusher,
   stereo (width + monoBelow), pump (sidechain ducking: source = a channel, or a tempo grid), limiter), output routing and sends.
+  The studio effects (list_effects shows all by purpose; list_effects type="…" one in full): maximizer (a look-ahead
+  limiter that also holds the peaks BETWEEN the samples: ceiling -1 = -1 dBTP), ott (three-band up/down compression),
+  transient (more or less attack / sustain, no threshold), trancegate (a rhythmic gate on the song's grid), algoverb
+  (a reverb whose decay knob is its decay time; voicings room/hall/plate/cathedral/cosmic; freeze), shimmer (a reverb
+  that climbs in octaves), resonator (five strings tuned to a chord: noise or drums in, a chord out), flanger,
+  tremolo (auto-pan with stereo 0.5), ringmod, freqshift (Hz, not semitones: inharmonic; ±1 Hz mixed in = a phaser
+  that only rises), disperser (smears a kick's click into a "pew"), lofi (bits, sample rate, wow, hiss), utility
+  (gain, pan, width, mono below, polarity, swap, delay, DC).
 - **Markers** name song sections above the playlist (arrange_song makes them; set_markers edits them).
 - **Automation** clips move a parameter over time (channel volume/pan/pitch/filterCutoff/filterRes, a GGS Synth's
   macro1..macro8, mixer volume/pan, automatable effect params).
@@ -77,12 +89,14 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   triplet shuffle = 64; 100 = 75%, dotted). House 15–25, afrobeats 30–40, boom bap 40–55, lo-fi 50–65.
 
 ## GGS Synth & per-note expression
-- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (46 tables; unison,
-  warp, FM between oscillators), sub + noise, 2 filters (serial/parallel; 21 models: clean lp/hp/bp/notch/peak/
+- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (46 tables; unison of
+  up to 16 copies with a detune law — oscAUniLaw "super" is the JP-8000 supersaw's spacing and knob curve — a stack
+  (oscAStack "octave" | "fifth" | "octave+fifth") and a table position per copy (oscAUniPos); warp, FM between
+  oscillators), sub + noise, 2 filters (serial/parallel; 21 models: clean lp/hp/bp/notch/peak/
   all-pass/morph, analog-style ladder24/ladder12/ladderBp/ladderHp, acid (TB-303 diode ladder), ms20Lp/ms20Hp,
   formant (vowels), phaser, comb/combNeg; drive, key tracking and a per-type "morph"), 4 envelopes (delay, attack,
   hold, decay, sustain, release, each slope with its own curve), 4 LFOs, 2 chaos generators, 8 macros, a 64-route modulation matrix and
-  built-in drive/chorus/delay/reverb. 30 presets in six families (pads, leads, bass, keys, sequences, experimental),
+  built-in drive (driveOs "4x" / "8x" for bright, hard-driven sounds: less fold-back) /chorus/delay/reverb. 30 presets in six families (pads, leads, bass, keys, sequences, experimental),
   all levelled to about -18 LUFS per note.
 - Pick the filter for the job: lp24 = neutral and precise; ladder24 = warm, fat, sings (basses, leads; resonance
   above 0.9 self-oscillates in tune); acid = squelch (resonance 0.75-0.95, a fast envelope on the cutoff, cutoff
@@ -213,6 +227,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 - Master: limiter ceiling -1 dB for streaming; input gain = target LUFS − measured LUFS (render_mix tells you). Keep the
   master fader at 0 dB (it sits after the limiter, so anything lower wastes headroom). If the limiter reduces more than
   ~6 dB, fix the balance first instead of pushing harder.
+  For a release that must not exceed a true-peak figure (streaming services ask for −1 dBTP), put a maximizer after
+  the limiter (or instead of it): {"ceiling":-1,"gain":0} holds the peaks between the samples as well, which the
+  limiter does not; raise its gain for loudness. It looks ahead 5 ms, which the render compensates.
 
 ## Groove, fills and transitions
 - apply_groove gives drums a feel in one call (boom-bap, dilla, lo-fi, trap, drill, house, afrobeats, straight): swing,
@@ -423,12 +440,16 @@ All instrument kinds, grouped by collection (drums, bass, keys, guitar, strings,
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `kind` | `kick` \| `snare` \| `clap` \| `hat` \| `tom` \| `rim` \| `cowbell` \| `cymbal` \| `shaker` \| `perc` \| `bass808` \| `synth` \| `ggs` \| `fm` \| `piano` \| `epiano` \| `organ` \| `guitar` \| `bass` \| `strings` \| `flute` \| `panflute` \| `recorder` \| `whistle` \| `ocarina` \| `bbkick` \| `bbsnare` \| `bbhat` \| `bbbass` \| `bbfx` \| `sitar` \| `tanpura` \| `tabla` \| `bansuri` \| `shehnai` \| `santoor` \| `harmonium` \| `koto` \| `guzheng` \| `pipa` \| `shamisen` \| `erhu` \| `shakuhachi` \| `dizi` \| `suona` \| `taiko` \| `gong` \| `plugin` \| `sampler` \| `additive` |  | Only show this instrument (full parameter list) |
+| `kind` | `kick` \| `snare` \| `clap` \| `hat` \| `tom` \| `rim` \| `cowbell` \| `cymbal` \| `shaker` \| `perc` \| `bass808` \| `synth` \| `ggs` \| `fm` \| `piano` \| `epiano` \| `organ` \| `guitar` \| `bass` \| `strings` \| `flute` \| `panflute` \| `recorder` \| `whistle` \| `ocarina` \| `bbkick` \| `bbsnare` \| `bbhat` \| `bbbass` \| `bbfx` \| `sitar` \| `tanpura` \| `tabla` \| `bansuri` \| `shehnai` \| `santoor` \| `harmonium` \| `koto` \| `guzheng` \| `pipa` \| `shamisen` \| `erhu` \| `shakuhachi` \| `dizi` \| `suona` \| `taiko` \| `gong` \| `plugin` \| `sampler` \| `analog` \| `additive` \| `modal` |  | Only show this instrument (full parameter list) |
 | `category` | `drums` \| `bass` \| `keys` \| `guitar` \| `strings` \| `synth` \| `flutes` \| `beatbox` \| `indian` \| `eastasian` \| `sampler` \| `plugins` |  | Only show one collection, e.g. "indian" (ignored with kind) |
 
 ### `list_effects`
 
-All mixer effect types with parameters (ranges/defaults, which are automatable).
+The mixer's effect types by what they are for (dynamics, EQ & filter, space, modulation, colour, tools), each with what it does and the names of its parameters. With type: that effect's parameters in full — ranges, defaults, units, which can be automated, and what each one does. Use before add_effect / update_effect.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `type` | `eq` \| `filter` \| `compressor` \| `delay` \| `reverb` \| `distortion` \| `chorus` \| `phaser` \| `bitcrusher` \| `stereo` \| `pump` \| `limiter` \| `maximizer` \| `ott` \| `transient` \| `trancegate` \| `algoverb` \| `shimmer` \| `resonator` \| `flanger` \| `tremolo` \| `ringmod` \| `freqshift` \| `disperser` \| `lofi` \| `utility` \| `plugin` |  | Only this effect, with its full parameter list |
 
 ### `add_channel`
 
@@ -438,7 +459,7 @@ Add an instrument channel to the Channel Rack. By default it gets its own mixer 
 |---|---|---|---|
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `name` | string | yes | Channel name, e.g. "Kick", "808", "Keys" |
-| `instrument` | `kick` \| `snare` \| `clap` \| `hat` \| `tom` \| `rim` \| `cowbell` \| `cymbal` \| `shaker` \| `perc` \| `bass808` \| `synth` \| `ggs` \| `fm` \| `piano` \| `epiano` \| `organ` \| `guitar` \| `bass` \| `strings` \| `flute` \| `panflute` \| `recorder` \| `whistle` \| `ocarina` \| `bbkick` \| `bbsnare` \| `bbhat` \| `bbbass` \| `bbfx` \| `sitar` \| `tanpura` \| `tabla` \| `bansuri` \| `shehnai` \| `santoor` \| `harmonium` \| `koto` \| `guzheng` \| `pipa` \| `shamisen` \| `erhu` \| `shakuhachi` \| `dizi` \| `suona` \| `taiko` \| `gong` \| `plugin` \| `sampler` \| `additive` | yes | Instrument kind |
+| `instrument` | `kick` \| `snare` \| `clap` \| `hat` \| `tom` \| `rim` \| `cowbell` \| `cymbal` \| `shaker` \| `perc` \| `bass808` \| `synth` \| `ggs` \| `fm` \| `piano` \| `epiano` \| `organ` \| `guitar` \| `bass` \| `strings` \| `flute` \| `panflute` \| `recorder` \| `whistle` \| `ocarina` \| `bbkick` \| `bbsnare` \| `bbhat` \| `bbbass` \| `bbfx` \| `sitar` \| `tanpura` \| `tabla` \| `bansuri` \| `shehnai` \| `santoor` \| `harmonium` \| `koto` \| `guzheng` \| `pipa` \| `shamisen` \| `erhu` \| `shakuhachi` \| `dizi` \| `suona` \| `taiko` \| `gong` \| `plugin` \| `sampler` \| `analog` \| `additive` \| `modal` | yes | Instrument kind |
 | `preset` | string |  | Preset name (see list_instruments) |
 | `params` | object |  | Instrument parameter overrides, e.g. {"decay":0.8} |
 | `volume` | number |  | 0..1.25, default 0.78 |
@@ -473,7 +494,7 @@ Change a channel: name, color, volume, pan, pitch, mute/solo, routing, choke gro
 | `nudge` | number |  | Play this channel early (-) or late (+) in ms: e.g. snare/clap +8..+20 for a lazy, laid-back backbeat, hats -3..-6 to push |
 | `swingMix` | number |  | Share of the project swing this channel gets (1 = all, 0 = straight), e.g. swung hats over a straight kick |
 | `stepNote` | string,number |  | Note the step sequencer writes for this channel |
-| `instrument` | `kick` \| `snare` \| `clap` \| `hat` \| `tom` \| `rim` \| `cowbell` \| `cymbal` \| `shaker` \| `perc` \| `bass808` \| `synth` \| `ggs` \| `fm` \| `piano` \| `epiano` \| `organ` \| `guitar` \| `bass` \| `strings` \| `flute` \| `panflute` \| `recorder` \| `whistle` \| `ocarina` \| `bbkick` \| `bbsnare` \| `bbhat` \| `bbbass` \| `bbfx` \| `sitar` \| `tanpura` \| `tabla` \| `bansuri` \| `shehnai` \| `santoor` \| `harmonium` \| `koto` \| `guzheng` \| `pipa` \| `shamisen` \| `erhu` \| `shakuhachi` \| `dizi` \| `suona` \| `taiko` \| `gong` \| `plugin` \| `sampler` \| `additive` |  | Switch to a different instrument kind (resets params) |
+| `instrument` | `kick` \| `snare` \| `clap` \| `hat` \| `tom` \| `rim` \| `cowbell` \| `cymbal` \| `shaker` \| `perc` \| `bass808` \| `synth` \| `ggs` \| `fm` \| `piano` \| `epiano` \| `organ` \| `guitar` \| `bass` \| `strings` \| `flute` \| `panflute` \| `recorder` \| `whistle` \| `ocarina` \| `bbkick` \| `bbsnare` \| `bbhat` \| `bbbass` \| `bbfx` \| `sitar` \| `tanpura` \| `tabla` \| `bansuri` \| `shehnai` \| `santoor` \| `harmonium` \| `koto` \| `guzheng` \| `pipa` \| `shamisen` \| `erhu` \| `shakuhachi` \| `dizi` \| `suona` \| `taiko` \| `gong` \| `plugin` \| `sampler` \| `analog` \| `additive` \| `modal` |  | Switch to a different instrument kind (resets params) |
 | `plugin` | string |  | For instrument "plugin": switch to this plugin (list_plugins) |
 | `preset` | string |  | Load a preset (resets params to the preset, then applies params) |
 | `params` | object |  | Instrument params to change, e.g. {"cutoff":1200,"release":0.5} |
@@ -976,13 +997,13 @@ Change a mixer insert (0 = Master): name, color, volume (0..1.25; inserts defaul
 
 ### `add_effect`
 
-Add an effect to a mixer insert's chain (0 = master; on the master it is placed before the limiter). Types: eq (3-band EQ (low shelf, mid peak, high shelf) with high-pass and low-pass filters (12 dB/oct; hpf 20 Hz / lpf 20 kHz = off).); filter (Resonant filter. Automate cutoff for sweeps.); compressor (Dynamics compressor; mix < 1 = parallel (New York) compression. No automatic makeup: set makeup so the level matches the bypassed sound.); delay (Tempo-synced (ping-pong) delay; the repeats are high-passed so they never muddy the low end.); reverb (Convolution reverb with a generated room: early reflections (size), a decay whose highs die faster (damping), and a 120 Hz low cut.); distortion (Waveshaper saturation / distortion.); chorus (Stereo modulated-delay chorus.); phaser (4-stage all-pass phaser.); bitcrusher (Bit-depth reduction for crunchy lo-fi tones.); stereo (Stereo width (0 = mono, 1 = normal, 2 = extra wide); monoBelow keeps everything under that frequency mono (0 = off) so wide bass stays club- and phone-safe.); pump (Volume ducking. With source = a channel (e.g. the kick) it ducks on every note of that channel — a real sidechain that follows syncopated kicks, even when that channel is muted (a "ghost" trigger). Without a source it pumps on a tempo-synced grid (rate).); limiter (Master limiter: input gain drives it, ceiling caps the output (oversampled clip stage). Keep the master fader after it at 0 dB; check true peak with render_mix (streaming wants ≤ -1 dBTP).); maximizer (A look-ahead brick-wall limiter for the master (or any bus): it sees each peak a few milliseconds ahead and has the gain down when it arrives, so nothing clips and nothing overshoots — measured between the samples too (true peak), which is what streaming services check. Raise the input gain to make a mix louder; the ceiling is never exceeded. It delays its signal by the look-ahead (about 5 ms).); plugin (An effect from one of the user's installed plugins (list_plugins): add_effect with type "plugin" and plugin "<id>"; params come from the plugin.). Use list_effects for params. For a kick-triggered sidechain put pump on the bass/pad insert with params {"source":"Kick"}.
+Add an effect to a mixer insert's chain (0 = master; on the master it is placed before the limiter). Types — Dynamics: compressor (Dynamics compressor); limiter (Master limiter); maximizer (A look-ahead brick-wall limiter for the master (or any bus)); ott (Three-band upward and downward compression — the famous OTT sound); transient (Changes the balance between the hit and the tail of each note, without a threshold — so it works the same a…); pump (Volume ducking); trancegate (Chops a sustained sound — a pad, a chord, a long bass note, a whole bus — into a rhythmic pulse locked to t…). EQ & filter: eq (3-band EQ (low shelf, mid peak, high shelf) with high-pass and low-pass filters (12 dB/oct); filter (Resonant filter). Space: reverb (Convolution reverb with a generated room); algoverb (A reverb that builds its space from a network of sixteen delay lines instead of a recording of a room); shimmer (A reverb whose tail keeps being pitch-shifted as it circulates, so it climbs in octaves (or fifths, or sink…); delay (Tempo-synced (ping-pong) delay); resonator (Five tuned strings that ring in sympathy with whatever passes through them, so drums, noise, speech or any…). Modulation: chorus (Stereo modulated-delay chorus); phaser (4-stage all-pass phaser); flanger (Mixes the sound with a very short, sweeping delayed copy of itself, which carves a comb of evenly spaced no…); tremolo (Raises and lowers the volume in a steady rhythm); ringmod (Multiplies the sound by an oscillator of its own, which replaces every frequency in the input with the sum…); freqshift (Moves every frequency by the same number of Hz instead of by a musical interval, which breaks the harmonic…). Colour: distortion (Waveshaper saturation / distortion); bitcrusher (Bit-depth reduction for crunchy lo-fi tones); lofi (Makes a sound seem old, cheap or worn); disperser (Smears the timing of the frequencies around one point without changing the tone (a chain of up to 64 all-pa…). Tools: stereo (Stereo width (0 = mono, 1 = normal, 2 = extra wide)); utility (The mixing toolbox, with no sound of its own). Also plugin (an installed effect plugin). Use list_effects (with type) for what an effect does in full and its params. For a kick-triggered sidechain put pump on the bass/pad insert with params {"source":"Kick"}.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `insert` | integer | yes |  |
-| `type` | `eq` \| `filter` \| `compressor` \| `delay` \| `reverb` \| `distortion` \| `chorus` \| `phaser` \| `bitcrusher` \| `stereo` \| `pump` \| `limiter` \| `maximizer` \| `plugin` | yes |  |
+| `type` | `eq` \| `filter` \| `compressor` \| `delay` \| `reverb` \| `distortion` \| `chorus` \| `phaser` \| `bitcrusher` \| `stereo` \| `pump` \| `limiter` \| `maximizer` \| `ott` \| `transient` \| `trancegate` \| `algoverb` \| `shimmer` \| `resonator` \| `flanger` \| `tremolo` \| `ringmod` \| `freqshift` \| `disperser` \| `lofi` \| `utility` \| `plugin` | yes |  |
 | `plugin` | string |  | For type "plugin": the effect plugin id (list_plugins) |
 | `preset` | string |  | For type "plugin": one of its presets |
 | `params` | object |  |  |
@@ -1443,8 +1464,11 @@ Configure oscillator A, B or C of a GGS Synth: wavetable and position, level, pa
 | `octave` | integer |  |  |
 | `semi` | integer |  |  |
 | `fine` | number |  | Cents |
-| `unison` | integer |  | Stacked detuned voices (CPU grows with it) |
+| `unison` | integer |  | Stacked detuned copies, 1–16 (CPU grows with it) |
 | `detune` | number |  | Unison spread in cents |
+| `unisonLaw` | `linear` \| `super` \| `exp` \| `random` |  | How the copies are spaced: linear (even, the default), super (the JP-8000 supersaw: its uneven spacing, and a detune knob that is gentle until its last part — 40–60 is the trance lead), exp (crowded round the centre), random (uneven, the same every note) |
+| `stack` | `off` \| `octave` \| `fifth` \| `octave+fifth` |  | Tune every second pair of copies to another note: an octave up, a fifth up, or both in turn (needs unison ≥ 2) |
+| `unisonTable` | number |  | Spread the copies over the wavetable: each reads its own position around `position` (1 = half the table either side) |
 | `blend` | number |  | Level of the outer unison voices against the middle ones |
 | `spread` | number |  | Stereo width of the unison stack |
 | `phase` | number |  |  |
@@ -1556,7 +1580,7 @@ The GGS Synth's built-in effects, after its voices are summed: drive (soft, hard
 |---|---|---|---|
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `channel` | string | yes | A GGS Synth channel (id or name) |
-| `drive` | { amount, type } |  |  |
+| `drive` | { amount, type, oversampling } |  |  |
 | `chorus` | { mix, rate, depth } |  |  |
 | `delay` | { mix, sync, time, feedback, tone, pingPong } |  |  |
 | `reverb` | { mix, size, damping } |  |  |

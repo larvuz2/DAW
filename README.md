@@ -64,6 +64,14 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
   mix), delay, reverb (room size, frequency-dependent decay), distortion, chorus, phaser, bitcrusher, stereo width with
   mono bass, **kick-triggered sidechain**, and a limiter with a −1 dB default ceiling and an oversampled clip stage.
   Automation for any automatable param.
+- **Studio effects** — fourteen more, as the studio's own DSP in the audio thread: a **true-peak look-ahead
+  limiter**, multiband OTT, transient shaper, trance gate, an **algorithmic reverb** (16-line network, five voicings,
+  freeze) and a **shimmer reverb**, resonator, flanger, tremolo / auto-pan, ring modulator, frequency shifter,
+  disperser, vintage lo-fi and a utility — each measured by its own tests.
+  See [Studio effects and the engine instruments](docs/effects-and-instruments.md).
+- **Analog, Additive and Modal** — three more instruments: a subtractive synth with band-limited oscillators and
+  **hard sync**, a 64-partial additive synth, and a modal synth of objects that ring (marimba, vibraphone, bells,
+  harp, bowed bars).
 - **Spatial (Dolby Atmos-style) mixing** — make inserts 3D objects in a room (x/y/height, LFE send), move them with
   automation, monitor **binaurally** on headphones, and export binaural, **5.1 / 7.1 / 7.1.4** WAVs, object stems with
   position data or an experimental **ADM BWF** ([docs/spatial.md](docs/spatial.md)).

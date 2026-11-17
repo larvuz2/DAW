@@ -43,7 +43,7 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
   it owns) needs is taken as a view — `mem.f64(n)` / `mem.f32(n)` — and counted in `VOICE_BYTES` (`voice.js`).
   A separate `new Float64Array(20)` costs 2 µs; seventeen of them made a note cost 35 µs more to start.
   Starting a note must stay cheap: no template strings in `configure()` (use the key tables `OSC_K`, `ENV_K`, …),
-  nothing that walks all ~510 params.
+  nothing that walks all ~520 params.
 - **Determinism**: a voice gets everything through its constructor options and its `process()` control inputs.
   Random parts come from the note's `seed`. Never use `Math.random()` or wall-clock time in the engine. In the
   browser nothing may depend on port-message timing: note data travels in `processorOptions` and AudioParams.

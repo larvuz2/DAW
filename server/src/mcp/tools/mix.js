@@ -1,5 +1,5 @@
 // Mixer, effects and render_mix (mixdown + analysis in the user's browser).
-import { EFFECTS, EFFECT_TYPES, uid, findPattern, findChannel, ticksPerBar, songLength, sanitizeParams, sanitizePluginValues, compareRenders, describeMasking, didYouMean } from '@greanteadawy/core';
+import { EFFECTS, EFFECT_TYPES, EFFECT_GROUPS, uid, findPattern, findChannel, ticksPerBar, songLength, sanitizeParams, sanitizePluginValues, compareRenders, describeMasking, didYouMean } from '@greanteadawy/core';
 import { z, ok, projectIdArg, annotations as A, findEffect } from '../util.js';
 import { requirePlugin, pluginValues } from './plugins.js';
 
@@ -27,6 +27,12 @@ export const MIX_TARGETS = {
   broadcast: { lufs: -23, truePeak: -1, label: 'broadcast EBU R128 (-23 LUFS)' },
   podcast: { lufs: -16, truePeak: -1, label: 'podcast / spoken word (-16 LUFS)' }
 };
+
+/** What an effect is, in a line: the first sentence of its description (up to its first colon), cut at 110 characters. */
+function brief(description) {
+  const first = String(description || '').split(/(?<=[.:;]) /)[0].replace(/[.:;]$/, '');
+  return first.length > 110 ? `${first.slice(0, 107).trimEnd()}…` : first;
+}
 
 export function registerMixTools({ tool, backend, load }) {
   tool('set_mixer', {
@@ -72,7 +78,7 @@ export function registerMixTools({ tool, backend, load }) {
 
   tool('add_effect', {
     title: 'Add effect',
-    description: `Add an effect to a mixer insert's chain (0 = master; on the master it is placed before the limiter). Types: ${EFFECT_TYPES.map((t) => `${t} (${EFFECTS[t].description})`).join('; ')}. Use list_effects for params. For a kick-triggered sidechain put pump on the bass/pad insert with params {"source":"Kick"}.`,
+    description: `Add an effect to a mixer insert's chain (0 = master; on the master it is placed before the limiter). Types — ${EFFECT_GROUPS.map(([group, types]) => `${group}: ${types.map((t) => `${t} (${brief(EFFECTS[t].description)})`).join('; ')}`).join('. ')}. Also plugin (an installed effect plugin). Use list_effects (with type) for what an effect does in full and its params. For a kick-triggered sidechain put pump on the bass/pad insert with params {"source":"Kick"}.`,
     inputSchema: {
       projectId: projectIdArg,
       insert: z.number().int().min(0),

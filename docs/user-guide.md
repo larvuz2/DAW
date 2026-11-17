@@ -113,6 +113,12 @@ cut each other off), step note (root key) and mixer routing. Drop a sample on th
   its performance. See [Per-note expression](expression-engine.md).
 - Click the keyboard on the left to audition notes.
 
+## More effects and instruments
+
+*+ Add effect…* in the mixer lists the effects by purpose (dynamics, EQ & filter, space, modulation, colour, tools);
+the Browser's **Synths** and **Keys** sections hold the Analog, Additive and Modal instruments. What each one does,
+and what was measured: [Studio effects and the engine instruments](effects-and-instruments.md).
+
 ## Harmony (chords, progressions, tuning)
 
 The ♪ button in the toolbar (or **Chords** in the piano roll) opens the Harmony window — see

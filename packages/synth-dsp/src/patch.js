@@ -11,7 +11,8 @@ export const PATCH_VERSION = 1;
 export const PATCH_FIELDS = {
   oscillator: {
     on: 'On', table: 'Table', position: 'Pos', level: 'Level', pan: 'Pan', octave: 'Oct', semi: 'Semi', fine: 'Fine',
-    unison: 'Unison', detune: 'Detune', blend: 'Blend', spread: 'Spread', phase: 'Phase', phaseRandom: 'Rand',
+    unison: 'Unison', detune: 'Detune', blend: 'Blend', spread: 'Spread', unisonLaw: 'UniLaw', stack: 'Stack', unisonTable: 'UniPos',
+    phase: 'Phase', phaseRandom: 'Rand',
     warp: 'Warp', warpAmount: 'WarpAmt', fmFrom: 'FmFrom', fm: 'Fm', to: 'Dest'
   },
   sub: { level: 'subLevel', wave: 'subWave', octave: 'subOct', to: 'subDest' },
@@ -28,7 +29,7 @@ export const PATCH_FIELDS = {
     level: 'level', velocity: 'velSens', releaseVelocity: 'relVelSens', polyphony: 'polyphony', mono: 'mono', legato: 'legato',
     glide: 'glide', quality: 'quality', gain: 'gain'
   },
-  drive: { amount: 'driveAmt', type: 'driveType' },
+  drive: { amount: 'driveAmt', type: 'driveType', oversampling: 'driveOs' },
   chorus: { mix: 'chorusMix', rate: 'chorusRate', depth: 'chorusDepth' },
   delay: { mix: 'delayMix', sync: 'delaySync', time: 'delayTime', feedback: 'delayFb', tone: 'delayTone', pingPong: 'delayPing' },
   reverb: { mix: 'reverbMix', size: 'reverbSize', damping: 'reverbDamp' }
@@ -373,7 +374,7 @@ export function summarizePatch(params) {
     if (!p[`osc${id}On`]) continue;
     const o = paramsToSection(p, 'oscillator', id);
     const tune = [o.octave && `${o.octave > 0 ? '+' : ''}${o.octave} oct`, o.semi && `${o.semi > 0 ? '+' : ''}${o.semi} st`, o.fine && `${o.fine > 0 ? '+' : ''}${r2(o.fine)} ct`].filter(Boolean).join(' ');
-    lines.push(`Osc ${id}: ${o.table} @ ${r2(o.position)}, level ${r2(o.level)}${tune ? `, ${tune}` : ''}${o.unison > 1 ? `, ${o.unison}× unison (${r2(o.detune)} ct)` : ''}${o.warp !== 'off' ? `, warp ${o.warp} ${r2(o.warpAmount)}` : ''}${o.fmFrom !== 'off' ? `, FM from ${o.fmFrom} ${r2(o.fm)}` : ''} → ${o.to}`);
+    lines.push(`Osc ${id}: ${o.table} @ ${r2(o.position)}, level ${r2(o.level)}${tune ? `, ${tune}` : ''}${o.unison > 1 ? `, ${o.unison}× unison (${r2(o.detune)} ct${o.unisonLaw && o.unisonLaw !== 'linear' ? `, ${o.unisonLaw} law` : ''}${o.stack && o.stack !== 'off' ? `, ${o.stack} stack` : ''}${o.unisonTable ? `, spread ${r2(o.unisonTable)} over the table` : ''})` : ''}${o.warp !== 'off' ? `, warp ${o.warp} ${r2(o.warpAmount)}` : ''}${o.fmFrom !== 'off' ? `, FM from ${o.fmFrom} ${r2(o.fm)}` : ''} → ${o.to}`);
   }
   if (p.subLevel > 0) lines.push(`Sub: ${p.subWave} ${p.subOct} oct, level ${r2(p.subLevel)} → ${p.subDest}`);
   if (p.noiseLevel > 0) lines.push(`Noise: ${p.noiseType}, level ${r2(p.noiseLevel)} → ${p.noiseDest}`);
@@ -390,7 +391,7 @@ export function summarizePatch(params) {
     lines.push(`Modulation: ${routes.map((r) => `${r.source}${r.via ? `×${r.via}` : ''}→${r.target} ${r.amount > 0 ? '+' : ''}${r2(r.amount)}`).join(', ')}`);
     for (const r of routes) lines.push(`  · ${describeRoute(p, r)}`);
   }
-  const fx = [p.driveAmt > 0 && `drive ${p.driveType} ${r2(p.driveAmt)}`, p.chorusMix > 0 && `chorus ${r2(p.chorusMix)}`, p.delayMix > 0 && `delay ${r2(p.delayMix)} (${p.delaySync === 'free' ? `${Math.round(p.delayTime)} ms` : p.delaySync})`, p.reverbMix > 0 && `reverb ${r2(p.reverbMix)} size ${r2(p.reverbSize)}`].filter(Boolean);
+  const fx = [p.driveAmt > 0 && `drive ${p.driveType} ${r2(p.driveAmt)}${p.driveOs !== '2x' ? ` at ${p.driveOs}` : ''}`, p.chorusMix > 0 && `chorus ${r2(p.chorusMix)}`, p.delayMix > 0 && `delay ${r2(p.delayMix)} (${p.delaySync === 'free' ? `${Math.round(p.delayTime)} ms` : p.delaySync})`, p.reverbMix > 0 && `reverb ${r2(p.reverbMix)} size ${r2(p.reverbSize)}`].filter(Boolean);
   lines.push(`Effects: ${fx.join(', ') || 'none'}; gain ${r2(p.gain)}`);
   return lines.join('\n');
 }

@@ -8,5 +8,6 @@ export * from './patch.js';
 export { halfbandCoefs, Decimator2, Interpolator2, fft, hash32 } from './util.js';
 export * from './filters.js';
 export * from './chaos.js';
+export { MAX_UNISON, UNISON_LAWS, UNISON_STACKS, unisonCents, stackSemis, supersawDetune } from './unison.js';
 export { STUDIO_FX, renderEffect, StudioFx } from './effects/index.js';
 export { SYNTH_ENGINES, renderEngine, SynthEngine } from './engines/index.js';

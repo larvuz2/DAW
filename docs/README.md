@@ -7,6 +7,7 @@
 | [Making music with Claude (MCP)](claude-mcp.md) | Connect Claude Code / Claude Desktop, API tokens, example sessions, what `render_mix` measures |
 | [MCP tool reference](MCP.md) | All 102 tools with their parameters (generated) |
 | [GGS Synth](ggs-synth.md) | The wavetable / FM synthesizer: signal path, modulation matrix, wavetables, presets, patch documents, engineering notes |
+| [Studio effects and the engine instruments](effects-and-instruments.md) | The fourteen DSP effects (true-peak limiter, reverbs, OTT, shifter, disperser…), the Analog, Additive and Modal instruments, the GGS Synth's unison laws and oversampled drive — with what was measured |
 | [Harmony and tuning](harmony-and-tuning.md) | The Harmony window (chords that fit, progressions, substitutes, the library), tuning systems with exact ratios, and the tools Claude has for both |
 | [Per-note expression](expression-engine.md) | Pitch / pressure / slide curves in every note: the model, the piano-roll lane, MPE input and recording, MPE MIDI files |
 | [Audio benchmarks](audio-benchmarks.md) | Measured signal quality (tuning, aliasing, zipper noise, repeatability), CPU per voice and the preset loudness policy |

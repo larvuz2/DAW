@@ -66,6 +66,13 @@ Use the URL form `https://your-server/mcp?token=gtd_…`. Treat that URL like a 
   edits as one change: all or nothing, one undo), `dryRun` on every editing tool, `diff_versions` (what changed since
   a saved version, in words), notes written and read as compact text, and errors that say what to send instead.
 
+- **Studio effects and instruments** ([guide](effects-and-instruments.md)): `list_effects` shows every effect by
+  purpose and `list_effects type="…"` one in full; fourteen DSP effects (`maximizer` for a true-peak ceiling,
+  `algoverb`, `shimmer`, `ott`, `transient`, `trancegate`, `resonator`, `flanger`, `tremolo`, `ringmod`, `freqshift`,
+  `disperser`, `lofi`, `utility`) go on any insert with `add_effect`; `analog`, `additive` and `modal` are
+  instruments for `add_channel`; `set_synth_oscillator` takes `unisonLaw`, `stack` and `unisonTable`, and
+  `set_synth_effect` a `drive.oversampling`.
+
 - **Harmony and tuning** ([guide](harmony-and-tuning.md)): **harmony** — what each chord is in the key (numeral,
   function, origin, tension), what could come next and why, substitutes, negative harmony, ways to another key, and a
   library of 82 progressions; `add_arpeggio` (ten modes), `add_drum_groove` (sixteen styles, with seeded variation and

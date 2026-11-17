@@ -5,7 +5,11 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 ## Concepts
 - **Channels** (Channel Rack) = instruments: synthesized drums (kick, snare, clap, hat, tom, rim, cowbell, cymbal, shaker, perc),
   808 bass (bass808), subtractive synth (synth), FM synth (fm), the GGS Synth (ggs: wavetable/FM hybrid with a
-  modulation matrix and per-note expression — see "GGS Synth" below), sampler (the user's uploaded audio) and the band
+  modulation matrix and per-note expression — see "GGS Synth" below), the engine instruments — analog (two
+  band-limited oscillators with hard sync into a ladder filter: basses, sync leads, brass, PWM strings), additive
+  (64 partials shaped as one spectrum: organs, glass, choirs, bells) and modal (objects that ring: marimba,
+  vibraphone, bells, kalimba, harp, bowed bars) — each with presets (list_instruments kind="analog") and plain
+  params set with update_channel; sampler (the user's uploaded audio) and the band
   instruments: grand piano (piano), electric piano (epiano: tine/reed), drawbar organ (organ), guitar (acoustic, nylon,
   electric), bass guitar (bass: finger/pick/slap/upright) and strings (legato, staccato, pizzicato; ensemble or solo).
   World collections: flutes (flute, panflute, recorder, whistle, ocarina), beatbox (bbkick, bbsnare, bbhat, bbbass,
@@ -17,6 +21,14 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 - **Mixer**: insert 0 = Master. Each channel routes to an insert (mixerTrack). Inserts have up to 10 effects
   (eq with high/low-pass, filter, compressor (mix < 1 = parallel), delay, reverb, distortion, chorus, phaser, bitcrusher,
   stereo (width + monoBelow), pump (sidechain ducking: source = a channel, or a tempo grid), limiter), output routing and sends.
+  The studio effects (list_effects shows all by purpose; list_effects type="…" one in full): maximizer (a look-ahead
+  limiter that also holds the peaks BETWEEN the samples: ceiling -1 = -1 dBTP), ott (three-band up/down compression),
+  transient (more or less attack / sustain, no threshold), trancegate (a rhythmic gate on the song's grid), algoverb
+  (a reverb whose decay knob is its decay time; voicings room/hall/plate/cathedral/cosmic; freeze), shimmer (a reverb
+  that climbs in octaves), resonator (five strings tuned to a chord: noise or drums in, a chord out), flanger,
+  tremolo (auto-pan with stereo 0.5), ringmod, freqshift (Hz, not semitones: inharmonic; ±1 Hz mixed in = a phaser
+  that only rises), disperser (smears a kick's click into a "pew"), lofi (bits, sample rate, wow, hiss), utility
+  (gain, pan, width, mono below, polarity, swap, delay, DC).
 - **Markers** name song sections above the playlist (arrange_song makes them; set_markers edits them).
 - **Automation** clips move a parameter over time (channel volume/pan/pitch/filterCutoff/filterRes, a GGS Synth's
   macro1..macro8, mixer volume/pan, automatable effect params).
@@ -74,12 +86,14 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   triplet shuffle = 64; 100 = 75%, dotted). House 15–25, afrobeats 30–40, boom bap 40–55, lo-fi 50–65.
 
 ## GGS Synth & per-note expression
-- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (46 tables; unison,
-  warp, FM between oscillators), sub + noise, 2 filters (serial/parallel; 21 models: clean lp/hp/bp/notch/peak/
+- The GGS Synth (instrument "ggs") is the studio's sound-design synth: 3 wavetable oscillators (46 tables; unison of
+  up to 16 copies with a detune law — oscAUniLaw "super" is the JP-8000 supersaw's spacing and knob curve — a stack
+  (oscAStack "octave" | "fifth" | "octave+fifth") and a table position per copy (oscAUniPos); warp, FM between
+  oscillators), sub + noise, 2 filters (serial/parallel; 21 models: clean lp/hp/bp/notch/peak/
   all-pass/morph, analog-style ladder24/ladder12/ladderBp/ladderHp, acid (TB-303 diode ladder), ms20Lp/ms20Hp,
   formant (vowels), phaser, comb/combNeg; drive, key tracking and a per-type "morph"), 4 envelopes (delay, attack,
   hold, decay, sustain, release, each slope with its own curve), 4 LFOs, 2 chaos generators, 8 macros, a 64-route modulation matrix and
-  built-in drive/chorus/delay/reverb. 30 presets in six families (pads, leads, bass, keys, sequences, experimental),
+  built-in drive (driveOs "4x" / "8x" for bright, hard-driven sounds: less fold-back) /chorus/delay/reverb. 30 presets in six families (pads, leads, bass, keys, sequences, experimental),
   all levelled to about -18 LUFS per note.
 - Pick the filter for the job: lp24 = neutral and precise; ladder24 = warm, fat, sings (basses, leads; resonance
   above 0.9 self-oscillates in tune); acid = squelch (resonance 0.75-0.95, a fast envelope on the cutoff, cutoff
@@ -210,6 +224,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 - Master: limiter ceiling -1 dB for streaming; input gain = target LUFS − measured LUFS (render_mix tells you). Keep the
   master fader at 0 dB (it sits after the limiter, so anything lower wastes headroom). If the limiter reduces more than
   ~6 dB, fix the balance first instead of pushing harder.
+  For a release that must not exceed a true-peak figure (streaming services ask for −1 dBTP), put a maximizer after
+  the limiter (or instead of it): {"ceiling":-1,"gain":0} holds the peaks between the samples as well, which the
+  limiter does not; raise its gain for loudness. It looks ahead 5 ms, which the render compensates.
 
 ## Groove, fills and transitions
 - apply_groove gives drums a feel in one call (boom-bap, dilla, lo-fi, trap, drill, house, afrobeats, straight): swing,

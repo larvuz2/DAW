@@ -37,7 +37,7 @@ const LINE_SECONDS = 0.012;
 
 export class Lofi extends StudioFx {
   static type = 'lofi';
-  static label = 'Lo-fi';
+  static label = 'Vintage Lo-fi';
   static description = 'Makes a sound seem old, cheap or worn: it reduces the bit depth and the sample rate like an early sampler, adds the pitch wobble of tape or vinyl (wow and flutter), a background hiss, and a dulling tone filter. Reach for it for lo-fi hip-hop keys and drums, vintage sampler grit, and nostalgic or degraded textures.';
   static defs = [
     num('bits', 'Bits', 2, BITS_CLEAN, 12, { automatable: true, description: 'Bit depth of the simulated converter. 16 is clean (the converter is out of the path), 12 is the gentle grain of early samplers, 8 is clearly gritty and noisy, 4 and below is harsh and broken. Below 16, anything over 0 dBFS is clipped.' }),

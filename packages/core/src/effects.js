@@ -154,6 +154,17 @@ EFFECTS.plugin = {
 
 export const EFFECT_TYPES = Object.keys(EFFECTS);
 
+/** The effects by what they are for, in the order the menus show them: [[group, [type…]]…]. */
+export const EFFECT_GROUPS = [
+  ['Dynamics', ['compressor', 'limiter', 'maximizer', 'ott', 'transient', 'pump', 'trancegate']],
+  ['EQ & filter', ['eq', 'filter']],
+  ['Space', ['reverb', 'algoverb', 'shimmer', 'delay', 'resonator']],
+  ['Modulation', ['chorus', 'phaser', 'flanger', 'tremolo', 'ringmod', 'freqshift']],
+  ['Colour', ['distortion', 'bitcrusher', 'lofi', 'disperser']],
+  ['Tools', ['stereo', 'utility']]
+];
+for (const [group, types] of EFFECT_GROUPS) for (const type of types) EFFECTS[type].group = group;
+
 export function getEffectDef(type) {
   const def = EFFECTS[type];
   if (!def) throw new Error(`Unknown effect "${type}".${didYouMean(type, EFFECT_TYPES)} Available: ${EFFECT_TYPES.join(', ')}`);

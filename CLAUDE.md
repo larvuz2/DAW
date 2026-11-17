@@ -42,7 +42,10 @@ packages/synth-dsp/  @greanteadawy/synth-dsp — the GGS Synth engine: plain JS,
                       an AudioWorklet and in Node). params.js (flat schema, a description per param, migrateParams),
                       voice.js, filters.js (21 models + filterResponse), chaos.js (Lorenz/Rössler/drift/Turing sources),
                       fx.js, wavetables.js (46 tables), presets.js, patch.js (documents, describeRoute, modulationRanges),
-                      render.js (headless), util.js (Arena: a voice's memory in one block); scripts/bench.mjs, level-presets.mjs
+                      render.js (headless), util.js (Arena: a voice's memory in one block), unison.js (detune laws, stacks);
+                      effects/ (STUDIO_FX: 14 mixer effects as StudioFx classes — base.js has the helpers and the class),
+                      engines/ (SYNTH_ENGINES: Analog, Additive, Modal — one SynthEngine instance per note);
+                      scripts/bench.mjs, level-presets.mjs
 server/src/
   index.js            createServer(): express app, security headers, auth, /api, /mcp, static client, WebSocket hub
   auth/               users.js (scrypt, API tokens gtd_…), sessions.js (cookie gtd_session), http.js, routes.js
@@ -166,7 +169,7 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
 - **Notes carry a performance**: optional `expression` ({ pitch, pressure, timbre } curves in normalized note time)
   and `releaseVelocity`. Edit them with the `notes/expression` op (patches one curve, keeps the others). Any code
   that creates notes from notes (copy, duplicate, paste, import) must carry `expressionFields(n)` and `pan`.
-- **GGS Synth** (`ggs`): its ~510 flat params (64 matrix slots × 4, 8 macros, 2 chaos, drawn LFO steps) live in
+- **GGS Synth** (`ggs`): its ~520 flat params (64 matrix slots × 4, 8 macros, 2 chaos, drawn LFO steps) live in
   `packages/synth-dsp/src/params.js` (the catalog imports them);
   each has a `desc`. A renamed param is mapped in `migrateParams` (the catalog's `migrate` hook runs it on load and on
   ops). Structural changes on a sounding voice fade (`SWAP_KEYS` in `voice.js`) — never swap a table or a filter
@@ -181,6 +184,15 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   source meters) is reported by the voices over their port while a channel is watched (`GgsChannel.setWatch`): audio
   must never depend on those messages, and offline renders never send them.
   Presets are levelled by measurement (`scripts/level-presets.mjs --write` after changing one). See the `ggs-synth` skill.
+- **Studio effects and engines** (`packages/synth-dsp/src/effects`, `engines`): a class carries its own `type`, label,
+  description and param defs (a `description` per param — the catalog, the UI and MCP validation all read them), so
+  registering it in `STUDIO_FX` / `SYNTH_ENGINES` is all it takes: the worklet makes a processor per type
+  (`gtd-fx-<type>`, `gtd-voice-<type>`), core lists it (`EFFECTS[type].dsp`, `INSTRUMENTS[type].engine`; an effect also
+  goes into `EFFECT_GROUPS`). Same rules as the GGS voice: deterministic, seeded, nothing allocated while processing,
+  settings glide (a knob under a held note must not click), block size must not matter, a NaN in is not a NaN for
+  ever. Every claim in a description is a test (`test/fx-*.test.js`, `engine-*.test.js`; `basicChecks` /
+  `engineChecks` are the ones all must pass). An effect that syncs to the song reads the position it is told
+  (`clock`), never its own count of samples. See `docs/effects-and-instruments.md`.
 - **Spatial**: an insert with `spatial.enabled` is a 3D object; the `SpatialRig` (not the stereo router) connects it.
   Exports are rendered by the `spatial` job; positions automate `spatialX/Y/Z`. See `docs/spatial.md`.
 - **Samples**: a sample's audio can be replaced (wave editor "Replace original", `edit_sample saveAs=replace`): the id stays,

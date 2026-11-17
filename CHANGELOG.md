@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.13.0 — Effects and engines
+
+The fifth batch from GGS Composer: fourteen effects and three instruments that run as the studio's own DSP in the
+audio thread, and more unison and a cleaner drive for the GGS Synth. Guide and measurements:
+[docs/effects-and-instruments.md](docs/effects-and-instruments.md). Nothing here was tuned by ear by a person.
+
+**Effects** (mixer inserts; *+ Add effect…* now lists every effect by purpose)
+- **True-peak Limiter** (`maximizer`): looks ahead, and holds the peaks between the samples — what "−1 dBTP" means.
+- **Algorithmic Reverb** (`algoverb`): a 16-line feedback delay network in five voicings (room, hall, plate,
+  cathedral, cosmic) whose decay knob is a time, with freeze; **Shimmer Reverb** (`shimmer`): the same with pitch
+  shifters in its loop.
+- **Multiband (OTT)**, **Transient Shaper**, **Trance Gate** (on the song's grid), **Resonator** (five strings tuned
+  to a chord), **Flanger** (also through zero, also synced), **Tremolo / Auto-pan**, **Ring Modulator**,
+  **Frequency Shifter**, **Disperser**, **Vintage Lo-fi** and **Utility**.
+
+**Instruments**
+- **Analog**: two band-limited oscillators (saw, square with pulse width, triangle, sine) with hard sync, a sub and
+  noise, a four-pole ladder filter with its own envelope, an LFO, drift. 12 presets.
+- **Additive**: up to 64 partials shaped as one spectrum. 8 presets.
+- **Modal**: objects that ring — up to 32 modes of a string, a stiff string, a bar, a drum head or a tubular bell,
+  struck, plucked, blown or bowed. 13 presets.
+
+**GGS Synth**
+- Unison up to 16 copies per oscillator, with a detune law (linear, super = the JP-8000 supersaw, exp, random), a
+  stack (octave, fifth, or both in turn) and a wavetable position per copy.
+- Drive at 4x and 8x the sample rate: what folds back falls by 12 dB and more per step on bright, hard-driven sounds.
+- Patches made before sound exactly as they did (all 31 presets compared sample for sample).
+
+**For Claude**
+- `list_effects` is an overview by purpose, and `list_effects type="…"` shows one effect in full (the whole list had
+  grown to 58 KB); `add_effect`'s own description is a line per effect.
+- `analog`, `additive` and `modal` for `add_channel`; `set_synth_oscillator` takes `unisonLaw`, `stack`,
+  `unisonTable` and `unison` up to 16; `set_synth_effect` takes `drive.oversampling`.
+
+**Found and fixed on the way**
+- The frequency shifter, as ported, rang for ever at +5 kHz with short, strong feedback (19 kHz went to half the
+  sample rate and came back twice as strong): its loop now has a zero there and at 0 Hz.
+
+**Not in this release** — wavetables from a harmonics list or a formula, a granular instrument, grain cloud and
+spectral freeze; meters for the gain reduction of the limiter and the multiband. The two reverbs and the resonator
+still allocate a little per block (100–150 bytes). The engine instruments' knobs apply to notes that start after the
+change.
+
 ## 0.12.1 — Fixes from the review of harmony and tuning
 
 An independent review of 0.12.0 found two serious problems and a list of smaller ones; all are fixed here, each with

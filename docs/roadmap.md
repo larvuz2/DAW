@@ -96,6 +96,16 @@ written and read as compact text with musical positions and durations, `diff_ver
 Versions window, errors that say what to send instead, and renders that are compared with the one before (a null
 test) and checked for masking between stems. Details: [claude-mcp.md](claude-mcp.md).
 
+## 0.13.0 — what was added
+
+The effects-and-engines batch: fourteen DSP effects that run in the audio thread (a true-peak look-ahead limiter, an
+algorithmic reverb with five voicings, a shimmer reverb, multiband OTT, transient shaper, trance gate, resonator,
+flanger, tremolo, ring modulator, frequency shifter, disperser, vintage lo-fi, utility), three instruments (Analog
+with band-limited oscillators and hard sync, Additive, Modal), and for the GGS Synth unison of up to 16 copies with
+four detune laws, stacks and a table position per copy, and a drive at 4x and 8x. Details and measurements:
+[effects-and-instruments.md](effects-and-instruments.md). Still open from GGS Composer: wavetables from a harmonics
+list or a formula, the granular instrument, grain cloud and spectral freeze, and meters for gain reduction.
+
 ## 0.12.0 — what was added
 
 The harmony-and-tuning batch: a Harmony window (chords that fit and what could follow, substitutes, a library of 82

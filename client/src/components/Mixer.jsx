@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { EFFECTS, EFFECT_TYPES, uid, isSpatialObject, normalizeInsertSpatial, pluginParamValues } from '@greanteadawy/core';
+import { EFFECTS, EFFECT_GROUPS, uid, isSpatialObject, normalizeInsertSpatial, pluginParamValues } from '@greanteadawy/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Knob } from './ui/Knob.jsx';
@@ -147,7 +147,7 @@ export function Mixer() {
             {ins.effects.length < 10 && (
               <Select value="" className="add-fx" options={[
                 { value: '', label: '+ Add effect…' },
-                ...EFFECT_TYPES.filter((t) => t !== 'plugin').map((t) => ({ value: t, label: EFFECTS[t].label })),
+                ...EFFECT_GROUPS.flatMap(([group, types]) => types.map((t) => ({ value: t, label: EFFECTS[t].label, group }))),
                 ...effectPlugins.map((p) => ({ value: `plugin:${p.id}`, label: `Plugin: ${p.name}` }))
               ]}
                 onChange={(type) => {

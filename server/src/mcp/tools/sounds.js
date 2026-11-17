@@ -1,12 +1,21 @@
 // Instruments, channels, sound preview and music theory helpers.
 import {
-  INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, makeInstrument, describeInstruments, describeEffects, uid, noteName,
+  INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, makeInstrument, describeInstruments, describeEffects, EFFECT_TYPES, EFFECT_GROUPS, uid, noteName,
   findChannel, parseNote, SCALES, SCALE_INFO, scaleGroups, requireScale, scaleNotes, chordNotes, diatonicChords, romanToChord, isRomanNumeral, splitProgression, CHORD_INFO, CHORD_SYMBOLS, scaleSpelling, spelledNoteName,
   detectChords, detectKey, euclidString, chordSpelling,
   sanitizeParams, MAX_NUDGE_MS, sanitizePluginValues
 } from '@greanteadawy/core';
 import { z, ok, projectIdArg, scaleArg, annotations as A, uniqueName, assertNameFree, normVelocity } from '../util.js';
 import { requirePlugin, pluginValues } from './plugins.js';
+
+/** The start of a description: what the thing is, without the paragraphs on when to reach for it. */
+function firstSentences(text, max = 260) {
+  const t = String(text || '').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf(': '));
+  return `${end > 80 ? cut.slice(0, end + 1) : `${cut.trimEnd()}…`}`;
+}
 
 export function registerSoundTools({ tool, backend, load }) {
   tool('list_instruments', {
@@ -35,10 +44,19 @@ export function registerSoundTools({ tool, backend, load }) {
 
   tool('list_effects', {
     title: 'List effects',
-    description: 'All mixer effect types with parameters (ranges/defaults, which are automatable).',
-    inputSchema: {},
+    description: 'The mixer\'s effect types by what they are for (dynamics, EQ & filter, space, modulation, colour, tools), each with what it does and the names of its parameters. With type: that effect\'s parameters in full — ranges, defaults, units, which can be automated, and what each one does. Use before add_effect / update_effect.',
+    inputSchema: {
+      type: z.enum(EFFECT_TYPES).optional().describe('Only this effect, with its full parameter list')
+    },
     annotations: A.readOnly
-  }, async () => ok('Effects', describeEffects()));
+  }, async ({ type }) => {
+    const all = describeEffects();
+    if (type) return ok(`Effect ${type}`, all.find((e) => e.type === type));
+    const line = (e) => `${e.type} (${e.label}): ${firstSentences(e.description)}${e.params.length ? ` Params: ${e.params.map((x) => x.key).join(', ')}.` : ''}`;
+    const sections = EFFECT_GROUPS.map(([group, types]) => `## ${group}\n${types.map((t) => line(all.find((e) => e.type === t))).join('\n')}`);
+    const plugin = all.find((e) => e.type === 'plugin');
+    return ok(`${sections.join('\n\n')}\n\n## Plugins\n${line(plugin)}\n\nCall list_effects with type for an effect's parameters (ranges, defaults, what each one does).`);
+  });
 
   tool('add_channel', {
     title: 'Add channel',
