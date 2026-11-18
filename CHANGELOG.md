@@ -31,6 +31,13 @@ Ableton Live, unchanged; the layout follows Tuple's.
   same call gives the same notes in the browser, in Node and in tests. The engine is a separate chunk (121 kB, 46 kB
   gzipped) loaded when the tab first opens.
 
+- **Reviewed before release** by an independent pass, and fixed: chord names that resolved to another chord (`E13`
+  in A minor had lost its seventh) — every name is now checked against what it means in four keys; voice leading
+  lost when chords were looked up by name; a short chord in the track's last bar written half a bar early; Space held
+  on a card starting the song; Ctrl+Z after deleting a card undoing the project instead of the track; Write deleting
+  notes beyond a shortened loop; a tempo change sending the song back to its start; a swipe on a chord not scrolling
+  the grid on a phone; and the licence of the engine, which now also reaches the browser (`/licenses/tuple-MIT.txt`).
+
 Good to know: the grid's cards live in the browser, not in the project (the notes it writes are in the project);
 chords have six notes at most; the Rootless voicing plays the natural ninth where the root was, so an altered ninth
 on top sounds with it (the card says so, `add_grid_chords` refuses it); changing the scale drops tensions a chord can

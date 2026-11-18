@@ -199,14 +199,28 @@ function Grid({ mod, project, channel, pattern }) {
   };
   const cardKey = (e, c) => {
     const step = e.shiftKey ? 1 : SNAP;
-    if (e.key === 'Delete' || e.key === 'Backspace') grid.remove(c.index);
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      grid.remove(c.index);
+      // the card is gone and the focus with it: it stays on the track, so the next key (Ctrl+Z) is still the track's
+      trackEl.current?.focus();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       const by = e.key === 'ArrowLeft' ? -step : step;
       if (e.altKey) grid.resize(c.index, Math.max(prog.minBars, c.bars + by));
       else grid.move(c.index, Math.max(0, c.start + by));
-    } else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { grid.select(c.index); grid.playCard(c.index); } else return;
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      // (a held key repeats: every repeat is swallowed too, or Space would start and stop the song)
+      if (!e.repeat) { grid.select(c.index); grid.playCard(c.index); }
+    } else return;
     e.preventDefault();
     e.stopPropagation();
+  };
+  // Ctrl/Cmd+Z on the track or on a card's controls undoes the track's own last change (as the wave editor keeps its
+  // own history); anywhere else, and when the track has nothing to undo, it is the project's undo as usual.
+  const trackUndo = (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z' || !prog.canUndo) return;
+    e.preventDefault();
+    e.stopPropagation();
+    grid.undo();
   };
 
   const options = useMemo(() => (sel ? grid.options(sel.index, optTab) : []), [grid, view.version, sel?.index, optTab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -282,19 +296,19 @@ function Grid({ mod, project, channel, pattern }) {
 
       <div className="cgrid-bar cgrid-trackbar">
         <button className={`btn ${s.capture ? 'on rec' : ''}`} aria-pressed={s.capture} title="Capture: every chord you play goes on the track, after the selected card" onClick={() => set({ capture: !s.capture })}><i className="cgrid-dot" /> Capture</button>
-        <button className="btn" disabled={!prog.cards.length || !channel} onClick={() => (playing ? session.stop() : session.play({ withSong }))}><Icon name={playing ? 'stop' : 'play'} size={12} /> {playing ? 'Stop' : 'Play'}</button>
+        <button className="btn" disabled={!playing && (!prog.cards.length || !channel)} onClick={() => (playing ? session.stop() : session.play({ withSong }))}><Icon name={playing ? 'stop' : 'play'} size={12} /> {playing ? 'Stop' : 'Play'}</button>
         <button className={`btn tiny ${withSong ? 'on' : ''}`} aria-pressed={withSong} title="Play the song's own playback with the track, from the same instant: hear the chords against the beat" onClick={() => setWithSong(!withSong)}>With the song</button>
         <span className="sep" />
         <button className="btn tiny" disabled={prog.cards.length < 2} title="Voice the whole track again as one chain: each chord led from the one before" onClick={() => grid.revoiceAll()}>Re-voice all</button>
-        <button className="btn tiny" disabled={!prog.canUndo} title="Undo the last change to the track" aria-label="Undo track change" onClick={() => grid.undo()}><Icon name="undo" size={12} /></button>
+        <button className="btn tiny" disabled={!prog.canUndo} title="Undo the last change to the track (Ctrl+Z while the track or a card has the focus)" aria-label="Undo track change" onClick={() => grid.undo()}><Icon name="undo" size={12} /></button>
         <button className="btn tiny" disabled={!prog.cards.length} title="Remove every card" onClick={() => { session.stop(); grid.clear(); }}>Clear</button>
         <Select value={prog.loopBars} onChange={(v) => grid.setLoop(Number(v))} title="Length of the loop" options={loops} />
         <span className="cgrid-spacer" />
         <button className="btn primary" disabled={!prog.cards.length || !pattern || !channel} title={pattern && channel ? `Write these chords as notes for ${channel.name} in ${pattern.name} (one undo step)` : 'Needs a pattern and a pitched channel'} onClick={write}>Write to {pattern ? pattern.name : 'pattern'}</button>
       </div>
 
-      <div className="cgrid-trackwrap">
-        <div className="cgrid-track" ref={trackEl} style={{ minWidth: `${prog.loopBars * BAR_PX}px` }} role="list" aria-label="Progression track"
+      <div className="cgrid-trackwrap" onKeyDown={trackUndo}>
+        <div className="cgrid-track" ref={trackEl} tabIndex={-1} style={{ minWidth: `${prog.loopBars * BAR_PX}px` }} role="list" aria-label="Progression track"
           onPointerDown={(e) => { if (e.target === e.currentTarget || e.target.classList.contains('cgrid-ruler')) grid.select(null); }}>
           <div className="cgrid-ruler" aria-hidden="true">
             {Array.from({ length: prog.loopBars }, (_, b) => <i key={b} style={{ left: `${(b / prog.loopBars) * 100}%`, width: `${100 / prog.loopBars}%` }}>{b + 1}</i>)}
@@ -323,7 +337,7 @@ function Grid({ mod, project, channel, pattern }) {
       </div>
 
       {sel && (
-        <div className="cgrid-detail" aria-label={`Card ${sel.index + 1}`}>
+        <div className="cgrid-detail" aria-label={`Card ${sel.index + 1}`} onKeyDown={trackUndo}>
           <div className="cgrid-detail-row">
             <b className={sel.borrowed ? 'deg-b' : `deg-${sel.degree}`}>{sel.name}</b>
             <label className="param-select"><Select value={sel.voicingAsked} onChange={(v) => grid.setVoicing(sel.index, v)} title="How this card is voiced" options={mod.VOICINGS.map((v) => ({ value: v.id, label: v.label }))} /><span>Voicing</span></label>
@@ -388,7 +402,7 @@ function Grid({ mod, project, channel, pattern }) {
       )}
 
       {carry && <div className="cgrid-carry" style={{ left: carry.x + 10, top: carry.y + 10 }}>{carry.label}</div>}
-      <p className="cgrid-credit muted">Chord engine: <b>{mod.TUPLE_SOURCE.name} {mod.TUPLE_SOURCE.version}</b> by {mod.TUPLE_SOURCE.author} (MIT) — tuple.live</p>
+      <p className="cgrid-credit muted">Chord engine: <b>{mod.TUPLE_SOURCE.name} {mod.TUPLE_SOURCE.version}</b> by {mod.TUPLE_SOURCE.author}, used under the <a href="/licenses/tuple-MIT.txt" target="_blank" rel="noreferrer">MIT licence</a> — tuple.live</p>
     </div>
   );
 }

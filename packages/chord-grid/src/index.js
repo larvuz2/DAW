@@ -75,25 +75,32 @@ const AVOID_WHY = {
 
 /**
  * A chord name split for comparing: { pc, suffix } with the many ways to write a quality brought to the grid's own
- * ("Cmaj7" = "CM7", "Bm7b5" = "Bø7", "C69" = "C6/9", "Cm(maj7)" = "CmMaj7", "Db" = "C#"), or null if it has no root.
- * Case matters where it must: M7 is major, m7 minor.
+ * ("Cmaj7" = "CΔ" = "CM7", "Bm7b5" = "Bø7", "C69" = "C6/9", "Cm(maj7)" = "CmMaj7", "Db" = "C#"), or null if it has
+ * no root. Case matters where it must (M7 is major, m7 minor), and so do brackets: Dm7(11) is a minor seventh with
+ * an eleventh, Dm11 has the ninth as well.
  */
 export function chordKey(text) {
   const t = String(text ?? '').trim().replace(/♭/g, 'b').replace(/♯/g, '#').replace(/\s+/g, '');
   const m = /^([A-Ga-g])([#b]?)(.*)$/.exec(t);
   if (!m) return null;
   const pc = mod12('C D EF G A B'.indexOf(m[1].toUpperCase()) + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0));
-  let q = m[3];
-  q = q.replace(/^(?:maj|Maj|MAJ|ma|Δ)(?=\d|$|#|b|\()/, 'M').replace(/^M$/, '');
+  return { pc, suffix: qualityKey(m[3]) };
+}
+/** The quality part of a chord name ("maj7", "m7b5", "69"), written the grid's way ("M7", "ø7", "6/9"). */
+function qualityKey(quality) {
+  let q = String(quality);
+  q = q.replace(/^Δ(?=\d)/, 'M').replace(/^Δ/, 'M7');
+  q = q.replace(/^(?:maj|Maj|MAJ|ma)(?=\d|$|#|b|\()/, 'M').replace(/^M$/, '');
   q = q.replace(/^(?:min|mi|-)(?!aj)/, 'm');
   q = q.replace(/^m\(?(?:maj|Maj|M)(7|9)\)?/, 'mMaj$1');
   q = q.replace(/^(?:m7\(?b5\)?|ø7?|min7b5)/, 'ø7');
   q = q.replace(/^(?:°|o)7/, 'dim7').replace(/^(?:°|o)$/, 'dim').replace(/^\+$/, 'aug');
   q = q.replace(/^(m?)69/, '$16/9');
   q = q.replace(/sus(?![24])/, 'sus4');
-  q = q.replace(/[()]/g, '');
-  return { pc, suffix: q };
+  return q;
 }
+/** A quality without its brackets: how "E7(b9)" finds "E7b9" and "Bø7b13" finds "Bø7(b13)" when nothing is written exactly so. */
+const unbracketed = (suffix) => suffix.replace(/[()]/g, '');
 
 let catalog = null;
 /** The scales the grid knows: [{ id, label, intervals (seven, from the tonic), notes (the pitch classes really in the scale) }]. */
@@ -139,7 +146,8 @@ export function notesInTicks({ notes }, { barTicks, beatTicks }) {
   return notes.map((n) => {
     const from = Math.round(n.bar * barTicks);
     const end = Math.round((n.bar + n.bars) * barTicks);
-    const start = Math.min(end - 1, from + Math.round(n.offset * beatTicks));
+    // (the engine keeps a strum inside half a card counting four beats to the bar: in 3/8 that is not half a card)
+    const start = Math.min(end - 1, from + Math.min(Math.round(n.offset * beatTicks), Math.floor((end - from) / 2)));
     return { key: n.pitch, start, length: Math.max(1, end - start), velocity: Math.round((n.velocity / 127) * 1000) / 1000, card: n.card };
   });
 }
@@ -244,6 +252,16 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
     }
     return result;
   }
+  /** Several engine calls as one step: everything they deferred runs before the state is read. */
+  function run(steps) {
+    try {
+      const result = steps();
+      host.drain();
+      return result;
+    } finally {
+      absorb();
+    }
+  }
   /** Tell whoever listens: the notes first (they are what was asked for), then that the state moved. */
   function flush(before) {
     const out = sounds;
@@ -309,16 +327,36 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
   let spelled = null;
   function spelledTypes() {
     if (spelled) return spelled;
-    spelled = new Map();
+    const exact = new Map();
     const combos = [];
-    for (const third of ['t4', 't3', 'u5', 'u2']) for (const fifth of ['f7', 'f6', 'f8']) for (const top of ['', 's10', 's11', 's9', 'a9']) for (const n of ['', 'n2', 'n1', 'n3']) for (const e of ['', 'e5', 'e6']) for (const h of ['', 'h9', 'h8']) combos.push(['x', third, fifth, top, n, e, h].filter(Boolean));
+    for (const third of ['t4', 't3', 'u5', 'u2']) for (const fifth of ['f7', 'f6', 'f8']) for (const top of ['', 's10', 's11', 's9', 'a9']) for (const n of ['', 'n2', 'n1', 'n3']) for (const e of ['', 'e5', 'e6']) for (const h of ['', 'h9', 'h8']) {
+      // nine semitones above the root is a seventh only on a diminished triad; anywhere else it is the sixth ("a9")
+      if (top === 's9' && !(third === 't3' && fifth === 'f6')) continue;
+      // the same note twice under two names: a sixth with a thirteenth, a sus4 with an eleventh, a sus2 with a ninth
+      if ((top === 'a9' && h) || (third === 'u5' && e === 'e5') || (third === 'u2' && n === 'n2')) continue;
+      const parts = ['x', third, fifth, top, n, e, h].filter(Boolean);
+      // seven pitch classes for six voices: the fifth is named but not sounded, as the engine's own Ext page does
+      if (top && n && e && h) parts.push('o');
+      combos.push(parts);
+    }
     combos.sort((a, b) => a.length - b.length);
     for (const c of combos) {
       const type = c.join('.');
       if (!fns._xParse(type)) continue;
-      const k = chordKey(`C${colorSuffix(0, type)}`);
-      if (k && !spelled.has(k.suffix)) spelled.set(k.suffix, type);
+      const suffix = colorSuffix(0, type);
+      // (a name that starts with a bracket or an accidental is the tail of a chord the engine has no name for — an
+      // altered fifth under a 13th comes out as "b13": not a chord to answer "A13" with)
+      if (/^[(#b]/.test(suffix)) continue;
+      const key = qualityKey(suffix);
+      if (!exact.has(key)) exact.set(key, type);
     }
+    // names without their brackets, where that says nothing else: "ø7b13" for "ø7(b13)"
+    const loose = new Map();
+    for (const [suffix, type] of exact) {
+      const bare = unbracketed(suffix);
+      if (!exact.has(bare) && !loose.has(bare)) loose.set(bare, type);
+    }
+    spelled = { exact, loose };
     return spelled;
   }
   /** The numeral of a chord on any root: the key's own degree (its case by the chord's third), or the flat / sharp of its neighbour. */
@@ -555,24 +593,31 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
      * The cell a chord name stands for in this key ("Dm9", "Cmaj7", "Eb", "Db7", "FM13"), or null:
      * { cell, id, label, roman, group }. Looked for in the key's own columns first, then the borrowed column's pages
      * as they show, then the Ext page of each degree. A chord no page offers but the engine can spell (E7 in A minor,
-     * Cm7 in C major) is answered too, as group 'chromatic'. Looking changes nothing a listener would hear: the page,
-     * the voice-leading memory and what was last played stay as they were.
+     * Cm7 in C major) is answered too, as group 'chromatic'. Looking leaves the page, the voice-leading memory and
+     * what was last played as they were (a chord being held while pages are turned is let go, and onNotes hears it).
      */
     find(text) {
       const want = chordKey(text);
       if (!want) return null;
-      const is = (c) => { const k = chordKey(c.label); return k && k.pc === want.pc && k.suffix === want.suffix; };
-      const search = () => {
-        const cat = grid.catalog();
-        return [...cat.columns.flatMap((c) => c.cells), ...cat.borrowed, ...cat.mediants, ...cat.tritone, ...cat.tritoneAll, ...cat.ext.flatMap((e) => e.cells)].find(is) || null;
-      };
+      const cat = grid.catalog();
+      const cells = [...cat.columns.flatMap((c) => c.cells), ...cat.borrowed, ...cat.mediants, ...cat.tritone, ...cat.tritoneAll, ...cat.ext.flatMap((e) => e.cells)];
+      const page = (same) => cells.find((c) => { const k = chordKey(c.label); return k && k.pc === want.pc && same(k.suffix); });
+      const found = (hit) => ({ cell: cellFromId(hit.id), id: hit.id, label: hit.label, roman: hit.roman ?? null, group: hit.group });
       // (The borrowed column has a second face under EXT — "Eb" / "Ebadd9". It is not switched to look: switching EXT
       // empties the engine's voice-leading memory, and the next chord would no longer be led from the last one. A name
       // of the other face is spelled out below instead: the same notes.)
-      const hit = search();
-      if (hit) return { cell: cellFromId(hit.id), id: hit.id, label: hit.label, roman: hit.roman ?? null, group: hit.group };
-      // not on any page: a chord the engine can still spell and voice
-      const type = spelledTypes().get(want.suffix);
+      let hit = page((suffix) => suffix === want.suffix);
+      if (hit) return found(hit);
+      // not on any page: a chord the engine can still spell and voice — by its exact name, then without brackets
+      const types = spelledTypes();
+      let type = types.exact.get(want.suffix);
+      // ("C(13)" is nobody's name for a chord — a sixth? a thirteenth? — and is not guessed at)
+      if (!type && !want.suffix.startsWith('(')) {
+        const bare = unbracketed(want.suffix);
+        hit = page((suffix) => unbracketed(suffix) === bare);
+        if (hit) return found(hit);
+        type = types.exact.get(bare) ?? types.loose.get(bare);
+      }
       if (!type) return null;
       const semis = mod12(want.pc - ui.root);
       const roman = numeralOf(semis, type);
@@ -584,7 +629,8 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
 
     /**
      * Put a cell on the track as a card: played once (it sounds, and leads the voices of what follows), then placed at
-     * `at` (bars from the start; default: after the selected card, else at the end) for `bars`, with its tensions.
+     * `at` (bars from the start; default: at the end) for `bars`, with its tensions. A card dropped inside another
+     * lands before or after it, as on Tuple's track: read its `start` when the place matters.
      * Answers { index, refused } — index −1 when the track has no room; refused = tensions the chord would not take.
      */
     add(cell, { at = null, bars = null, tensions = [], voicing = null, inversion = null, octave = null, velocity: vel = 100 } = {}) {
@@ -594,17 +640,35 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
       eng.set('currentVelocity', Math.max(1, Math.min(127, Math.round(vel))));
       const was = eng.get('captureMode');
       eng.set('captureMode', false);
-      full = false;
       let index = -1;
       const refused = [];
       try {
         send('playFlatCell', c);
         send('release');
-        const known = new Set(eng.get('progression'));
-        send('captureone', rawLabel(c), at === null ? -1 : at);
-        index = eng.get('progression').findIndex((p) => !known.has(p));
-        if (index >= 0 && !full) {
-          if (bars !== null) send('progbars', index, bars);
+        // The engine's own steps for a card dropped on the track (captureone), with the card's length known from the
+        // start: it places one bar and resizes after, which has no room in the last half bar of the track.
+        const entry = run(() => {
+          const e = fns._progEntry(rawLabel(c), eng.get('lastChordNotes'));
+          const min = eng.get('PROG_BARS_MIN');
+          if (at === null) {
+            if (bars !== null) e.bars = bars;
+            if (!fns._progInsert(e, -1)) return null;
+          } else {
+            fns._progFige();
+            const b = bars ?? Math.min(1, Math.floor((eng.get('PROG_TRACK_BARS') - fns._progTotal()) / min + 1e-9) * min);
+            const v = b >= min ? fns._progVise(b, at) : null;
+            if (!v) return null;
+            fns._undoPush();
+            e.bars = b;
+            fns._progRange(e, v.s, v.k, null);
+            fns._progRelink(v.k + 1);
+          }
+          eng.set('progSel', eng.get('progression').indexOf(e));
+          fns.broadcastProg();
+          return e;
+        });
+        index = entry ? eng.get('progression').indexOf(entry) : -1;
+        if (index >= 0) {
           if (voicing) send('progvoicing', index, voicing);
           if (octave) send('setoct', index, octave);
           if (inversion) send('setinv', index, inversion);
@@ -613,7 +677,7 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
             const o = fns._tensOffer(eng.get('progression')[index]).find((x) => x.t === t);
             if (!o || (o.state !== 'on' && o.state !== 'built')) refused.push({ tension: t, state: o ? String(o.state).split(':')[0] : 'none', why: o ? AVOID_WHY[String(o.state).split(':')[1]] || null : null });
           }
-        } else index = -1;
+        }
       } finally {
         eng.set('captureMode', was);
         flush(before);
@@ -724,14 +788,31 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
       if (!track || track.v !== 1 || !Array.isArray(track.cards)) return false;
       // The engine takes the cards as they are and plays them as stored: what is not a card must stop here, or the
       // grid would throw on every look at it from then on.
+      if (!Number.isInteger(track.root) || track.root < 0 || track.root > 11 || !eng.get('SCALE_NAMES_ARR').includes(track.scale)) return false;
       const num = (x, lo, hi) => typeof x === 'number' && x >= lo && x <= hi;
+      const short = (x, max) => x === undefined || (typeof x === 'string' && x.length <= max);
+      const whole = (x, lo, hi) => x === undefined || (Number.isInteger(x) && x >= lo && x <= hi);
+      const style = (x) => x === undefined || eng.get('SPACING_NAMES').includes(x);
       const card = (c) => c && typeof c === 'object' && typeof c.name === 'string' && c.name.length <= 40 && typeof c.fn === 'string'
         && (c.fn === 'color' ? num(c.colorSemis, 0, 11) && typeof c.colorType === 'string' && c.colorType.length <= 40 && playable({ kind: 'b', semis: c.colorSemis, type: c.colorType }) : Number.isInteger(c.deg) && c.deg >= 0 && c.deg < 7 && eng.get('GRID_TYPES').includes(c.fn))
         && Array.isArray(c.notes) && c.notes.length >= 1 && c.notes.length <= 12 && c.notes.every((n) => Number.isInteger(n) && n >= 0 && n <= 127)
         && (c.notesBase === undefined || (Array.isArray(c.notesBase) && c.notesBase.length <= 12 && c.notesBase.every((n) => Number.isInteger(n) && n >= 0 && n <= 127)))
         && (c.bars === undefined || num(c.bars, eng.get('PROG_BARS_MIN'), eng.get('PROG_BARS_MAX'))) && (c.start === undefined || num(c.start, 0, eng.get('PROG_TRACK_BARS')))
-        && (c.tensions === undefined || (Array.isArray(c.tensions) && c.tensions.length <= 7 && c.tensions.every((t) => TENSIONS.includes(t))));
+        && (c.tensions === undefined || (Array.isArray(c.tensions) && c.tensions.length <= 7 && c.tensions.every((t) => TENSIONS.includes(t))))
+        && (c.tensMuted === undefined || (Array.isArray(c.tensMuted) && c.tensMuted.length <= 7 && c.tensMuted.every((t) => TENSIONS.includes(t))))
+        && short(c.roman, 16) && short(c.baseName, 40) && style(c.voicing) && style(c.voicingResolved)
+        && (c.vlMode === undefined || c.vlMode === 'follow' || c.vlMode === 'pinned') && whole(c.inv, -24, 24) && whole(c.oct, -4, 4);
       if (track.cards.length > 256 || !track.cards.every(card)) return false;
+      // cards are kept in order and never overlap: the engine counts on it
+      let free = 0;
+      for (const c of track.cards) {
+        const at = c.start ?? free;
+        if (at < free - 1e-9) return false;
+        free = at + (c.bars ?? 1);
+      }
+      if (free > eng.get('PROG_TRACK_BARS') + 1e-9) return false;
+      for (const c of track.cards) delete c.uid;
+      d.track = JSON.stringify(track);
       const before = version;
       const { capture: _c, ...settings } = d.settings || {};
       for (const [k, v] of Object.entries(settings)) { try { if (SETTERS[k] && v !== undefined) SETTERS[k](v); } catch { /* a setting a newer version wrote: skipped */ } }

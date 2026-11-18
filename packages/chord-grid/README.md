@@ -14,6 +14,7 @@ licensed (`LICENSE-tuple.txt`) — unchanged, with a thin layer that lets it run
 | `src/host.js` | what stands in for Max and Live: outlets collected as events, `Task` on a virtual clock (no timers), a `LiveAPI` that only knows the tempo, a seeded `Math.random` |
 | `src/index.js` | `createChordGrid()`: the engine's messages as a plain API (`view`, `press`, `add`, `notes`, `find`, `save`…), note names in the key's own spelling |
 | `scripts/vendor-tuple.mjs` | brings a Tuple checkout in, and stops if the engine no longer has something `src/index.js` uses |
+| `LICENSE-tuple.txt` | Tuple's MIT licence; the script also writes it to `client/public/licenses/tuple-MIT.txt`, served beside the bundled engine |
 
 Nothing here knows about projects, ticks or audio. No dependencies; runs in a browser and in Node.
 

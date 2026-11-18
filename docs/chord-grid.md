@@ -59,12 +59,14 @@ Below the grid is a loop of 4 to 32 bars holding **cards**, one per chord.
 - **Instead / Next / Voicings** under it: chords that could stand in for the card (same function, the same degree in
   another form, a tritone substitute), chords that could follow it (best first), and the same chord in every voicing.
   Click to hear, double-click (or Shift+Enter) to use.
-- **Re-voice all** leads the whole track again as one chain; **Undo** steps back through the track's own history;
+- **Re-voice all** leads the whole track again as one chain; **Undo** steps back through the track's own history
+  (**Ctrl+Z** does the same while the track or a card has the focus; anywhere else it is the project's undo);
   **Play** loops it at the song's tempo on the selected channel — with **With the song** on, the song's own playback
   starts at the same instant, so you hear the chords against the beat.
 - **Write to &lt;pattern&gt;** turns the track into notes for the channel in the selected pattern (one undo step):
   it replaces what the channel had under the track and grows the pattern if needed. Strum and humanize are written
-  as you hear them, and writing twice gives the same notes.
+  as you hear them, and writing twice gives the same notes. With the loop set shorter than the cards, only the loop
+  is written (and cleared): the cards beyond it stay on the track, and the message says how many.
 
 The grid **follows the song**: change the key or the scale and its chords change, and the cards move with it (a card
 whose chord the new scale does not have keeps playing, with a dashed outline; tensions the new chord cannot take are
@@ -91,7 +93,9 @@ add_grid_chords pattern="Verse" channel="Keys" voicing="drop2" strum=20 humanize
 ```
 
 Chord names are the grid's (`CM7`, `Bø7`, `C6/9`); the usual spellings are understood (`Cmaj7`, `Bm7b5`, `C69`).
-A chord no page offers is spelled from its name and voiced all the same — `E7` in A minor, `Cm7` in C major. What the
+A chord no page offers is spelled from its name and voiced all the same — `E7` or `E13` in A minor, `Cm7` in
+C major: triads, 6, 7, M7, m7, ø7, dim7, sus, add9, 9, 11, 13 and their alterations, checked name by name against
+what each means. Brackets count (`Dm7(11)` has no ninth, `Dm11` has). What the
 grid refuses says why and changes nothing: an unknown name, a tension that is an avoid note (`avoidNotes: false`
 allows it), an altered ninth on a rootless voicing. `add_chords` remains for slash chords, power chords, arpeggios
 and rhythm patterns.
@@ -102,7 +106,8 @@ made of them.
 
 ## What to know
 
-- **Six notes at most** per chord, as in Tuple (it has six MIDI outputs).
+- **Six notes at most** per chord, as in Tuple (it has six MIDI outputs): a thirteenth chord with all seven of its
+  notes leaves the fifth out.
 - **The Rootless voicing plays the natural ninth where the root was.** An altered ninth (♭9, ♯9) added on top sounds
   with it; the card says so, and `add_grid_chords` refuses the combination.
 - **A bar is a bar of your song** (three beats in 3/4). Tuple itself always counts four beats.
@@ -125,6 +130,7 @@ To move to a newer Tuple: clone it, run `node packages/chord-grid/scripts/vendor
 `npm test -w packages/chord-grid` and the e2e spec `e2e/workflow-chordgrid.spec.js` — and listen, because a new
 version may voice chords differently.
 
-Tuple's licence (MIT, © 2026 c0remusic) is in `packages/chord-grid/LICENSE-tuple.txt` and at the top of the generated
-file. Its Smart Chords ordering was tuned by its authors against the Rolling Stone 200 corpus (de Clercq & Temperley,
+Tuple's licence (MIT, © 2026 c0remusic) is in `packages/chord-grid/LICENSE-tuple.txt`, at the top of the generated
+file, and served to the browser as `/licenses/tuple-MIT.txt` (the tab's credit line links to it): a bundler drops the
+notice from the minified engine, so it travels beside it. Its Smart Chords ordering was tuned by its authors against the Rolling Stone 200 corpus (de Clercq & Temperley,
 CC BY 4.0) and the McGill Billboard corpus (Burgoyne, Wild & Fujinaga, CC0); neither corpus is shipped.

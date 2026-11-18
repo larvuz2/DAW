@@ -214,6 +214,68 @@ test('the grid follows the song\'s key, and comes back after a reload', async ()
   await expect(cards()).toHaveCount(4);
 });
 
+test('found by the review: keys on a card stay the track\'s, a short loop writes only itself, the song keeps its place', async () => {
+  const playing = () => page.evaluate(() => window.greanteadawy.store.getState().playing);
+  // Space held on a card plays the card — every repeat of the key is swallowed, the song does not start
+  await win.locator('.cgrid-card').nth(0).focus();
+  await page.keyboard.down(' ');
+  for (let i = 0; i < 6; i++) await page.keyboard.down(' ');
+  await page.keyboard.up(' ');
+  expect(await playing()).toBe(false);
+  // Delete, then Ctrl+Z: the card comes back and the notes written to the pattern stay
+  const written = (await notesOf()).length;
+  expect(written).toBeGreaterThan(0);
+  await win.locator('.cgrid-card').nth(3).focus();
+  await page.keyboard.press('Delete');
+  await expect(cards()).toHaveCount(3);
+  await page.keyboard.press('Control+z');
+  await expect(cards()).toHaveCount(4);
+  expect(await notesOf()).toHaveLength(written);
+  // eight bars of cards, the loop cut to four: Write clears and writes four bars, and says what it left out
+  await win.getByRole('button', { name: 'Capture' }).click();
+  await win.locator('.cgrid-card').nth(3).click();
+  for (const name of ['Am7', 'Dm7', 'G7', 'C']) await cell(name).click();
+  await win.getByRole('button', { name: 'Capture' }).click();
+  await expect(cards()).toHaveCount(8);
+  await claude.call('add_notes', { pattern: 'Verse', channel: 'Keys', text: '7.1 C6 1/4' });
+  await expect.poll(async () => (await notesOf()).some((n) => n.start === 6 * 384)).toBe(true);
+  await win.locator('.cgrid-trackbar select').selectOption('4');
+  // (FM7 is half a bar, so the fifth card starts inside bar 4: it is cut at the loop's end, the three after it wait)
+  await expect(cards()).toHaveCount(5);
+  await win.getByRole('button', { name: 'Write to Verse' }).click();
+  await expect(page.locator('.toast').last()).toContainText(/Dm9 – G\S* – CM9 – FM7 – Am7 written to Keys in Verse \(3 cards are beyond the loop and not written\)/);
+  const after = await notesOf();
+  expect(after.some((n) => n.start === 6 * 384 && n.key === 84)).toBe(true); // the note in bar 7 is still there
+  expect(after.filter((n) => n.start >= 4 * 384 && n.start < 6 * 384)).toHaveLength(0);
+  await win.locator('.cgrid-trackbar select').selectOption('8');
+  await expect(cards()).toHaveCount(8);
+  // looping with the song, a tempo change does not send the song back to its start
+  await win.getByRole('button', { name: 'With the song' }).click();
+  await win.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect.poll(playing).toBe(true);
+  const tick = () => page.evaluate(() => { const e = window.greanteadawy.engine(); return e.transport.positionAt(e.ctx.currentTime); });
+  await expect.poll(tick).toBeGreaterThan(300);
+  const before = await tick();
+  await claude.call('update_project', { bpm: 126 });
+  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().project.bpm)).toBe(126);
+  await page.waitForTimeout(300);
+  expect(await playing()).toBe(true);
+  expect(await tick()).toBeGreaterThan(before);
+  await expect(win.getByRole('button', { name: 'Stop', exact: true })).toBeEnabled();
+  // …and Stop stays a button that works when the last card goes while the loop plays
+  await win.getByRole('button', { name: 'Clear' }).click();
+  await expect(win.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+  await page.evaluate(() => window.greanteadawy.store.getState().stop());
+  await win.getByRole('button', { name: 'Undo track change' }).click();
+  await expect(cards()).toHaveCount(8);
+  await win.getByRole('button', { name: 'With the song' }).click();
+  // the licence of the engine is one click from its name, and served
+  await expect(win.locator('.cgrid-credit a')).toHaveAttribute('href', '/licenses/tuple-MIT.txt');
+  const licence = await page.request.get('/licenses/tuple-MIT.txt');
+  expect(licence.ok()).toBe(true);
+  expect(await licence.text()).toMatch(/Copyright \(c\) 2026 c0remusic[\s\S]*Permission is hereby granted/);
+});
+
 test('Claude reads the same grid and writes chords from it', async () => {
   const palette = await claude.call('chord_grid', { after: ['Dm9', 'G7'] });
   expect(palette).toMatch(/Chord grid of C major/);

@@ -1287,7 +1287,8 @@ a.br-name:hover { text-decoration: underline; }
 .cgrid-pages button.on { color: #14171c; background: var(--deg); }
 .cgrid-pages button:disabled { opacity: 0.3; }
 .cgrid-cell { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 28px; padding: 3px 14px 3px 9px; border-radius: 14px; text-align: left;
-  background: var(--panel-3); border: 1px solid var(--line); touch-action: none; user-select: none; transition: background 0.12s, box-shadow 0.12s; }
+  background: var(--panel-3); border: 1px solid var(--line); touch-action: pan-x; user-select: none; transition: background 0.12s, box-shadow 0.12s; }
+/* (pan-x: on a phone the grid is wider than the window, and a swipe that starts on a chord must still scroll it) */
 .cgrid-cell::after { content: ''; position: absolute; right: 7px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--deg); opacity: 0.75; }
 .cgrid-cell b { font-size: 12px; font-weight: 600; white-space: nowrap; }
 .cgrid-cell span { font: 9px var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1317,7 +1318,7 @@ a.br-name:hover { text-decoration: underline; }
 .cgrid-trackbar { align-items: center; padding-top: 8px; border-top: 1px solid var(--line); }
 .cgrid-trackbar .sep { width: 1px; height: 16px; background: var(--line); }
 .cgrid-trackwrap { overflow-x: auto; border-radius: var(--radius); background: #12161b; border: 1px solid var(--border); }
-.cgrid-track { position: relative; height: 74px; }
+.cgrid-track { position: relative; height: 74px; outline: none; }
 .cgrid-ruler { position: absolute; inset: 0; pointer-events: none; }
 .cgrid-ruler i { position: absolute; top: 0; bottom: 0; padding: 2px 4px; font: normal 9px var(--mono); color: var(--faint); border-left: 1px solid rgba(255, 255, 255, 0.09); }
 .cgrid-ruler i:nth-child(4n + 1) { border-left-color: rgba(255, 255, 255, 0.22); }
@@ -1368,6 +1369,7 @@ a.br-name:hover { text-decoration: underline; }
 .cgrid-opt.smart-3 { border-color: var(--accent); }
 .cgrid-opt.smart-2 { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .cgrid-credit { margin: 0; font-size: 10px; }
+.cgrid-credit a { color: inherit; text-decoration: underline; }
 /* (a phone held upright: every column narrower, so the frequencies are not cut off) */
 .app.compact .harmony-tr { grid-template-columns: 40px minmax(62px, 1.3fr) 52px minmax(44px, 0.7fr) 70px; gap: 4px; padding: 3px 6px; }
 .app.compact .harmony-pane { padding: 8px; }

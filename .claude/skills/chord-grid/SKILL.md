@@ -22,7 +22,12 @@ Read `docs/chord-grid.md` (what it does) and `packages/chord-grid/README.md` (wh
 - **No timers, no `Math.random`** in the package: `Task` runs on the host's virtual clock, drained after every call;
   a strummed chord comes back as notes with a `delay`. Tests fail if either is used.
 - **Its MIT notice travels with the copy**: `LICENSE-tuple.txt`, the header of the generated file, the README's
-  Licence section, the credit line in the tab.
+  Licence section, and — because a bundler drops comments from the chunk the browser gets —
+  `client/public/licenses/tuple-MIT.txt`, linked from the credit line in the tab (the vendoring script writes it).
+- **A chord name must mean its chord.** `find()` answers exact names first (pages, then types spelled out), then
+  the same name without brackets; a type is only in the table under a name the engine gives it rightly. The test
+  "a chord name means its chord in every key" holds the table of what each name means: add to it with any new
+  spelling, and prefer not finding a name to answering it with another chord.
 - **Cards are not project state.** They live in `localStorage` per project; only `write()` (ops) and
   `add_grid_chords` change the project. Do not add an op for cards without deciding how Claude and other tabs see them.
 

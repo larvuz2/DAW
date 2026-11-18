@@ -196,7 +196,8 @@ For slash chords and power chords, or styles like arpeggios and rhythm patterns,
       const clash = (c.voicing || a.voicing) === 'rootless' && (c.tensions || []).find((t) => t === 'b9' || t === '#9');
       if (clash) throw new Error(`Chord ${i + 1}: ${cell.label} with the tension ${clash} in the rootless voicing would sound its natural 9th and the ${clash} together (rootless puts the 9th where the root was). Give this chord another voicing — { chord: "${cell.label}", tensions: [...], voicing: "drop2" } — or use the tensions 9 and 13.`);
       const { index, refused } = grid.add(cell.cell, { at, bars, tensions: c.tensions || [], voicing: c.voicing || null, inversion: c.inversion || null, octave: c.octave || null });
-      if (index < 0) throw new Error(`The grid's track has no room for chord ${i + 1} ("${c.chord}") at bar ${at + 1}.`);
+      // (a card that could not go exactly where it was asked would be written somewhere else: that is "no room" too)
+      if (index < 0 || Math.abs(grid.view().progression.cards[index].start - at) > 1e-9) throw new Error(`The grid's track has no room for chord ${i + 1} ("${c.chord}") at bar ${at + 1}.`);
       if (refused.length) {
         const r = refused[0];
         const why = r.state === 'avoid' ? `the grid avoids it: ${r.why}. Leave it out, choose another, or pass avoidNotes: false to have it anyway` : r.state === 'none' ? 'the chord has no such note to add' : 'it does not fit this voicing';

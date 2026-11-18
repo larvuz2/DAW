@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import { createChordGrid, gridScales, gridScaleFor, chordKey, cellFromId, TUPLE_SOURCE, VOICINGS, TENSIONS } from '../src/index.js';
+import { createChordGrid, gridScales, gridScaleFor, chordKey, cellFromId, notesInTicks, TUPLE_SOURCE, VOICINGS, TENSIONS } from '../src/index.js';
 
 const labels = (g) => g.view().columns.map((c) => c.cells.map((x) => x.label));
 /** Play a cell and let go: what sounded, and what was let go. */
@@ -481,4 +481,113 @@ test('looking a chord up by name does not disturb voice leading: the same progre
   g.catalog();
   g.release();
   assert.deepEqual(heard.filter((n) => !n.on).map((n) => n.pitch).sort(), [48, 52, 55, 59].map(String).sort().map(Number));
+});
+
+// What a chord name means, as intervals from its root. A thirteenth chord has seven notes on paper and six voices
+// here: the engine leaves the fifth out of the stacks marked with a star, and the eleventh out of a major 13th by usage.
+const MEANS = {
+  '': [0, 4, 7], m: [0, 3, 7], dim: [0, 3, 6], aug: [0, 4, 8], sus2: [0, 2, 7], sus4: [0, 5, 7], 6: [0, 4, 7, 9], m6: [0, 3, 7, 9], '6/9': [0, 2, 4, 7, 9],
+  7: [0, 4, 7, 10], M7: [0, 4, 7, 11], m7: [0, 3, 7, 10], mMaj7: [0, 3, 7, 11], dim7: [0, 3, 6, 9], ø7: [0, 3, 6, 10], '7sus4': [0, 5, 7, 10], 'M7#5': [0, 4, 8, 11],
+  '7#5': [0, 4, 8, 10], '7b5': [0, 4, 6, 10], add9: [0, 2, 4, 7], madd9: [0, 2, 3, 7], 9: [0, 2, 4, 7, 10], M9: [0, 2, 4, 7, 11], m9: [0, 2, 3, 7, 10], '7b9': [0, 1, 4, 7, 10],
+  '7#9': [0, 3, 4, 7, 10], 11: [0, 2, 4, 5, 7, 10], m11: [0, 2, 3, 5, 7, 10], 'M7#11': [0, 4, 6, 7, 11], '7#11': [0, 4, 6, 7, 10], '9#11': [0, 2, 4, 6, 7, 10],
+  13: [0, 2, 4, 7, 9, 10], M13: [0, 2, 4, 7, 9, 11], 'm13*': [0, 2, 3, 5, 9, 10], '13#11*': [0, 2, 4, 6, 9, 10], 'M13#11*': [0, 2, 4, 6, 9, 11], '13b9': [0, 1, 4, 7, 9, 10],
+  '7b13': [0, 4, 7, 8, 10], '9sus4': [0, 2, 5, 7, 10], '13sus4': [0, 2, 5, 7, 9, 10], 'm7(11)': [0, 3, 5, 7, 10], '7(13)': [0, 4, 7, 9, 10], 'M7(13)': [0, 4, 7, 9, 11]
+};
+
+test('a chord name means its chord in every key: no name resolves to another chord, and none has more than six notes', () => {
+  let checked = 0;
+  for (const [root, scale] of [[9, 'minor'], [0, 'major'], [3, 'dorian'], [6, 'harmminor']]) {
+    const g = createChordGrid({ root, scale });
+    for (const [quality, intervals] of Object.entries(MEANS)) {
+      for (const on of [0, 2, 4, 7, 10]) {
+        const name = `${['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'][on]}${quality.replace('*', '')}`;
+        const f = g.find(name);
+        assert.ok(f, `${name} is found (${scale} on ${root})`);
+        const { index } = g.add(f.cell);
+        const card = g.view().progression.cards[index];
+        const got = [...new Set(card.notes.map((n) => (n - on + 120) % 12))].sort((a, b) => a - b);
+        assert.deepEqual(got, intervals, `${name} in ${scale} on ${root}: found as ${f.label} [${f.group}], sounds ${got}`);
+        assert.ok(card.notes.length <= 6, `${name}: ${card.notes.length} notes`);
+        g.remove(index);
+        checked++;
+      }
+    }
+  }
+  assert.ok(checked > 800);
+  // every voicing gives something to hear, six voices at most
+  const g = createChordGrid({ root: 9, scale: 'minor' });
+  for (const name of ['E13', 'Am13', 'FM13#11', 'D13#11', 'C11', 'E7b9']) {
+    for (const v of VOICINGS) {
+      g.set({ voicing: v.id });
+      const notes = g.preview(g.find(name).cell);
+      assert.ok(notes.length >= 3 && notes.length <= 6, `${name} ${v.id}: ${notes}`);
+    }
+  }
+});
+
+test('brackets and other spellings: exact names first, then the same name without brackets', () => {
+  const g = createChordGrid({ root: 0, scale: 'major' });
+  const type = (name) => g.find(name)?.id ?? null;
+  assert.equal(type('CΔ'), type('CM7'));
+  assert.equal(type('CΔ9'), type('CM9'));
+  assert.equal(type('Cmaj'), type('C'));
+  assert.notEqual(type('Dm7(11)'), type('Dm11'), 'with and without the ninth');
+  assert.notEqual(type('G7(13)'), type('G13'));
+  assert.equal(type('E7(b9)'), type('E7b9'), 'a dominant\'s alteration may be bracketed');
+  assert.equal(type('Bø7b13'), type('Bø7(b13)'), 'and a bracketed one written without');
+  assert.equal(type('A13'), 'b:9:x.t4.f7.s10.n2.h9', 'a thirteenth has its seventh');
+  assert.equal(type('C(13)'), null, 'a name the engine has no chord for is not guessed');
+});
+
+test('the last bars of the track: a short card lands where it is put, and thirty-two bars fit', () => {
+  const g = createChordGrid({ root: 0, scale: 'major' });
+  assert.equal(g.add('d:4:seven', { at: 31.5, bars: 0.5 }).index, 0);
+  assert.deepEqual([g.view().progression.cards[0].start, g.view().progression.cards[0].bars], [31.5, 0.5]);
+  g.clear();
+  let at = 0;
+  for (const [cell, bars] of [...Array(15).fill(['d:0:triad', 1]), [null, 1], ...Array(15).fill(['d:3:triad', 1]), ['d:4:seven', 0.5], ['d:0:triad', 0.5]]) {
+    if (cell) assert.ok(g.add(cell, { at, bars }).index >= 0, `a card at bar ${at + 1}`);
+    at += bars;
+  }
+  const cards = g.view().progression.cards;
+  assert.equal(cards.length, 32);
+  assert.deepEqual(cards.slice(-2).map((c) => [c.name, c.start, c.bars]), [['G7', 31, 0.5], ['C', 31.5, 0.5]]);
+  assert.equal(g.view().progression.endBars, 32);
+  assert.equal(g.add('d:0:triad', { at: 31.5, bars: 0.5 }).index, -1, 'and no more');
+  assert.equal(g.add('d:0:triad').index, -1);
+  // a card added without a place goes to the end, with its length
+  const h = createChordGrid();
+  h.add('d:0:triad', { bars: 2 }); h.add('d:4:seven', { bars: 0.5 });
+  assert.deepEqual(h.view().progression.cards.map((c) => [c.start, c.bars]), [[0, 2], [2, 0.5]]);
+});
+
+test('notes on a pattern\'s clock: a strummed note starts in the first half of its card in any metre', () => {
+  const g = createChordGrid({ root: 0, scale: 'major', bpm: 120 });
+  g.set({ strum: 250 });
+  g.add('d:0:nine', { bars: 0.5 }); g.add('d:4:seven', { bars: 0.5 });
+  // 3/8: a bar is 144 ticks, half of it 72
+  const notes = notesInTicks(g.notes(), { barTicks: 144, beatTicks: 96 });
+  for (const n of notes) {
+    const from = n.card * 72;
+    assert.ok(n.start >= from && n.start <= from + 36, `starts in the first half: ${n.start}`);
+    assert.equal(n.start + n.length, from + 72, 'and ends with its card');
+    assert.ok(n.length >= 36);
+  }
+  assert.ok(notes.some((n) => n.start % 72 !== 0));
+});
+
+test('a saved track with anything that is not a card, a key or an order is refused, never thrown on', () => {
+  const g = createChordGrid({ root: 0, scale: 'major' });
+  g.add('d:1:nine'); g.add('d:4:seven'); g.add('b:8:maj');
+  const saved = g.save();
+  const h = createChordGrid();
+  const bad = (edit) => { const d = JSON.parse(saved); const t = JSON.parse(d.track); edit(t); d.track = JSON.stringify(t); return JSON.stringify(d); };
+  for (const edit of [(t) => { t.cards[0].roman = {}; }, (t) => { t.scale = '__proto__'; }, (t) => { t.scale = 'banana'; }, (t) => { t.root = 12; }, (t) => { t.cards[1].start = 0.5; },
+    (t) => { t.cards[0].voicing = 'constructor'; }, (t) => { t.cards[0].inv = 1e6; }, (t) => { t.cards[0].oct = 'up'; }, (t) => { t.cards[0].vlMode = 'x'; }, (t) => { t.cards[2].start = 40; },
+    (t) => { t.cards[0].tensMuted = [1]; }, (t) => { t.cards[0].baseName = []; }]) {
+    assert.equal(h.load(bad(edit)), false);
+    assert.equal(h.view().progression.cards.length, 0);
+  }
+  assert.equal(h.load(saved), true);
+  assert.deepEqual(h.view().progression.cards.map((c) => c.name), ['Dm9', 'G7', 'Ab']);
 });

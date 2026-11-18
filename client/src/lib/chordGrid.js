@@ -13,7 +13,9 @@ export function loadChordGrid() {
 
 const STORE = 'gtd.chordGrid.';
 const LOOKAHEAD = 0.14; // seconds of the loop scheduled ahead of the audio clock
+const LOOKAHEAD_HIDDEN = 1.5; // …and in a background tab, where timers fire once a second (as the transport does)
 const TICK_MS = 30;
+const MAX_SESSIONS = 8; // grids kept in memory: the ones of the projects last opened
 
 /** The grid's key for a project: { root, scale, exact, spell } — `exact` false when the grid has no such scale. */
 export function gridKeyFor(mod, project) {
@@ -27,7 +29,10 @@ export function trackNotes(mod, grid, project) {
   const bar = ticksPerBar(project);
   const made = grid.notes();
   const notes = mod.notesInTicks(made, { barTicks: bar, beatTicks: PPQ }).map(({ card: _card, ...n }) => ({ id: uid('n'), ...n }));
-  return { notes, end: Math.round(grid.view().progression.endBars * bar), loop: made.loopBars * bar };
+  const prog = grid.view().progression;
+  // a loop shortened under the cards plays and writes only what is inside it: the cards beyond stay on the track
+  const bars = Math.min(prog.endBars, made.loopBars);
+  return { notes, end: Math.round(bars * bar), cards: prog.cards.filter((c) => c.start < made.loopBars - 1e-9) };
 }
 
 /**
@@ -77,9 +82,15 @@ const sessions = new Map();
  */
 export function gridSession(mod, project) {
   let s = sessions.get(project.id);
-  if (!s) {
-    s = createSession(mod, project);
-    sessions.set(project.id, s);
+  if (!s) s = createSession(mod, project);
+  // (kept in the order of use: the grid of a project not opened for a while is saved and let go)
+  sessions.delete(project.id);
+  sessions.set(project.id, s);
+  for (const [id, old] of sessions) {
+    if (sessions.size <= MAX_SESSIONS) break;
+    if (id === project.id || old.playing) continue;
+    old.dispose();
+    sessions.delete(id);
   }
   s.follow(project);
   return s;
@@ -114,7 +125,7 @@ function createSession(mod, first) {
   grid.subscribe(() => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); });
 
   // ---- the loop: the track's notes scheduled a little ahead of the audio clock, again and again
-  const loop = { on: false, withSong: false, timer: null, t0: 0, until: 0, voices: [], version: -1, notes: [], seconds: 0, perTick: 0, unsub: null };
+  const loop = { on: false, withSong: false, timer: null, t0: 0, until: 0, voices: [], version: -1, notes: [], seconds: 0, perTick: 0, unsub: null, seq: 0 };
   const refresh = () => {
     const bar = ticksPerBar(project);
     const made = grid.notes();
@@ -129,7 +140,7 @@ function createSession(mod, first) {
     if (!engine || !loop.on) return;
     if (loop.version !== grid.view().version) refresh();
     if (!(loop.seconds > 0)) return;
-    const horizon = engine.ctx.currentTime + LOOKAHEAD;
+    const horizon = engine.ctx.currentTime + (globalThis.document?.hidden ? LOOKAHEAD_HIDDEN : LOOKAHEAD);
     // (notes that ended are forgotten: only what still sounds is cut when the loop stops)
     loop.voices = loop.voices.filter((v) => v.end > engine.ctx.currentTime);
     while (loop.until < horizon) {
@@ -146,6 +157,7 @@ function createSession(mod, first) {
     }
   };
   const stopLoop = (withSong = loop.withSong) => {
+    loop.seq++; // (a play() still waiting for the audio or the song gives up)
     if (!loop.on) return;
     loop.on = false;
     clearInterval(loop.timer);
@@ -172,8 +184,16 @@ function createSession(mod, first) {
       if (moved) { key = gridKeyFor(mod, project); grid.setKey(key); }
       if (tempo) {
         grid.setTempo(project.bpm);
-        // a loop that is playing starts again at the new tempo (its clock was the old one)
-        if (loop.on) { const ws = loop.withSong; stopLoop(false); session.play({ withSong: ws && useStore.getState().playing }); }
+        // A loop that is playing goes on from where it is, at the new tempo: its clock is moved, nothing is restarted
+        // (the song, if it plays along, has just done the same with its own).
+        const engine = getEngine();
+        if (loop.on && engine && loop.seconds > 0) {
+          const now = engine.ctx.currentTime;
+          const done = now > loop.t0 ? ((now - loop.t0) % loop.seconds) / loop.seconds : 0;
+          refresh();
+          loop.t0 = now - done * loop.seconds;
+          loop.until = Math.max(loop.until, now);
+        }
       }
     },
     setChannel(id) {
@@ -191,8 +211,10 @@ function createSession(mod, first) {
      */
     async play({ withSong = false } = {}) {
       const st = useStore.getState();
-      const engine = await st.unlockAudio().catch(() => ensureEngine());
       if (loop.on) stopLoop(false);
+      const seq = ++loop.seq;
+      const engine = await st.unlockAudio().catch(() => ensureEngine());
+      if (seq !== loop.seq) return false; // stopped, or started again, while the audio was getting ready
       grid.release();
       player.silence();
       refresh();
@@ -204,6 +226,7 @@ function createSession(mod, first) {
       loop.until = at;
       if (withSong) {
         await st.play({ at });
+        if (seq !== loop.seq) return false; // (stopped while the song was getting ready)
         // (the song may have had to wait — for plugins to load, say: the loop starts where the transport really did)
         const tr = getEngine()?.transport;
         if (useStore.getState().playing && tr?.anchor) { loop.t0 = tr.anchor.time; loop.until = tr.anchor.time; } else loop.withSong = false;
@@ -229,7 +252,7 @@ function createSession(mod, first) {
      */
     write(pattern, channel) {
       const st = useStore.getState();
-      const { notes, end } = trackNotes(mod, grid, project);
+      const { notes, end, cards } = trackNotes(mod, grid, project);
       if (!notes.length) throw new Error('The track is empty: play chords with Capture on, or drag them to the track');
       if (end > maxPatternLength(project)) throw new Error('The track is longer than a pattern can be: shorten it');
       const bar = ticksPerBar(project);
@@ -237,7 +260,8 @@ function createSession(mod, first) {
       if (end > pattern.length) ops.push({ type: 'pattern/update', id: pattern.id, patch: { length: Math.ceil(end / bar) * bar } });
       ops.push({ type: 'notes/set', patternId: pattern.id, channelId: channel.id, notes: [...(pattern.notes[channel.id] || []).filter((n) => n.start >= end), ...notes] });
       st.dispatch(ops);
-      return `${grid.view().progression.cards.map((c) => c.name).join(' – ')} written to ${channel.name} in ${pattern.name}`;
+      const left = grid.view().progression.cards.length - cards.length;
+      return `${cards.map((c) => c.name).join(' – ')} written to ${channel.name} in ${pattern.name}${left ? ` (${left} ${left === 1 ? 'card is' : 'cards are'} beyond the loop and not written)` : ''}`;
     },
     /** Forget this session (the project was closed for good): stop everything. */
     dispose() {

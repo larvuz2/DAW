@@ -175,6 +175,32 @@ test('add_grid_chords: what it refuses changes nothing and says what to do', asy
   await unchanged(() => call('add_grid_chords', { pattern: 'Verse', channel: 'Keys', chords: ['Dm7', 'G7'], dryRun: true }));
 });
 
+test('found by the review: a thirteenth keeps its seventh, and the thirty-second bar is written where it belongs', async () => {
+  await call('create_project', { name: 'Review', template: 'empty', key: 'A', scale: 'minor', bpm: 100 });
+  const rid = (await user.get('/api/active')).body.projectId;
+  await call('add_channel', { name: 'Keys', instrument: 'piano' });
+  await call('create_pattern', { name: 'Long', bars: 32 });
+  const read = async () => notesOf((await user.get(`/api/projects/${rid}`)).body, 'Keys', 'Long');
+  // E13 in A minor is no page's chord: it is spelled — E G# B D F# C# — not an E6 that lost its seventh
+  const text = await call('add_grid_chords', { pattern: 'Long', channel: 'Keys', chords: ['Dm9', 'E13', 'Am9'] });
+  assert.match(text, /Wrote Dm9 – E13 – Am9 \(iv – V – i\)/);
+  assert.deepEqual(pcs(at(await read(), 384 + 10)), [1, 2, 4, 6, 8, 11]);
+  await call('add_grid_chords', { pattern: 'Long', channel: 'Keys', chords: ['Dm11', 'E11', 'CΔ'] });
+  const notes = await read();
+  assert.deepEqual(pcs(at(notes, 384 + 10)), [2, 4, 6, 8, 9, 11], 'E11: E G# B D F# A');
+  assert.deepEqual(pcs(at(notes, 768 + 10)), [0, 4, 7, 11], 'CΔ is a major seventh');
+  // thirty-two bars, the last one in two halves
+  const long = await call('add_grid_chords', { pattern: 'Long', channel: 'Keys', chords: [...Array(15).fill('Am'), '-', ...Array(15).fill('F'), { chord: 'G7', bars: 0.5 }, { chord: 'C', bars: 0.5 }] });
+  assert.match(long, /bars 1–32/);
+  const all = await read();
+  assert.deepEqual(pcs(all.filter((n) => n.start === 31 * 384)), [2, 5, 7, 11], 'G7 on bar 32');
+  assert.deepEqual(pcs(all.filter((n) => n.start === 31 * 384 + 192)), [0, 4, 7], 'C on its second half');
+  assert.equal(all.filter((n) => n.start >= 15 * 384 && n.start < 16 * 384).length, 0, 'the rest is a rest');
+  const tail = await call('add_grid_chords', { pattern: 'Long', channel: 'Keys', chords: [{ chord: '-', bars: 16 }, { chord: '-', bars: 15.5 }, { chord: 'G7', bars: 0.5 }], replace: false, dryRun: true });
+  assert.match(tail, /bar 32\.5 \(0\.5 bars\): G7/);
+  await call('open_project', { projectId: pid });
+});
+
 test('add_grid_chords in a batch: one change, one undo', async () => {
   const was = notesOf(await project());
   await call('batch', { calls: [
