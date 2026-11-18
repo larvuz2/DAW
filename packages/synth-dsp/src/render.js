@@ -30,9 +30,12 @@ export function breakpointValue(points, t) {
  *               from the note start (pitch in semitones, the others 0..1)
  *   seconds     length of the render (default: until the last note has rung out, capped at 60 s)
  *   fx          false = voices only (no drive/chorus/delay/reverb/output gain)
+ *   tap         (frame, count, voices) => void, called after every block with the sounding voices as
+ *               [{ note, voice }] (note.ref is the note object that was passed in): for tools that draw or measure
+ *               what each voice does (voice.src / voice.dst / voice.oscs). It only looks: the audio is the same.
  * Returns { sampleRate, channels: [left, right] } (Float32Array).
  */
-export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120, seconds, fx = true, macros = null }) {
+export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120, seconds, fx = true, macros = null, tap = null }) {
   const p = completeParams(params);
   const fs = sampleRate;
   const list = notes.map((n, i) => ({
@@ -40,7 +43,7 @@ export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120,
     startFrame: Math.max(0, Math.round((n.start || 0) * fs)),
     endFrame: Math.max(0, Math.round(((n.start || 0) + Math.max(0.005, n.duration ?? 0.5)) * fs)),
     pitch: n.pitch || null, pressure: n.pressure || null, timbre: n.timbre || null, tune: n.tune || 0,
-    seed: n.seed ?? hash32(i * 7919 + 13)
+    seed: n.seed ?? hash32(i * 7919 + 13), ref: n
   })).sort((a, b) => a.startFrame - b.startFrame);
   const effects = fx ? new GgsFx({ sampleRate: fs, params: p, bpm }) : null;
   const lastEnd = list.reduce((m, n) => Math.max(m, n.endFrame), 0);
@@ -111,6 +114,7 @@ export function renderPatch({ params, notes = [], sampleRate = 44100, bpm = 120,
       }
       if (dead) active.splice(a, 1);
     }
+    if (tap) tap(frame, n, active);
     if (effects) effects.process(L.subarray(frame, frame + n), R.subarray(frame, frame + n), L.subarray(frame, frame + n), R.subarray(frame, frame + n), n);
   }
   return { sampleRate: fs, channels: [L, R] };

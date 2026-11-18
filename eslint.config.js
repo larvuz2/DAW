@@ -50,5 +50,15 @@ export default [
   {
     files: ['e2e/**/*.js', 'playwright.config.js'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } }
+  },
+  {
+    // the film's player is a page's script (tools/film/kaleidoscope.mjs puts it into the page it builds)
+    files: ['tools/film/player.js'],
+    languageOptions: { sourceType: 'script', globals: { ...globals.browser } }
+  },
+  {
+    // (the recorder runs a few lines inside that page)
+    files: ['tools/film/record.mjs'],
+    languageOptions: { globals: { ...globals.node, window: 'readonly' } }
   }
 ];

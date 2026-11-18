@@ -1,6 +1,6 @@
 {
   "name": "@ggs/core",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "Shared project model, edit operations, music theory, MIDI and summaries for GGS",
   "license": "MIT",
   "type": "module",

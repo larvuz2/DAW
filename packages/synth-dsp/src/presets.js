@@ -168,7 +168,6 @@ preset('Kaleidoscope', 'pad', 'Five layers in one note: a plucked strike, a body
       ['macro1', 'f1Cutoff', 0.3], ['macro1', 'oscAPos', 0.4], ['macro3', 'oscBLevel', 0.4, 'env3'], ['macro3', 'f2Cutoff', 0.15],
       ['macro4', 'subLevel', 0.2], ['macro4', 'f1Cutoff', -0.06], ['key', 'subLevel', 0.2]
     ]),
-    polyphony: 10,
     chorusMix: 0.22, chorusRate: 0.3, delayMix: 0.2, delaySync: '1/8d', delayFb: 0.42, delayTone: 4200,
     reverbMix: 0.3, reverbSize: 0.86, reverbDamp: 0.35, gain: 0.52
   }, { chord: true, hold: 5 });

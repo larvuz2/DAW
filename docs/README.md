@@ -6,6 +6,7 @@
 | [User guide](user-guide.md) | Every part of the studio: channel rack, piano roll, playlist, mixer, automation, samples, versions, settings, shortcuts |
 | [Making music with Claude (MCP)](claude-mcp.md) | Connect Claude Code / Claude Desktop, API tokens, example sessions, what `render_mix` measures |
 | [MCP tool reference](MCP.md) | All 104 tools with their parameters (generated) |
+| [The film](film.md) | A 36-second animated score of the Kaleidoscope preset, drawn from what the synth's voices did: how it is built, rendered and recorded |
 | [GGS Synth](ggs-synth.md) | The wavetable / FM synthesizer: signal path, modulation matrix, wavetables, presets, patch documents, engineering notes |
 | [Studio effects and the engine instruments](effects-and-instruments.md) | The fourteen DSP effects (true-peak limiter, reverbs, OTT, shifter, disperser…), the Analog, Additive and Modal instruments, the GGS Synth's unison laws and oversampled drive — with what was measured |
 | [The chord grid](chord-grid.md) | Harmony → Grid: every chord of the key, borrowed chords, smart chords, voicings, tensions, the track of cards — Tuple's chord engine in the studio — and Claude's `chord_grid` / `add_grid_chords` |

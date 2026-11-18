@@ -147,8 +147,11 @@ a Lorenz generator moves it across the stereo field; envelope 4 is a 70 ms breat
 sub follows the keyboard. The amp envelope only opens the door and closes it. Macros: *Bloom* (body opens and
 stacks), *Pulse* (depth of the rhythm, 0 = none; it starts at two thirds), *Sparkle* (the strike and the pulse's
 brightness), *Weight* (sub). Measured: the pulse sits 6 dB under the body with its accents at the body's level;
-3 % of a core per voice, 17 % for eight (polyphony 10); one note within 3 dB of the same loudness from C2 to C6; a
-chord sums to mono 1.7 dB down.
+3 % of a core per voice, 17 % for eight and about twice that with all sixteen sounding — the heaviest preset in the
+library; one note within 3 dB of the same loudness from C2 to C6; a chord sums to mono 1.7 dB down.
+
+The film of it (`npm run film`, [film.md](film.md)) shows those layers note by note: a 36-second piece drawn from
+what the voices reported while they rendered.
 
 Presets are **levelled by measurement** (`node packages/synth-dsp/scripts/level-presets.mjs`): one note at velocity
 0.8 peaks at −18 LUFS (loudest 400 ms), unless its sample peak would pass −9 dBFS — sharp attacks are capped by

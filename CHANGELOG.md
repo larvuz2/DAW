@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.24.0 — The film
+
+- **A 36-second animated score** of the Kaleidoscope preset (`npm run film`, `npm run film:record`,
+  [docs/film.md](docs/film.md)): a playhead crosses the voices of a voice-led progression (Am9 → Fmaj9 → Cadd9/E →
+  G6/9 → Am11), and every note shows its five layers as the synth played them — the strike as a star and sparks, the
+  body as seven strands that beat, swell and open, the pulse as ice-blue beads on the sixteenths with their accents,
+  the air as dust, the sub as an ember — over a lane per layer, the chord and its voice leading in words, the macros
+  and a keyboard. Nothing is drawn by hand: the levels come from the voices while the audio renders.
+- `renderPatch({ tap })`: a function that is handed every sounding voice after each block, for tools that draw or
+  measure what the voices do. It only looks (a test holds the audio to be the same with and without it).
+- **Kaleidoscope** uses the synth's own polyphony (16) instead of 10: a five-note chord, the tails of the one before
+  and a melody on top no longer cut each other's releases. It is the heaviest preset in the library when all sixteen
+  sound.
+- The film's audio, data, page and video are written to `uploads/` and never committed.
+
 ## 0.23.0 — Kaleidoscope, a layered preset
 
 - **GGS Synth preset "Kaleidoscope"** (Pads): five layers in one note, each with its own envelope, place and
@@ -13,7 +28,7 @@
   the body and its air 40 dB — both inaudible; the pulse now sits 6 dB under, its accents at the body's level); one
   note is within 3 dB of the same loudness from C2 to C6; a held chord loses 1.7 dB when summed to mono and stays
   under full scale with every macro at 1; no step between samples larger than a plain tone makes; two renders are
-  identical; 3 % of a core for one voice, 17 % for eight (polyphony 10).
+  identical; 3 % of a core for one voice, 17 % for eight.
 - The levelling script and the preset tests hold a preset as long as it asks (`test.hold`): this one's amp envelope
   is fast but its loudest layer arrives a second later. No other preset changed (their gains are as they were).
 - Guide, sound-design skill (a recipe: layers that each keep their own time) and `docs/ggs-synth.md` describe how

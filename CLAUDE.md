@@ -108,6 +108,9 @@ fixtures/av/          audio → visual test song + a real capture of the bridge 
 tools/song-analyzer/  song studies: the Python analyzer (stems, beats, key, chords, structure, notes, timbre; its own
                       .venv, git-ignored) + measure.mjs (the studio's meter), to-daw.mjs (analysis → blueprint, preview
                       and transcription projects, study card, --save-template), audition.mjs, bundle.mjs
+tools/film/           the film (docs/film.md): kaleidoscope.mjs = a 36 s piece on the Kaleidoscope preset, its audio and
+                      what every voice's layers did 60×/s (read through renderPatch's `tap`), player.js + player.html = the
+                      page that draws it (draw(t) remembers nothing), record.mjs = frames via Playwright → ffmpeg → MP4
 uploads/              (git-ignored) songs being studied and their analysis output — never committed
 plugins/examples/     example plugins (npm run plugin:pack -- --examples → plugins/dist/*.zip)
 skills/               music-production skills for Claude Desktop / claude.ai users (npm run skills:pack)
@@ -129,6 +132,8 @@ npm run test:e2e     # builds the client, runs Playwright against a throwaway se
 npm run screenshots  # regenerates docs/screenshots/*.png
 npm run docs:mcp     # regenerates docs/MCP.md from the live tool definitions
 npm run docs:av      # regenerates docs/av-bible.pdf (audio → visual bible, Spanish) from the catalogs (needs Chromium)
+npm run film         # the Kaleidoscope film's audio, data and page → uploads/film (docs/film.md); npm run film:record
+                     # steps it frame by frame into film.mp4 (E2E_CHROMIUM=… for an installed browser, needs ffmpeg)
 npm run fixture:av   # rebuilds fixtures/av (test song + a real capture of the bridge's OSC; stems to --stems); needs a build
 npm run av:replay    # plays fixtures/av/osc-capture.jsonl.gz to 127.0.0.1:7000 (-- --to host:port --loop --speed 1)
 npm run song:setup   # the song analyzer's Python environment (~10 min, 2.2 GB, once per machine/session)
@@ -239,6 +244,10 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   (`templates/studies/<id>.js`, from a blueprint: form, chords, grooves, sounds — no melody, lyrics or audio) and its
   card (`docs/studies/<id>.md`) are committed. Audio goes to fal.ai only when the user says so. Follow the method's
   checks before stating anything (tempo agreement, downbeat vote, key votes, `?` chords, section names).
+- **The film** (`tools/film`, `docs/film.md`): everything on screen comes from the synth — the levels are read from
+  the voices through `renderPatch({ tap })` (it only looks: the audio must be the same with and without it), never
+  drawn by hand. `draw(t)` must stay a pure function of `t` (no state between frames, seeded `rnd` only): the live
+  page and the frame-by-frame recorder have to show the same pictures. Outputs go to `uploads/`, never into git.
 - **Spatial**: an insert with `spatial.enabled` is a 3D object; the `SpatialRig` (not the stereo router) connects it.
   Exports are rendered by the `spatial` job; positions automate `spatialX/Y/Z`. See `docs/spatial.md`.
 - **Samples**: a sample's audio can be replaced (wave editor "Replace original", `edit_sample saveAs=replace`): the id stays,

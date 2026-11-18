@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   renderPatch, GgsVoice, GgsFx, WAVETABLE_IDS, getWavetable, tableLevel, levelFor, levelHarmonics, LEVELS, FRAME, STRIDE,
   describeWavetables, wavetablePreview, wavetableSpectrum, halfbandCoefs, Decimator2, fft, completeParams, ggsDefaults,
-  GGS_PARAMS, releaseTail, needsOversampling, syncBeats, MOD_SOURCES, MOD_TARGETS
+  GGS_PARAMS, releaseTail, needsOversampling, syncBeats, MOD_SOURCES, MOD_TARGETS, GGS_PRESETS
 } from '../src/index.js';
 
 const freq = (key) => 440 * Math.pow(2, (key - 69) / 12);
@@ -406,4 +406,36 @@ test('a note has a place in a tuning: `tune` moves its pitch by cents, on top of
   assert.ok(Math.abs(1200 * Math.log2(hz(50) / plain) - 50) < 0.5, 'half a semitone up');
   assert.ok(Math.abs(1200 * Math.log2(hz(-13.686) / plain) + 13.686) < 0.5, 'a just major third is 13.7 cents flat of the tempered one');
   assert.equal(hz(undefined), plain, 'no tuning: the note is what it was');
+});
+
+test('a tap sees every voice of a render and changes nothing', () => {
+  const params = { ...GGS_PRESETS.Kaleidoscope };
+  const first = { key: 60, velocity: 0.8, start: 0, duration: 0.5 };
+  const second = { key: 67, velocity: 0.6, start: 0.25, duration: 0.5 };
+  const plain = renderPatch({ params, notes: [first, second], seconds: 1.2, sampleRate: 44100 });
+  const seen = new Map();
+  let blocks = 0;
+  const env3 = MOD_SOURCES.indexOf('env3');
+  const tapped = renderPatch({
+    params, notes: [first, second], seconds: 1.2, sampleRate: 44100,
+    tap: (frame, count, voices) => {
+      blocks++;
+      assert.ok(count > 0 && count <= 128);
+      for (const { note, voice } of voices) {
+        const row = seen.get(note.ref) || { frames: [], strike: [] };
+        row.frames.push(frame);
+        row.strike.push(voice.src[env3]);
+        seen.set(note.ref, row);
+      }
+    }
+  });
+  assert.deepEqual(tapped.channels[0], plain.channels[0], 'the same audio');
+  assert.deepEqual(tapped.channels[1], plain.channels[1]);
+  assert.equal(blocks, Math.ceil((1.2 * 44100) / 128));
+  assert.ok(seen.has(first) && seen.has(second), 'each note is handed back as the object that was passed in');
+  assert.ok(seen.get(second).frames[0] >= Math.floor((0.25 * 44100) / 128) * 128 - 128, 'a voice is seen from the block it starts in');
+  // what the tap reads is what the voice does: the strike's envelope is at its top at once and has fallen half a second later
+  const strike = seen.get(first).strike;
+  assert.ok(strike[1] > 0.8, `strike at the start ${strike[1]}`);
+  assert.ok(strike[strike.length - 1] < 0.2);
 });

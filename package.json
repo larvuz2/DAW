@@ -1,6 +1,6 @@
 {
   "name": "ggs",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "private": true,
   "description": "GGS - a browser-based, pattern-and-playlist DAW (Node.js + React) with an MCP server so Claude can make beats with you.",
   "license": "MIT",
@@ -21,6 +21,8 @@
     "mcp": "node server/src/mcp/stdio.js",
     "test": "npm test -w packages/core && npm test -w packages/synth-dsp && npm test -w packages/chord-grid && npm test -w server && npm test -w client",
     "docs:av": "node scripts/av-bible.mjs",
+    "film": "node tools/film/kaleidoscope.mjs",
+    "film:record": "node tools/film/record.mjs",
     "docs:mcp": "cd server && node ../scripts/gen-mcp-docs.mjs",
     "test:e2e": "npm run build && playwright test",
     "screenshots": "npm run build && SCREENSHOTS=1 playwright test e2e/screenshots.spec.js",

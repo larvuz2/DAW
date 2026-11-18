@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaleidoscope Film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root { --night: #05070f; --ink: #f4e9d2; --dim: #8f8672; --amber: #ffb347; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--night); color: var(--ink); overflow: hidden; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #wrap { position: fixed; inset: 0; display: grid; place-items: center; }
+  #stage { display: block; width: min(100vw, calc(100vh * 16 / 9)); height: auto; aspect-ratio: 16 / 9; cursor: pointer; }
+  #start {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 14px;
+    padding: 16px 30px 16px 24px; border-radius: 999px; border: 1px solid rgba(255, 179, 71, 0.55); background: rgba(8, 11, 22, 0.72);
+    color: var(--ink); font: 400 17px/1 "Inter", system-ui, sans-serif; letter-spacing: 0.04em; cursor: pointer;
+    box-shadow: 0 0 60px rgba(255, 170, 60, 0.18), inset 0 0 24px rgba(255, 170, 60, 0.08); backdrop-filter: blur(6px); transition: opacity 0.4s, border-color 0.2s;
+  }
+  #start:hover, #start:focus-visible { border-color: var(--amber); outline: none; }
+  #start[hidden] { display: none; }
+  #start .tri { width: 0; height: 0; border-left: 15px solid var(--amber); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+  #start small { color: var(--dim); font-size: 13px; letter-spacing: 0.08em; }
+  body.record #start { display: none; }
+  body.record #stage { width: 1920px; height: 1080px; cursor: default; }
+  body.record #wrap { place-items: start; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="stage" width="1920" height="1080" aria-label="Kaleidoscope: an animated score of a 36-second piece, with a playhead moving across the voices of each chord"></canvas></div>
+<button id="start" type="button"><span class="tri"></span><span>Play</span><small>36 s · sound on</small></button>
+<script>window.FILM = { data: "__DATA__", audioType: "__AUDIO_TYPE__", audio: "__AUDIO__" };</script>
+<script>/*__PLAYER__*/</script>
+</body>
+</html>
