@@ -16,6 +16,7 @@ Starting points, not rules — change one thing per genre to make it the user's 
 | Afrobeats | 100–115 | major, mixolydian; bright | `afrobeats` | `streaming` |
 | Pop / band | 90–125 | major, I–V–vi–IV family | `straight` (light humanize) | `streaming` |
 | Cinematic / ambient | 60–90 | minor, lydian, modal | `straight` | `streaming` / `apple-music` |
+| Post-classical ambient jazz (GoGo Penguin, Ólafur Arnalds, Hania Rani, Jakob Bro…) | 60–76 still, 100–118 pulse | natural minor, dorian, lydian; add9 / sus2 / M7 / m9 / m11, no altered dominants | `straight`, humanize 15–25, no swing | `apple-music` or quieter |
 | Beatbox / a cappella hip hop | 85–100 | minor, dorian | `boom-bap` | `hip-hop` |
 | Bollywood / Indian fusion | 90–110 (dhol/tabla grooves), 70–85 ballads | a thaat (bhairav, kafi = dorian, yaman = lydian) over a Sa–Pa drone | `straight`, light humanize | `streaming` |
 | East Asian lo-fi / cinematic | 70–90 | hirajoshi, inSen, yo, major pentatonic | `lo-fi` or `straight` | `lo-fi` / `streaming` |
@@ -106,3 +107,17 @@ bar. Leads an octave above the chords' register.
 - **East Asian**: koto or guzheng arpeggios in hirajoshi / pentatonic (`add_chords style arp-up` with sus2/5 chords, or
   `write_melody`), shakuhachi or erhu on long notes with slides, taiko on the downbeats (Odaiko) with Shime 8ths, a gong
   hit (Opera Gong) at section changes.
+
+## Post-classical ambient jazz
+
+One soft lead (Grand Piano **Felt** or **Upright**, Guitar **Nylon** / **Clean Electric**, Electric Piano **Wurli**)
+playing a short figure that repeats and changes one thing every two bars, over two to four slow diatonic chords
+coloured with added notes — take them from `chord_grid` (add9, sus2, M7, m9, 6/9; the Ext forms m11 and M7#11) and
+write them with `add_grid_chords` voicing `open` or `piano`, leading `follow`, strum 25–45, humanize 15–25. No
+tensions on dominants, no tritone substitutes: here colour is added, not altered, and a borrowed chord (iv, bVI,
+bVII) is an event kept for the last third. Bass = one long **Upright** note per chord; drums none, or rim / shaker /
+cymbal only. Form is an additive arc — the figure alone, a layer every 4–8 bars (left hand, bass, Slow Strings, a
+GGS **Velvet Pad** an octave under), a peak by register and density on the same harmony, layers out, the last chord
+left to ring — not verse and chorus. Space: `algoverb` send with a 3–5 s damped decay, `lofi` for tape drift on the
+piano, nothing bright, no limiter pushing. Silence is a part: leave rests. The full study, with sources, is
+`docs/styles/post-classical-ambient-jazz.md` in the repository.
