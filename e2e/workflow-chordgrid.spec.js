@@ -288,3 +288,29 @@ test('Claude reads the same grid and writes chords from it', async () => {
   expect(pcs(notes.filter((n) => n.start >= 384 && n.start < 576))).toEqual([0, 5, 8]);
   expect(errors).toEqual([]);
 });
+
+test('the post-classical template (a piece on the grid\'s chords) opens and renders: quiet, dynamic, the limiter idle', async () => {
+  test.setTimeout(240000);
+  const made = await claude.call('create_project', { name: 'Winter Light', template: 'postclassical' });
+  expect(made).toMatch(/Winter Light/);
+  await expect(page).toHaveTitle(/Winter Light/);
+  const p = await project();
+  expect([p.bpm, p.key, p.scale, p.channels.length]).toEqual([108, 'E', 'minor', 9]);
+  await expect(page.locator('.playlist')).toBeVisible();
+  // (the mix only, without a render of each channel on its own: 72 bars are long enough once)
+  const r = await claude.client.callTool({ name: 'render_mix', arguments: { mode: 'song', compareTo: 'none', stems: false } }, undefined, { timeout: 200000 });
+  expect(r.isError).toBeFalsy();
+  const mix = r.content.map((c) => c.text).join('\n');
+  const lufs = Number(/Loudness: (-?[\d.]+) LUFS/.exec(mix)[1]);
+  const peak = Number(/true peak (-?[\d.]+) dBTP/.exec(mix)[1]);
+  expect(lufs).toBeGreaterThan(-23);
+  expect(lufs).toBeLessThan(-17);
+  expect(peak).toBeLessThan(-1.5);
+  expect(mix).toMatch(/Master limiter: gain reduction avg 0 dB, max 0 dB/);
+  // the arc: the opening four bars are at least 5 dB under the loudest four
+  const slots = [.../\b\d+:(-[\d.]+)/g[Symbol.matchAll](/Loudness per 4 bars: (.*)/.exec(mix)[1])].map((m) => Number(m[1])).filter((v) => v > -60);
+  expect(Math.max(...slots) - slots[0]).toBeGreaterThan(5);
+  expect(slots.indexOf(Math.max(...slots))).toBeGreaterThanOrEqual(8); // the peak is in bars 33–48
+  expect(slots.indexOf(Math.max(...slots))).toBeLessThanOrEqual(11);
+  expect(errors).toEqual([]);
+});

@@ -119,5 +119,6 @@ bVII) is an event kept for the last third. Bass = one long **Upright** note per 
 cymbal only. Form is an additive arc — the figure alone, a layer every 4–8 bars (left hand, bass, Slow Strings, a
 GGS **Velvet Pad** an octave under), a peak by register and density on the same harmony, layers out, the last chord
 left to ring — not verse and chorus. Space: `algoverb` send with a 3–5 s damped decay, `lofi` for tape drift on the
-piano, nothing bright, no limiter pushing. Silence is a part: leave rests. The full study, with sources, is
-`docs/styles/post-classical-ambient-jazz.md` in the repository.
+piano, nothing bright, no limiter pushing. Silence is a part: leave rests. `create_project template="postclassical"`
+opens a finished example ("Winter Light", E minor, 108 BPM) to start from or to read with `get_project`. The full
+study, with sources, is `docs/styles/post-classical-ambient-jazz.md` in the repository.

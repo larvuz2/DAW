@@ -10,7 +10,7 @@
 | [Studio effects and the engine instruments](effects-and-instruments.md) | The fourteen DSP effects (true-peak limiter, reverbs, OTT, shifter, disperser…), the Analog, Additive and Modal instruments, the GGS Synth's unison laws and oversampled drive — with what was measured |
 | [The chord grid](chord-grid.md) | Harmony → Grid: every chord of the key, borrowed chords, smart chords, voicings, tensions, the track of cards — Tuple's chord engine in the studio — and Claude's `chord_grid` / `add_grid_chords` |
 | [Harmony and tuning](harmony-and-tuning.md) | The Harmony window (chords that fit, progressions, substitutes, the library), tuning systems with exact ratios, and the tools Claude has for both |
-| [Style study: post-classical ambient jazz](styles/post-classical-ambient-jazz.md) | What GoGo Penguin, Ólafur Arnalds, Hania Rani, Jakob Bro and others share — instruments, harmony, time, form, sound — with sources, and a recipe for making it in the studio |
+| [Style study: post-classical ambient jazz](styles/post-classical-ambient-jazz.md) | What GoGo Penguin, Ólafur Arnalds, Hania Rani, Jakob Bro and others share — instruments, harmony, time, form, sound — with sources, a recipe for making it in the studio, and the template that is its demo piece ("Winter Light") |
 | [Per-note expression](expression-engine.md) | Pitch / pressure / slide curves in every note: the model, the piano-roll lane, MPE input and recording, MPE MIDI files |
 | [Audio benchmarks](audio-benchmarks.md) | Measured signal quality (tuning, aliasing, zipper noise, repeatability), CPU per voice and the preset loudness policy |
 | [Spatial audio](spatial.md) | Atmos-style 3D objects, binaural monitoring, 5.1 / 7.1 / 7.1.4, object stems and ADM BWF exports |

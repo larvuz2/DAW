@@ -135,7 +135,18 @@ bright synth leads; side-chain pumping; harmonic-minor cadences; lyrics that tel
 
 ## Making it in GreanTeaDawy
 
-A starting point for Claude or for you; change one thing to make it yours.
+**The template.** *New from template → Post-classical ambient jazz* (`create_project template="postclassical"`)
+opens **"Winter Light"**: 72 bars in E minor at 108 BPM, a little under three minutes, built the way this page
+describes. A felt-piano figure in 3+3+2 opens alone and thinned out; the left hand joins, then an upright bass and a
+pad, then strings and a three-note vibraphone cell on four other chords — the last of them A major, borrowed, whose
+C♯ is the only note from outside the key; at the peak a second piano answers from left and right in quiet
+sixteenths, a shaker and a rim keep time as colour and a cello has the one line that could be called a tune; then
+the layers leave in turn and the first chord is rolled once and left to ring. The chords are the chord grid's
+(Two Hands voicing for the piano, Open for strings and pad, led by "Follow"). Rendered by the studio it measures
+−19.9 LUFS with peaks at −3 dB, the limiter never working, and 9 dB between the opening and the peak. It has been
+checked by its notes and by the meter, not by ear: use it as a place to start and trust your own.
+
+The recipe behind it — a starting point for Claude or for you; change one thing to make it yours.
 
 | | Choice |
 |---|---|

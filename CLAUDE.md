@@ -111,7 +111,8 @@ tools/song-analyzer/  song studies: the Python analyzer (stems, beats, key, chor
 uploads/              (git-ignored) songs being studied and their analysis output — never committed
 plugins/examples/     example plugins (npm run plugin:pack -- --examples → plugins/dist/*.zip)
 skills/               music-production skills for Claude Desktop / claude.ai users (npm run skills:pack)
-docs/                 user & developer docs; docs/MCP.md is generated
+docs/                 user & developer docs; docs/MCP.md is generated; docs/styles/ = style studies (what a genre's artists
+                      share, with sources, and its recipe here — the template templates/postclassical.js is the first one's piece)
 ```
 
 ## Commands

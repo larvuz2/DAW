@@ -17,7 +17,7 @@ user's open studio. This skill is the producer's workflow on top of the tools. T
    like a Metro Boomin intro"). If the user gave nothing, pick from [genres.md](genres.md) and say what you chose.
 3. Existing project? `get_project` first and build on it; otherwise `create_project` (a genre `template` gives a
    pre-mixed starting kit: trap, drill, house, boombap, lofi, neosoul, techno, dnb, synthwave, disco, afrobeats,
-   reggaeton, bossanova, band, cinematic, beatbox, indian, eastasian) and `save_version` before big
+   reggaeton, bossanova, band, cinematic, postclassical, beatbox, indian, eastasian) and `save_version` before big
    rewrites.
 
 ## The build (in this order)

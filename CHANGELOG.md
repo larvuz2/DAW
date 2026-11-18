@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.21.0 — Post-classical ambient jazz: a style study, a template, a piece
+
+- **A style study** (`docs/styles/post-classical-ambient-jazz.md`): what GoGo Penguin, Ólafur Arnalds, Hania Rani,
+  Svaneborg Kardyb, Jakob Bro, Eivind Aarset, Dominic Miller and Lambert share — instruments and roles, harmony
+  coloured by adding rather than altering, cells instead of themes, pulse or breath but never swing, four common
+  forms, the sound — from interviews, reviews and one published score analysis, marked where it describes rather
+  than measures, with a recipe for the studio. The beat-making skill's genre recipes have the style too.
+- **A template that is a piece**: *New from template → Post-classical ambient jazz* opens "Winter Light" — 72 bars in
+  E minor at 108 BPM. A felt-piano figure in 3+3+2 that changes one thing every two bars, on chords from the chord
+  grid (Em9, CM9, Gadd9, Dadd9; then Am9 … and a borrowed A major); an additive arc from the figure alone, through
+  left hand, upright bass, pad, strings, a vibraphone cell, a cello line and a second piano answering from left and
+  right, to a peak and back to one rolled chord. One shared hall and a quiet echo; no kick, no snare, no limiter at
+  work. Rendered it measures −19.9 LUFS, true peak −3 dB, 9 dB from opening to peak. Its tests check the notes
+  against what the study says the style is. It has not been judged by ear.
+
 ## 0.20.0 — The chord grid
 
 **Every chord of the key on one grid.** The Harmony window opens on a new **Grid** tab: seven colour-coded columns

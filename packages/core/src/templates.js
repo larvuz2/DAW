@@ -22,6 +22,7 @@ import disco from './templates/disco.js';
 import neosoul from './templates/neosoul.js';
 import bossanova from './templates/bossanova.js';
 import cinematic from './templates/cinematic.js';
+import postclassical from './templates/postclassical.js';
 import beatbox from './templates/beatbox.js';
 import expressive from './templates/expressive.js';
 import tour from './templates/tour.js';
@@ -31,7 +32,7 @@ import { didYouMean } from './suggest.js';
 
 // in the order the template menus list them
 // (song studies — templates/studies, see docs/song-studies.md — come after the genres)
-const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox, expressive, tour, ...STUDIES };
+const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, postclassical, beatbox, expressive, tour, ...STUDIES };
 
 export const TEMPLATES = {
   default: { label: 'Default (4 drum channels)', bpm: 130 },
