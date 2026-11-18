@@ -11,3 +11,7 @@ playwright-report/
 # Python
 __pycache__/
 *.pyc
+
+# Song studies: the analyzer's environment, uploaded audio and raw analysis output never go into the repository
+tools/song-analyzer/.venv/
+uploads/

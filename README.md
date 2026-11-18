@@ -82,6 +82,9 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
   eight **visual lanes** you draw like automation, every control of the mix, the GGS Synth's live envelopes, LFOs
   and filter sweeps, where each 3D object stands in the room, and how each note bends and presses while it sounds. A recorded test song replays without the studio
   (`npm run av:replay`) — [docs/av-bridge.md](docs/av-bridge.md).
+- **Song studies** — upload a song you like in a Claude session: it is analysed there (stems, tempo, key, chords,
+  form, grooves, sounds, mix) and comes into the studio as a template with a study card
+  ([docs/song-studies.md](docs/song-studies.md)).
 - **Export formats** — WAV (16/24-bit), and with ffmpeg on the server MP3, AAC, Ogg Vorbis, Opus, FLAC, Apple
   Lossless, AIFF (Settings → Audio export shows what's available).
 - **Plugins** — add your own **instruments** (DSP code or multisampled), **effects** and **note generators** as `.zip`
@@ -255,6 +258,7 @@ Add HTTPS for other computers with the bundled Caddy profile (`docker compose --
 | [Making music with Claude](docs/claude-mcp.md) | connecting, tokens, `render_mix`, tips |
 | [MCP reference](docs/MCP.md) | all tools and parameters (generated) |
 | [GGS Synth](docs/ggs-synth.md) | the wavetable/FM synth: signal path, modulation, presets, patch documents |
+| [Song studies](docs/song-studies.md) | understanding a song you upload and taking it into the studio as a preset; the method: [song-analysis-method.pdf](docs/song-analysis-method.pdf) |
 | [Audio → visual bridge](docs/av-bridge.md) | *Send to visuals*: every OSC address, `AV_OSC`, the WebSocket feed, visual lanes, the test fixture and replay |
 | [Audio → visual bible](docs/av-bible.pdf) (PDF, Spanish) | everything the studio can send to TouchDesigner / Blender / Unreal: the OSC bridge, live WebSocket, REST, exports, every variable with its range (`npm run docs:av` regenerates it) |
 | [Per-note expression](docs/expression-engine.md) | pitch / pressure / slide curves, the expression lane, MPE input, MIDI |

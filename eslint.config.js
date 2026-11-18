@@ -5,7 +5,8 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
-  { ignores: ['**/node_modules/**', '**/dist/**', 'data/**', 'test-results/**', 'playwright-report/**'] },
+  // (tools/song-analyzer/.venv is the analyzer's Python environment, uploads/ the songs being studied: neither is ours to lint)
+  { ignores: ['**/node_modules/**', '**/dist/**', 'data/**', 'test-results/**', 'playwright-report/**', '**/.venv/**', 'uploads/**'] },
   js.configs.recommended,
   {
     files: ['**/*.{js,mjs,jsx}'],

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.19.0 — Song studies
+
+**Learn from a song you like.** Upload a song in a Claude session on this repository and ask to understand it: the
+session separates the stems, measures tempo, meter, key, chords, structure, grooves, instruments, notes, timbre and
+mix, and brings what is worth keeping into the studio as a preset — a template under *New from template → Study: …* —
+with a study card that says what was found and how far to trust it (`docs/song-studies.md`).
+
+- **It is a workflow in the session, not a feature of the app** (the analysis needs ~2 GB of models and minutes per
+  song): `tools/song-analyzer`, ported from GGS Composer, with the studio's own loudness meter so a song and its
+  rebuild compare like for like; the `song-study` skill tells Claude how to run it and what to check.
+- **Blueprints**: what a study keeps of a song — tempo, feel, key, sections, chord progressions (as symbols and as
+  numerals in the key), drum grooves, bass rhythm, kinds of sound, reverb and kick-ducking — and never its melody,
+  lyrics or audio. A saved study is a small file in `packages/core/src/templates/studies/` and opens like any genre
+  template.
+- **In your hands, privately**: a project with the transcription (a channel per stem, a pattern per section), the
+  stems as FLAC, drum one-shots cut from the drum stem, the full report with figures, and the preset rendered by the
+  studio with its loudness and band balance beside the original's.
+- Checked here on the test song of `fixtures/av` (content known): tempo 120.0, 4/4, all 16 bars of chords, the three
+  playing stems, "synthesizer + drum machine"; its A minor was read as the relative C major and two of its four
+  sections were found — the weaknesses the method documents, and the card says them. A `--downbeat-shift` option
+  corrects bar lines when the quick mode puts them off.
+- Audio is separated on the session's machine by default; it goes to fal.ai only when you say so. Uploads and
+  analysis output are git-ignored.
+
 ## 0.18.0 — Send to visuals, phase 3: the room and the touch
 
 **The last phase of the audio → visual bridge:** with *☰ → Send to visuals* on, the visuals now also get

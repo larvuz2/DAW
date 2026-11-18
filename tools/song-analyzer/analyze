@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Usage: tools/song-analyzer/analyze <audio file> --out <dir> [--stems fal|local|mureka|mureka-direct|none] [--fast]
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="$HERE/.venv/bin/python"
+if [ ! -x "$PY" ]; then echo "virtual environment missing: run $HERE/setup.sh" >&2; exit 1; fi
+export PYTHONWARNINGS="${PYTHONWARNINGS:-ignore}" TF_CPP_MIN_LOG_LEVEL=3 OMP_NUM_THREADS="${OMP_NUM_THREADS:-$(nproc)}"
+export PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PY" -m songanalyzer "$@"

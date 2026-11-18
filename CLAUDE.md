@@ -35,7 +35,8 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
                       control values + GGS telemetry (phase 2), 3D positions + note expression (phase 3), spectrum
                       features, onset detector, avFrameToOsc (the OSC address map: add, never rename), encodeOsc/decodeOsc
   src/builders.js     chord/bass/melody/roll generators
-  src/templates.js    genre starter projects: build() + the menu order; each genre is src/templates/<id>.js { label, spec }
+  src/templates.js    genre starter projects: build() + the menu order; each genre is src/templates/<id>.js { label, spec };
+                      templates/blueprint.js = a song blueprint → spec, templates/studies/ = song studies saved as templates
   src/analysis.js     LUFS/peak/spectrum/tempo/key/pitch + createLevelMeter (streaming, used for render stems)
   src/audioedit.js    sample edits on clips { sampleRate, channels } (cut/paste/fades/gain/normalize/reverse/speed/stretch…),
                       applyEdit = one named op (what edit_sample sends); every op returns a NEW clip (undo keeps old ones)
@@ -95,6 +96,10 @@ client/src/
 client/public/        recorder-worklet.js (served as /recorder-worklet.js: CSP script-src 'self' allows addModule)
 e2e/                  Playwright specs (real browser + MCP client acting as Claude)
 fixtures/av/          audio → visual test song + a real capture of the bridge (npm run fixture:av / av:replay)
+tools/song-analyzer/  song studies: the Python analyzer (stems, beats, key, chords, structure, notes, timbre; its own
+                      .venv, git-ignored) + measure.mjs (the studio's meter), to-daw.mjs (analysis → blueprint, preview
+                      and transcription projects, study card, --save-template), audition.mjs, bundle.mjs
+uploads/              (git-ignored) songs being studied and their analysis output — never committed
 plugins/examples/     example plugins (npm run plugin:pack -- --examples → plugins/dist/*.zip)
 skills/               music-production skills for Claude Desktop / claude.ai users (npm run skills:pack)
 docs/                 user & developer docs; docs/MCP.md is generated
@@ -116,6 +121,9 @@ npm run docs:mcp     # regenerates docs/MCP.md from the live tool definitions
 npm run docs:av      # regenerates docs/av-bible.pdf (audio → visual bible, Spanish) from the catalogs (needs Chromium)
 npm run fixture:av   # rebuilds fixtures/av (test song + a real capture of the bridge's OSC; stems to --stems); needs a build
 npm run av:replay    # plays fixtures/av/osc-capture.jsonl.gz to 127.0.0.1:7000 (-- --to host:port --loop --speed 1)
+npm run song:setup   # the song analyzer's Python environment (~10 min, 2.2 GB, once per machine/session)
+                     # then: tools/song-analyzer/analyze <audio> --out uploads/analysis/<slug>; npm run song:study /
+                     # song:audition / song:bundle -- <args> (docs/song-studies.md, the song-study skill)
 npm run plugin:pack -- <folder> | --examples   # validate + zip a plugin
 npm run skills:pack  # zips skills/* for upload to Claude Desktop / claude.ai (skills/dist)
 npm start            # production server (serves client/dist)
@@ -215,6 +223,12 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   (`targetValuesAt` = `chaseAutomation`): change one, change both. GGS reports are watched per `who` (`setWatch(on,
   'editor' | 'av')`). Phase 3: `triggerNote` hands the tap a note's curves, `setVoiceExpression` calls `noteTap.expr`
   — keep both when changing how notes get their expression.
+- **Song studies** (`docs/song-studies.md`, the `song-study` skill): when the user uploads a song to understand, the
+  analysis runs in the session (`tools/song-analyzer`), never as an app feature. Audio, stems, transcriptions and
+  reports stay in `uploads/` (git-ignored) or go to the user as a zip; only the template
+  (`templates/studies/<id>.js`, from a blueprint: form, chords, grooves, sounds — no melody, lyrics or audio) and its
+  card (`docs/studies/<id>.md`) are committed. Audio goes to fal.ai only when the user says so. Follow the method's
+  checks before stating anything (tempo agreement, downbeat vote, key votes, `?` chords, section names).
 - **Spatial**: an insert with `spatial.enabled` is a 3D object; the `SpatialRig` (not the stereo router) connects it.
   Exports are rendered by the `spatial` job; positions automate `spatialX/Y/Z`. See `docs/spatial.md`.
 - **Samples**: a sample's audio can be replaced (wave editor "Replace original", `edit_sample saveAs=replace`): the id stays,
@@ -271,7 +285,7 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
 ## Project skills & agents
 
 See `.claude/skills/` (add-instrument, add-effect, add-mcp-tool, add-project-op, spatial-audio, plugin-system,
-write-plugin, export-formats, ggs-synth, test-and-qa, docs-and-release) and
+write-plugin, export-formats, ggs-synth, test-and-qa, docs-and-release, song-study) and
 `.claude/agents/` (`qa-reviewer` — read-only code review; `music-industry-advisor` — read-only product advice from a
 20-year music-industry veteran's perspective). The top-level `skills/` folder is different: skills for *users* making
 music with GreanTeaDawy from Claude Desktop / claude.ai (beat making, sound design & expression, mixing by numbers,

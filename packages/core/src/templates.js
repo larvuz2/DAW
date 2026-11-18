@@ -25,10 +25,13 @@ import cinematic from './templates/cinematic.js';
 import beatbox from './templates/beatbox.js';
 import expressive from './templates/expressive.js';
 import tour from './templates/tour.js';
+import { STUDIES } from './templates/studies/index.js';
+import { specFromBlueprint } from './templates/blueprint.js';
 import { didYouMean } from './suggest.js';
 
 // in the order the template menus list them
-const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox, expressive, tour };
+// (song studies — templates/studies, see docs/song-studies.md — come after the genres)
+const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox, expressive, tour, ...STUDIES };
 
 export const TEMPLATES = {
   default: { label: 'Default (4 drum channels)', bpm: 130 },
@@ -45,6 +48,7 @@ function build(spec) {
   // (a song with more parts than a new project has inserts gets the inserts it needs)
   while (p.mixer.length <= spec.channels.length + (spec.buses || []).length) p.mixer.push(createMixerInsert(p.mixer.length));
   p.swing = spec.swing || 0;
+  if (Array.isArray(spec.timeSig)) p.timeSig = spec.timeSig;
   const bar = ticksPerBar(p);
   const byName = {};
   const busIndex = {};
@@ -113,6 +117,13 @@ export function createProjectFromTemplate(template = 'default', opts = {}) {
   return p;
 }
 
+/** A project from a song blueprint (templates/blueprint.js): what a saved study opens as, before it is saved. */
+export function createProjectFromBlueprint(blueprint, opts = {}) {
+  const spec = specFromBlueprint(blueprint);
+  if (opts.name) spec.name = opts.name;
+  return build(spec);
+}
+
 /** Move a template's melodic parts to another key root (nearest direction, drums untouched). */
 function transposeToKey(p, key) {
   const from = parsePitchClass(p.key || 'C');
@@ -139,3 +150,5 @@ function transposeToKey(p, key) {
   // a tuning built on the song's key moves with it (its chords stay the ratios they were)
   if (p.tuning && p.tuning.system !== 'equal') p.tuning = { ...p.tuning, root: p.key };
 }
+
+export { specFromBlueprint, playableChord } from './templates/blueprint.js';
