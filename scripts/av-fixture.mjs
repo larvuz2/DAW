@@ -38,6 +38,9 @@ if (!fs.existsSync(path.join(ROOT, 'client/dist/index.html'))) {
 // ---- the OSC port the bridge sends to: every message as it arrives
 const udp = dgram.createSocket('udp4');
 await new Promise((r) => udp.bind(0, '127.0.0.1', r));
+// a frame can be hundreds of datagrams at once: the default receive buffer (~200 KB) would drop the end of the
+// biggest ones, and the capture would lie about what the bridge sends
+try { udp.setRecvBufferSize(4 << 20); } catch { /* the system's limit is lower: the checks below will say */ }
 const capture = [];
 let t0 = null;
 udp.on('message', (buf) => {
@@ -191,6 +194,15 @@ try {
     markers: capture.filter(([, a]) => a === '/gtd/marker').map(([t, , , name, tick]) => ({ t, name, tick })),
     stems: written
   };
+  // a capture that lost messages is no reference: every frame's transport, the map every 2 s, the latency every second
+  const seconds = summary.seconds;
+  const problems = [
+    (count['/gtd/transport/time'] || 0) < frames - 2 && 'frames without their clock',
+    (count['/gtd/map'] || 0) < Math.floor(seconds / 2) && 'maps missing',
+    (count['/gtd/latency'] || 0) < Math.floor(seconds) - 1 && 'latency missing',
+    !(count['/gtd/spatial/6'] > seconds) && '3D positions missing'
+  ].filter(Boolean);
+  if (problems.length) throw new Error(`the capture is incomplete (${problems.join(', ')}): the UDP receive buffer (${udp.getRecvBufferSize()} bytes) is too small`);
   fs.writeFileSync(path.join(OUT, 'capture-summary.json'), `${JSON.stringify(summary, null, 1)}\n`);
   const MOVES = {
     'Pad filter': "the pad's filter cutoff, bars 5–8 (0 = 20 Hz … 1 = 20 kHz, log)",

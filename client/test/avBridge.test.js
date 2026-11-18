@@ -27,6 +27,21 @@ function fakeEngine() {
   };
 }
 
+/** Every phase 2/3 value a frame carries, as "address" strings. */
+function phase2Values(f) {
+  const out = [];
+  for (const [ch, v] of Object.entries(f.param || {})) for (const k in v) out.push(`ch/${ch}/${k}`);
+  for (const [n, v] of Object.entries(f.busParam || {})) for (const k in v) out.push(`bus/${n}/${k}`);
+  for (const [n, fx] of Object.entries(f.fx || {})) for (const [e, v] of Object.entries(fx)) for (const k in v) out.push(`fx/${n}/${e}/${k}`);
+  for (const [ch, g] of Object.entries(f.ggs || {})) {
+    if (g.voices !== undefined) out.push(`ggs/${ch}/voices`);
+    for (const k in g.src || {}) out.push(`ggs/${ch}/src/${k}`);
+    for (const k in g.dst || {}) out.push(`ggs/${ch}/dst/${k}`);
+  }
+  for (const n in f.spatial || {}) out.push(`spatial/${n}`);
+  return out;
+}
+
 function setup() {
   mock.timers.enable({ apis: ['setInterval'] });
   const engine = fakeEngine();
@@ -260,25 +275,37 @@ test('phase 2: every control and the GGS Synth on the first frame, then only wha
   assert.equal(Object.keys(first.ggs.lead.dst).length, MOD_TARGETS.length - 1);
   assert.equal(first.ggs.lead.voices, 0);
   assert.deepEqual(watched[0], ['ch_lead', true, 'av'], 'the voices of every GGS channel report while the bridge is on');
-  // nothing changed: nothing of phase 2 goes out
+  const all = phase2Values(first);
+  // nothing changed: only the few values whose turn it is to be sent again (each once a second, spread out)
   const quiet = step();
-  assert.ok(!quiet.full && !quiet.param && !quiet.busParam && !quiet.fx && !quiet.ggs);
+  assert.ok(!quiet.full);
+  assert.ok(phase2Values(quiet).length < all.length / 10, `${phase2Values(quiet).length} of ${all.length}`);
   // a note sounds: only its moving values go out
   live = new Float32Array(MOD_SOURCES.length + MOD_TARGETS.length);
   live[MOD_SOURCES.indexOf('env1')] = 0.7;
   live[MOD_SOURCES.length + MOD_TARGETS.indexOf('f1Cutoff')] = 0.2;
   const moving = step();
-  assert.deepEqual(Object.keys(moving.ggs.lead.src), ['env1']);
-  assert.deepEqual(Object.keys(moving.ggs.lead.dst), ['f1Cutoff']);
+  assert.equal(moving.ggs.lead.src.env1, 0.7);
+  assert.ok(moving.ggs.lead.dst.f1Cutoff[0] > first.ggs.lead.dst.f1Cutoff[0]);
   assert.equal(moving.ggs.lead.voices, 2);
+  assert.ok(phase2Values(moving).length < all.length / 10);
   // an edit: that one value
   state.project = applyOps(state.project, [{ type: 'channel/update', id: state.project.channels[0].id, patch: { pan: 1 } }]);
   const edited = step();
-  assert.deepEqual(edited.param, { kick: { pan: 1 } });
-  // once a second, everything again (for a visual app that starts listening late)
-  let fulls = 0;
-  for (let i = 0; i < AV_FPS; i++) if (step().full) fulls++;
-  assert.equal(fulls, 1);
+  assert.equal(edited.param.kick.pan, 1);
+  // within a second, everything again (for a visual app that starts listening late) — spread over the second's
+  // frames, never all in one (a burst of hundreds of UDP messages that a small receive buffer would cut short)
+  const seen = new Set();
+  let biggest = 0;
+  for (let i = 0; i < AV_FPS; i++) {
+    const f = step();
+    assert.ok(!f.full);
+    const v = phase2Values(f);
+    v.forEach((k) => seen.add(k));
+    biggest = Math.max(biggest, v.length);
+  }
+  assert.deepEqual(all.filter((k) => !seen.has(k)), []);
+  assert.ok(biggest < all.length / 5, `the biggest frame: ${biggest} of ${all.length}`);
   bridge.stop();
   assert.deepEqual(watched.at(-1), ['ch_lead', false, 'av'], 'and they stop when it goes off');
 });
@@ -292,7 +319,7 @@ test('phase 2 recovers: a lost frame or a takeover sends everything next; a chan
   engine.ggsLive = () => null;
   engine.ggsVoices = () => 0;
   step();
-  assert.ok(!step().param, 'nothing changed');
+  assert.ok(!step().full, 'nothing changed');
   // the connection was down for a frame: the next one carries everything
   bridge.send = (f) => { sent.push(f); return false; };
   step();
@@ -392,4 +419,42 @@ test('phase 3: 3D objects go out when they move, all of them once a second', (t)
   let again = 0;
   for (let i = 0; i < AV_FPS; i++) if (step().spatial) again++;
   assert.equal(again, 1);
+});
+
+test('phase 3: nothing about a note after its off; two notes on one key each speak for themselves; a killed voice is over', (t) => {
+  t.after(() => mock.timers.reset());
+  const { engine, project, step } = setup();
+  const ch = project.channels[1];
+  engine.transport.play(10);
+  step();
+  const curves = { pitch: [{ t: 0, v: 0 }, { t: 1, v: 12 }] };
+  // short notes ending at every point of a frame: never an expr after (or in the same frame as) the note's off
+  const frames = [];
+  for (let n = 0; n < 8; n++) {
+    engine.noteTap.on(ch.id, 60 + n, 0.8, engine.ctx.currentTime + 0.01, 0.05 + n * 0.0021, {}, { curves, seconds: 0.05 + n * 0.0021 });
+    for (let i = 0; i < 8; i++) frames.push(avFrameToOsc(step()).filter(([a]) => /\/(off|expr\/pitch)$/.test(a)).map(([a, k]) => [a.split('/').pop(), k.i]));
+  }
+  // (read in the order a receiver gets them: within a frame the offs come before the expression values)
+  const ended = new Set();
+  for (const f of frames) {
+    for (const [kind, key] of f) {
+      if (kind === 'off') ended.add(key);
+      else assert.ok(!ended.has(key), `expr after the off of key ${key}`);
+    }
+  }
+  assert.ok(frames.flat().some(([kind]) => kind === 'pitch'));
+  // two notes on the same key at the same moment, with different curves: each sends its own changes, not all the time
+  const t0 = engine.ctx.currentTime + 0.01;
+  engine.noteTap.on(ch.id, 72, 0.8, t0, 2, {}, { curves: { pressure: [{ t: 0, v: 0.2 }, { t: 1, v: 0.2 }] }, seconds: 2 });
+  engine.noteTap.on(ch.id, 72, 0.8, t0, 2, {}, { curves: { pressure: [{ t: 0, v: 0.9 }, { t: 1, v: 0.9 }] }, seconds: 2 });
+  let n = 0;
+  for (let i = 0; i < 20; i++) n += (step().expr || []).length;
+  assert.ok(n <= 4, `${n} messages for two still notes`);
+  // a voice the engine has killed (a stop, a choke) takes no more expression
+  const voice = {};
+  engine.noteTap.on(ch.id, 50, 0.8, engine.ctx.currentTime + 0.001, null, voice);
+  step();
+  voice.killedAt = engine.ctx.currentTime;
+  engine.noteTap.expr(voice, 'pressure', 1);
+  assert.equal(step().expr, undefined);
 });

@@ -42,6 +42,22 @@ A program with the account's API token (☰ → Connect Claude) can open `ws://h
 It only ever gets its own account's frames, from one tab at a time (the same rule as OSC); a listener that can't keep
 up loses frames rather than queueing them.
 
+A frame's fields, and the OSC they become (`avFrameToOsc` in `packages/core/src/av.js` is the exact translation):
+`playing bpm tick ppq tpb time` (transport), `marker {name, tick}`, `offs [{ch, key, rel}]`, `notes [{ch, key, vel,
+dur, at}]`, `master {peak, rms, bands, spectrum, centroid, onset}`, `buses {n: peak}`, `ch {slug: level}`, `auto {id:
+v}`, `user [8]`, then phase 2: `param {slug: {key: v}}`, `busParam {n: {key: v}}`, `fx {n: {effect: {key: v}}}`,
+`ggs {slug: {voices, src: {key: v}, dst: {key: [value, n]}}}`, phase 3: `spatial {n: [x, y, z]}`, `expr [{ch, key,
+dim, v}]`, and `latency`, `map`, `full`, `final` (the last frame of a tab that switches off).
+
+### Receiving OSC: give the socket room
+
+A frame is up to a few hundred UDP messages sent at once (the first frame, with every control, is the biggest). A
+receiver whose socket buffer is small drops the end of a burst — that is where the map and the latency sit. Enlarge
+it: in Python `sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)` (python-osc: on the server's
+`socket`), in Node `socket.setRecvBufferSize(4 << 20)`; TouchDesigner's and Unreal's OSC receivers read on their own
+thread and keep up at these rates. On Linux the system caps it at `net.core.rmem_max`, on macOS at
+`kern.ipc.maxsockbuf`.
+
 ## The messages
 
 Every frame is a run of individual OSC messages (no bundles), always in this order: **transport → events →
@@ -97,11 +113,14 @@ within 1 ms for the first ~2 hours, 2 ms up to ~9 hours (reload the studio befor
 
 Automation and visual lanes follow the song position (in pattern mode and while stopped, the playlist's playhead).
 
-### Controls and the GGS Synth (phase 2: when they change, and all of them once a second)
+### Controls and the GGS Synth (phase 2: when they change, and each again once a second)
 
-These go out in a frame only when their value changed since the last frame — so a still mix costs nothing — and every
-one of them once a second (the WebSocket frame says `"full": 1`), so a visual app that starts late has them within a
-second. They come after the visual lanes and before the latency.
+These go out in a frame only when their value changed since the last frame — so a still mix costs nothing — and each
+one again once a second, in its own frame of the second (a few in every frame, never all in one: one burst of
+hundreds of UDP messages is what a receiver drops), so a visual app that starts late has them all within a second.
+A frame marked `"full": 1` (WebSocket) carries every value at once: the first frame, and the next one after a frame
+that could not be sent, a takeover of the OSC port, or a change in the project's names (a renamed channel). They come
+after the visual lanes and before the latency.
 
 | Address | Args | Meaning |
 |---|---|---|
@@ -121,18 +140,17 @@ voices report — as when the synth editor is open on a channel — which costs 
 nothing in the sound.
 
 A channel that goes away (deleted, renamed, or a GGS channel turned into another instrument) gets a last value once:
-`/gtd/ch/{channel}/param/mute 1`, and `/gtd/ggs/{channel}/voices 0` with its sources at 0. A frame that could not be
-sent, or a tab that takes over the OSC port, makes the next frame a full one. One frame becomes at most 4096 phase 2
-messages (a whole big project is about 1500).
+`/gtd/ch/{channel}/param/mute 1`, and `/gtd/ggs/{channel}/voices 0` with its sources at 0. One frame becomes at most
+4096 phase 2 and 3 messages (a whole big project is about 1500).
 
 ### 3D objects and note expression (phase 3)
 
-The same way as phase 2 — when they move, and all of them once a second — after the GGS values:
+The same way as phase 2 — when they move, and each again once a second — after the GGS values:
 
 | Address | Args | Meaning |
 |---|---|---|
 | `/gtd/spatial/{n}` | f f f | where 3D object n (a mixer insert) stands, in room units: x −1 (left) … 1 (right), y −1 (back) … 1 (front), z 0 (floor) … 1 (ceiling) — its place, or its `spatialX/Y/Z` automation while the song plays. Only while the project's spatial mix is on; the map lists the objects (`objects: [{insert, name}]`) |
-| `/gtd/ch/{channel}/expr/{pitch\|pressure\|timbre}` | i f | key, value: a sounding note's expression as it moves — its written curves (pitch in semitones −48…48, pressure and timbre 0…1), or a finger on an MPE controller. Only notes that have them, from the frame of their `note` to their end (a cut note stops at the cut). The key is the one its `note` gave |
+| `/gtd/ch/{channel}/expr/{pitch\|pressure\|timbre}` | i f | key, value: a sounding note's expression as it moves — its written curves (pitch in semitones −48…48, pressure and timbre 0…1), or a finger on an MPE controller. Only notes that have them, from the frame of their `note` to the frame before their `off` (a cut note stops at the cut). The key is the one its `note` gave; two notes on one key at once share the address. Pressure and timbre are sent as the performance says them, whatever the instrument does with them (the GGS Synth plays all three; the other instruments follow the pitch) |
 
 ### Occasional
 

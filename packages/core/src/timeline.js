@@ -124,3 +124,49 @@ export function allSongNotes(project) {
   for (const c of project.playlist.clips) end = Math.max(end, c.start + c.length);
   return songNotesInRange(project, 0, end + 1);
 }
+
+// ---- automation, the engine's way (shared by the audio → visual bridge and the spatial export)
+
+/** One string per automation target (what the engine keys its automated params by). */
+export const targetKey = (t) => `${t?.type}|${t?.id ?? ''}|${t?.index ?? ''}|${t?.effectId ?? ''}|${t?.param ?? ''}`;
+
+/**
+ * The song's automation clips, once per project state (projects are immutable: an edit makes a new object): each with
+ * its automation and target key, in order of start — so a frame looks only at the clips that have started, without
+ * searching the automations for every clip.
+ */
+const clipIndex = new WeakMap();
+export function automationClips(project) {
+  let list = clipIndex.get(project);
+  if (!list) {
+    const byId = new Map((project.automations || []).map((a) => [a.id, a]));
+    list = songAutomationInRange(project, 0, Number.MAX_SAFE_INTEGER, byId)
+      .map(({ clip, automation }) => ({ clip, automation, key: targetKey(automation.target), start: clip.start, end: clip.start + clip.length }))
+      .sort((a, b) => a.start - b.start);
+    clipIndex.set(project, list);
+  }
+  return list;
+}
+
+/** Which of two clips moving one target decides it: the one playing (the later start if both), else the one that ended last. */
+export const decidesAutomation = (was, playing, start, end) => !was || (playing && (!was.playing || start > was.start)) || (!playing && !was.playing && end > was.end);
+
+/**
+ * What automation does to each target at a song tick, as Transport.chaseAutomation does it: the clip playing, else
+ * the one that ended last — its last value is held. (Two clips playing at once on one target both write the param in
+ * the engine; the bridge takes the one that started last.) Returns Map targetKey → { v (0 … 1), playing, start, end };
+ * pitch is per note: only a clip playing moves it (see effectiveValuesAt). The audio → visual bridge computes it once per
+ * frame (av.js), the spatial export through objectPositionAt (spatial.js).
+ */
+export function targetValuesAt(project, tick) {
+  const out = new Map();
+  for (const { clip, automation, key, start, end } of automationClips(project)) {
+    if (start > tick) break;
+    const playing = end > tick;
+    if (!decidesAutomation(out.get(key), playing, start, end)) continue;
+    const offset = clip.offset || 0;
+    const v = automationValueAt(automation, playing ? tick - start + offset : clip.length - 1 + offset);
+    out.set(key, { v, playing, start, end });
+  }
+  return out;
+}

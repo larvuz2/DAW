@@ -6,7 +6,7 @@
 // with its encoder. The addresses are the contract with the visual side (docs/av-bible.pdf, chapter 7): add, never
 // rename.
 import { PPQ, AV_USER_LANES, MAX_VOLUME, MAX_INSERTS, MAX_EFFECTS_PER_INSERT, ticksPerBar } from './constants.js';
-import { songAutomationInRange, automationValueAt } from './timeline.js';
+import { automationValueAt, targetKey, targetValuesAt, automationClips, decidesAutomation } from './timeline.js';
 import { EFFECTS, normalizeParam } from './effects.js';
 import { MACRO_PARAMS } from './model.js';
 import { isSpatialObject, spatialToNorm, spatialFromNorm, normalizeInsertSpatial, SPATIAL_PARAMS } from './spatial.js';
@@ -92,49 +92,6 @@ export function avMap(project) {
   };
 }
 
-/** One string per automation target (what the engine keys its automated params by). */
-export const targetKey = (t) => `${t?.type}|${t?.id ?? ''}|${t?.index ?? ''}|${t?.effectId ?? ''}|${t?.param ?? ''}`;
-
-/**
- * The song's automation clips, once per project state (projects are immutable: an edit makes a new object): each with
- * its automation and target key, in order of start — so a frame looks only at the clips that have started, without
- * searching the automations for every clip.
- */
-const clipIndex = new WeakMap();
-function automationClips(project) {
-  let list = clipIndex.get(project);
-  if (!list) {
-    const byId = new Map((project.automations || []).map((a) => [a.id, a]));
-    list = songAutomationInRange(project, 0, Number.MAX_SAFE_INTEGER, byId)
-      .map(({ clip, automation }) => ({ clip, automation, key: targetKey(automation.target), start: clip.start, end: clip.start + clip.length }))
-      .sort((a, b) => a.start - b.start);
-    clipIndex.set(project, list);
-  }
-  return list;
-}
-
-/** Which of two clips moving one target decides it: the one playing (the later start if both), else the one that ended last. */
-const decides = (was, playing, start, end) => !was || (playing && (!was.playing || start > was.start)) || (!playing && !was.playing && end > was.end);
-
-/**
- * What automation does to each target at a song tick, as Transport.chaseAutomation does it: the clip playing, else
- * the one that ended last — its last value is held. (Two clips playing at once on one target both write the param in
- * the engine; the bridge takes the one that started last.) Returns Map targetKey → { v (0 … 1), playing, start, end };
- * pitch is per note: only a clip playing moves it (see effectiveValuesAt). Compute it once per frame and hand it to
- * automationValuesAt and effectiveValuesAt.
- */
-export function targetValuesAt(project, tick) {
-  const out = new Map();
-  for (const { clip, automation, key, start, end } of automationClips(project)) {
-    if (start > tick) break;
-    const playing = end > tick;
-    if (!decides(out.get(key), playing, start, end)) continue;
-    const v = automationValueAt(automation, playing ? tick - start + clip.offset : clip.length - 1 + clip.offset);
-    out.set(key, { v, playing, start, end });
-  }
-  return out;
-}
-
 /**
  * Every automation's value (0 … 1) at a song tick, the way the engine plays it: inside a clip, the curve at
  * tick − clip.start + clip.offset (looping over the automation's length); after a clip, its last value is held.
@@ -177,7 +134,7 @@ export function effectiveValuesAt(project, tick, { automated = true, targets = n
   const masterVal = (param, own) => {
     const a = autos.get(targetKey({ type: 'master', param }));
     const b = autos.get(targetKey({ type: 'mixer', index: 0, param }));
-    const win = a && b ? (decides(a, b.playing, b.start, b.end) ? b : a) : a || b;
+    const win = a && b ? (decidesAutomation(a, b.playing, b.start, b.end) ? b : a) : a || b;
     return unit(win?.v ?? own);
   };
   // an insert is silent when muted, or when another one is soloed and it doesn't play into it (engine.syncMixer)
@@ -414,13 +371,13 @@ const entries = (o, max) => (o && typeof o === 'object' && !Array.isArray(o) ? O
 const text = (v, max) => String(v ?? '').replace(/\0/g, '').slice(0, max);
 /**
  * The largest /gtd/map JSON sent as one OSC message: macOS refuses UDP datagrams over 9216 bytes by default. A bigger
- * map leaves out the automations, then the effects, then the markers; one still too big goes only as /gtd/map/ch/… messages (the
+ * map leaves out the automations, then the effects and the 3D objects, then the markers; one still too big goes only as /gtd/map/ch/… messages (the
  * WebSocket frame always carries the whole map).
  */
 export const AV_MAP_MAX_BYTES = 8000;
 function mapJson(map) {
   const enc = utf8;
-  const lean = { automations: [], effects: [] };
+  const lean = { automations: [], effects: [], objects: [] };
   for (const m of [map, { ...map, automations: [] }, { ...map, ...lean }, { ...map, ...lean, markers: [] }]) {
     let json = '';
     try { json = JSON.stringify(m).replace(/\0/g, ''); } catch { return ''; }

@@ -7,7 +7,7 @@ audio → visual bridge really sent while it played (see `docs/av-bridge.md` for
 |---|---|
 | `song.gtd.json` | the project (File → Import project file opens it in the studio) |
 | `song.mid` | the notes, one track per channel, 96 ticks per beat |
-| `osc-capture.jsonl.gz` | every OSC message the bridge sent, with its arrival time (102341 messages, 2068 frames at 59.7 per second) |
+| `osc-capture.jsonl.gz` | every OSC message the bridge sent, with its arrival time (117574 messages, 2072 frames at 59.8 per second) |
 | `capture-summary.json` | how many of each address, the markers with their times — to check a receiver against |
 | stems + mix | `01-kick.wav` … `06-lead.wav` and `mix.wav` (16-bit, 44.1 kHz stereo, 35.3 s: the 32 s song + its tail, all starting at bar 1): too big for the repository — make them with `npm run fixture:av` or ask for the zip |
 
@@ -30,15 +30,15 @@ Automation (`/gtd/auto/{id}`, 0…1, from the moment its clip starts, held after
 
 | id | name | moves |
 |---|---|---|
-| `auto_iz1m2631k1` | Pad filter | the pad's filter cutoff, bars 5–8 (0 = 20 Hz … 1 = 20 kHz, log) |
-| `auto_c8yrngp2l0` | Energy | visual lane 1 (nothing in the sound) |
-| `auto_53sw30vze8` | Strobe | visual lane 2 (nothing in the sound) |
-| `auto_4qktnyrty2` | Lead 3D X | the lead's position left (0) … right (1), bars 9–12 |
-| `auto_13zo6zgosw` | Lead 3D Y | the lead's position back (0) … front (1), bars 9–12 |
-| `auto_ulw057pvnl` | Reverb throw | the pad's reverb mix, bars 13–16 (also /gtd/fx/5/reverb/mix) |
+| `auto_b3gijeh9fh` | Pad filter | the pad's filter cutoff, bars 5–8 (0 = 20 Hz … 1 = 20 kHz, log) |
+| `auto_dbwtr335rx` | Energy | visual lane 1 (nothing in the sound) |
+| `auto_ibwccd2a7k` | Strobe | visual lane 2 (nothing in the sound) |
+| `auto_b14xa8fs3t` | Lead 3D X | the lead's position left (0) … right (1), bars 9–12 |
+| `auto_mdvkjjq3h4` | Lead 3D Y | the lead's position back (0) … front (1), bars 9–12 |
+| `auto_taq4ou31kj` | Reverb throw | the pad's reverb mix, bars 13–16 (also /gtd/fx/5/reverb/mix) |
 
 The lead's circle arrives as `/gtd/spatial/6` in room units (phase 3, below), and also as its X/Y automation,
-0…1: `/gtd/auto/auto_4qktnyrty2` and `/gtd/auto/auto_13zo6zgosw`.
+0…1: `/gtd/auto/auto_b14xa8fs3t` and `/gtd/auto/auto_mdvkjjq3h4`.
 
 ## Phase 2 in the capture
 
@@ -62,8 +62,8 @@ Gzipped JSON lines: a header, then one line per message, in arrival order:
 
 ```
 {"format":"gtd-av-capture","version":1,"song":{…},"recorded":"…","line":"[t_ms, address, types, ...values]"}
-[146.1,"/gtd/transport/playing","i",0]
-[2181.8,"/gtd/ch/pad/note","ifff",45,0.75,2,2.1527]
+[166.6,"/gtd/transport/playing","i",0]
+[2197.1,"/gtd/ch/pad/note","ifff",45,0.75,2,2.1759]
 ```
 
 `t` is milliseconds since the capture started: the bridge goes on at 0 (stopped, at bar 1: map, Intro), play is pressed

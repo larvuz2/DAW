@@ -3,7 +3,7 @@
 //   x  -1 left wall … +1 right wall,  y  -1 back wall … +1 front wall (the screen),  z  0 ear height … 1 ceiling.
 // The listener sits in the middle (0, 0, 0). Renders: binaural (headphones), 5.1 / 7.1 / 7.1.4 speaker WAVs, per-object
 // stems with position data, and an experimental ADM BWF (ITU-R BS.2076 metadata, not Dolby-certified).
-import { automationValueAt } from './timeline.js';
+import { targetValuesAt, targetKey } from './timeline.js';
 import { PPQ } from './constants.js';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -58,25 +58,12 @@ export const spatialToNorm = (param, c) => { const p = SPATIAL_PARAMS[param]; re
  */
 export function objectPositionAt(project, index, tick) {
   const pos = { ...normalizeInsertSpatial(project.mixer[index]?.spatial, project.mixer[index]?.pan) };
-  const tracks = project.playlist.tracks;
+  // the engine's rule for an automated control (timeline.js targetValuesAt), shared with the audio → visual bridge:
+  // the clip playing, else the one that ended last (held); two clips playing at once, the one that started last
+  const targets = targetValuesAt(project, tick);
   for (const param of Object.keys(SPATIAL_PARAMS)) {
-    let value = null;
-    let lastEnd = -Infinity;
-    for (const clip of project.playlist.clips) {
-      if (clip.kind !== 'automation' || clip.mute || tracks[clip.track]?.mute) continue;
-      const a = project.automations.find((x) => x.id === clip.refId);
-      if (!a || a.target.type !== 'mixer' || a.target.index !== index || a.target.param !== param) continue;
-      const end = clip.start + clip.length;
-      if (clip.start <= tick && tick < end) {
-        value = automationValueAt(a, tick - clip.start + (clip.offset || 0));
-        break;
-      }
-      if (end <= tick && end > lastEnd) {
-        lastEnd = end;
-        value = automationValueAt(a, clip.length - 1 + (clip.offset || 0));
-      }
-    }
-    if (value !== null) pos[SPATIAL_PARAMS[param].axis] = r3(spatialFromNorm(param, value));
+    const a = targets.get(targetKey({ type: 'mixer', index, param }));
+    if (a) pos[SPATIAL_PARAMS[param].axis] = r3(spatialFromNorm(param, a.v));
   }
   return pos;
 }

@@ -10,7 +10,16 @@
 - **how every note bends, presses and slides while it sounds** — `/gtd/ch/{channel}/expr/pitch|pressure|timbre` with
   the note's key: the curves written into a note (pitch in semitones, pressure and slide 0…1), and a finger on an MPE
   controller as it moves. Only notes that have them, from the moment they sound to their end.
-- Both go out when they move, and all once a second, like phase 2.
+- Both go out when they move, and each again once a second, like phase 2.
+- After an independent review: the once-a-second refresh is spread over the second (a few values each frame) instead
+  of one burst of hundreds of UDP messages, which a receiver with a small buffer cut short — the latency and the
+  periodic map now go in frames of their own; `"full": 1` marks the frames that do carry everything (the first,
+  after a lost frame, a takeover or a rename). A note says nothing more once its `off` has gone; two notes on one key
+  no longer resend each other's values; a voice the engine has killed takes no more MPE. The spatial export and the
+  bridge agree on overlapping position clips (the one that started last), and an insert that becomes a 3D object
+  while the song plays takes its position automation's value, as the export says. The fixture's recorder gives its
+  socket a 4 MB buffer and refuses an incomplete capture (the 0.17 capture had lost the map, the latency and most
+  3D positions); `docs/av-bridge.md` tells receivers to do the same, and lists the WebSocket frame's fields.
 - The fixture's lead plays expressively (a scoop, a vibrato, a pressure swell) while it circles the room, and its
   capture has all of it; the bible (chapter 7) and `docs/av-bridge.md` document phase 3. "PRÓXIMO" in the bible now
   only marks what the engine has but the bridge doesn't send (the waveform, the full spectrum).

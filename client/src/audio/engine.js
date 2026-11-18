@@ -153,6 +153,7 @@ export class AudioEngine {
     const spatialSig = `${this.project.spatial?.enabled ? 1 : 0}${this.rig.mode}`;
     const spatialChanged = spatialSig !== this.spatialSig;
     this.spatialSig = spatialSig;
+    let becameObject = false;
     mixer.forEach((m, i) => {
       const ins = this.inserts[i];
       const pm = prev?.mixer[i];
@@ -162,6 +163,8 @@ export class AudioEngine {
         if (!this.automated.has(`mixer:${i}:volume`) && !(i === 0 && this.automated.has('master:volume'))) setParam(ins.fader.gain, m.volume, this.ctx);
         // a 3D object's stereo pan is its x (stereo monitoring); routed objects are panned in 3D instead
         const object = isSpatialObject(this.project, i);
+        if (ins.wasObject !== undefined && object && !ins.wasObject) becameObject = true;
+        ins.wasObject = object;
         const pan = object ? (this.rig.routesObjects ? 0 : m.spatial.x) : m.pan;
         const panAutomated = this.automated.has(`mixer:${i}:pan`) || (object && this.automated.has(`mixer:${i}:spatialX`));
         if (!panAutomated && !(i === 0 && this.automated.has('master:pan'))) setParam(ins.panner.pan, pan, this.ctx);
@@ -170,6 +173,13 @@ export class AudioEngine {
         this.syncEffects(ins, m.effects);
       }
     });
+    // an insert that became a 3D object while the song plays: where its position automation left it (held after a
+    // clip, as every automated control is), not its own place — what the spatial export and the visuals say too
+    if (becameObject && this.transport.playing && this.transport.mode === 'song') {
+      const now = this.ctx.currentTime;
+      const at = this.transport.positionAt(now);
+      if (at !== null) this.transport.chaseAutomation(Math.floor(at), now);
+    }
     // routing (after all inserts exist)
     mixer.forEach((m, i) => {
       const ins = this.inserts[i];

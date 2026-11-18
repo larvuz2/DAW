@@ -6,7 +6,7 @@ import {
   createDefaultProject, applyOps, normalizeProject, PPQ, AV_USER_LANES, AV_BANDS, AV_SPECTRUM_BANDS, avSlug, channelSlugs, avMap, usedInserts,
   automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, avFrameToOsc, encodeOsc, decodeOsc, AV_MAP_MAX_BYTES, diffProjects,
   effectiveValuesAt, ggsTelemetry, GGS_SOURCES, GGS_TARGETS, effectSlugs, createChannel, normalizeParam, denormalizeParam, EFFECTS,
-  targetValuesAt, AV_PHASE2_BUDGET, objectPositionsAt, expressionAt
+  targetValuesAt, AV_PHASE2_BUDGET, objectPositionsAt, expressionAt, objectPositionAt
 } from '../src/index.js';
 import { MOD_SOURCES, MOD_TARGETS } from '@greanteadawy/synth-dsp';
 
@@ -438,4 +438,24 @@ test('phase 3: a note’s expression where it stands, and its addresses', () => 
   assert.ok(order.indexOf('/gtd/ch/kick/param/volume') < order.indexOf('/gtd/spatial/1'));
   assert.ok(order.indexOf('/gtd/spatial/1') < order.indexOf('/gtd/ch/kick/expr/pitch'));
   assert.ok(order.indexOf('/gtd/ch/kick/expr/pitch') < order.indexOf('/gtd/latency'));
+});
+
+test('phase 3: the spatial export and the bridge agree, overlapping clips included', () => {
+  let p = createDefaultProject();
+  p = applyOps(p, [
+    { type: 'project/update', patch: { spatial: { enabled: true } } },
+    { type: 'mixer/update', index: 1, patch: { spatial: { enabled: true, x: 0, y: 1, z: 0 } } },
+    { type: 'automation/add', automation: { id: 'xa', target: { type: 'mixer', index: 1, param: 'spatialX' }, length: BAR * 2, points: [{ t: 0, v: 0 }, { t: BAR * 2, v: 0 }] } },
+    { type: 'automation/add', automation: { id: 'xb', target: { type: 'mixer', index: 1, param: 'spatialX' }, length: BAR, points: [{ t: 0, v: 1 }, { t: BAR, v: 1 }] } },
+    { type: 'clip/add', clips: [
+      { id: 'ka', kind: 'automation', refId: 'xa', track: 5, start: 0, length: BAR * 2 },
+      { id: 'kb', kind: 'automation', refId: 'xb', track: 6, start: BAR, length: BAR }
+    ] }
+  ]);
+  for (const tick of [0, BAR / 2, BAR * 1.5, BAR * 2.5, BAR * 9]) {
+    const bridge = objectPositionsAt(p, tick)[1];
+    const exp = objectPositionAt(p, 1, tick);
+    assert.ok(near(bridge[0], exp.x, 0.001) && near(bridge[1], exp.y, 0.001) && near(bridge[2], exp.z, 0.001), `tick ${tick}: ${bridge} vs ${JSON.stringify(exp)}`);
+  }
+  assert.equal(objectPositionAt(p, 1, BAR * 1.5).x, 1, 'the clip that started last decides');
 });

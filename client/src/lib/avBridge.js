@@ -14,7 +14,15 @@ import {
 
 const MAP_EVERY = 2 * AV_FPS; // the map again every 2 s, for a visual app that starts after the studio
 const LATENCY_EVERY = AV_FPS; // the output latency once a second
-const FULL_EVERY = AV_FPS; // phase 2 values go out when they change, and all of them once a second
+const FULL_EVERY = AV_FPS; // phase 2/3 values go out when they change, and each again once a second (spread out)
+const MAX_EXPR = 512; // note expression values in one frame (the server takes no more)
+
+/** Which frame of the second an address is refreshed in: spread, so no frame carries everything (a UDP burst). */
+function slotOf(key) {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  return (h >>> 0) % FULL_EVERY;
+}
 const r4 = (v) => Math.round(v * 10000) / 10000;
 
 export class AvBridge {
@@ -57,7 +65,10 @@ export class AvBridge {
     this.session = null;
     this.lastDue = -Infinity; // the last frame's horizon: the notes sent so far started before it
     this.sentValues = new Map(); // phase 2: address → the value last sent (only changes go out, all once a second)
-    this.forceFull = false;
+    this.touched = new Set(); // addresses that still exist (the rest are forgotten once a second)
+    this.forceFull = true; // the first frame carries everything
+    this.mapNow = false;
+    this.exprSeq = 0;
     this.lastState = undefined;
     this.chSlugs = new Set(); // channels and GGS channels of the last frame (one that goes away gets a last value)
     this.ggsSlugs = new Set();
@@ -112,7 +123,7 @@ export class AvBridge {
     this.followSession(this.engine.ctx.currentTime);
     this.notes.push({ channelId, key, vel: velocity, dur: duration ?? 0, at: time });
     if (expr?.curves) {
-      voice.avExpr = { channelId, key, start: time, end: duration != null ? time + duration : Infinity, seconds: expr.seconds, curves: expr.curves, live: null };
+      voice.avExpr = { id: ++this.exprSeq, channelId, key, start: time, end: duration != null ? time + duration : Infinity, seconds: expr.seconds, curves: expr.curves, live: null };
       this.expressive.push(voice.avExpr);
     }
     if (duration != null) {
@@ -127,9 +138,9 @@ export class AvBridge {
   /** A finger moved on a sounding note (MPE): pitch in semitones, pressure and timbre 0 … 1. */
   expr(voice, dim, value) {
     const n = voice.avNote || voice.avOff;
-    if (!n) return;
+    if (!n || voice.killedAt != null) return; // (a note the engine has cut — a stop, a choke — is over)
     if (!voice.avExpr) {
-      voice.avExpr = { channelId: n.channelId, key: n.key, start: n.start, end: voice.avOff ? voice.avOff.at : Infinity, seconds: 0, curves: null, live: null };
+      voice.avExpr = { id: ++this.exprSeq, channelId: n.channelId, key: n.key, start: n.start, end: voice.avOff ? voice.avOff.at : Infinity, seconds: 0, curves: null, live: null };
       this.expressive.push(voice.avExpr);
     }
     (voice.avExpr.live ||= {})[dim] = value;
@@ -270,15 +281,22 @@ export class AvBridge {
     frame.auto = this.autoValues.auto;
     frame.user = this.autoValues.user;
 
-    if (this.frames % LATENCY_EVERY === 0) frame.latency = r4((ctx.outputLatency || 0) + (ctx.baseLatency || 0));
-    // the map when the project's shape changes, and every 2 s for whoever starts listening later
+    // (the latency and the periodic map go in frames of their own in the second, away from each other)
+    if (this.frames === 0 || this.frames % LATENCY_EVERY === LATENCY_EVERY / 4) frame.latency = r4((ctx.outputLatency || 0) + (ctx.baseLatency || 0));
+    // the map when the project's shape changes (and then everything, by its new names), and every 2 s for whoever
+    // starts listening later
     if (p !== this.mapProject) {
       this.mapProject = p;
       this.map = avMap(p);
       const key = JSON.stringify(this.map);
-      if (key !== this.mapKey) { this.mapKey = key; this.frames = 0; }
+      if (key !== this.mapKey) {
+        if (this.mapKey !== null) this.forceFull = true;
+        this.mapKey = key;
+        this.mapNow = true;
+      }
     }
-    if (this.frames % MAP_EVERY === 0) frame.map = this.map;
+    if (this.mapNow || this.frames % MAP_EVERY === MAP_EVERY / 2) frame.map = this.map;
+    this.mapNow = false;
     // (taking over from another tab, the visuals have only heard the other one: everything goes in the next frame)
     const state = st.avStatus?.state;
     if (state !== this.lastState) {
@@ -293,19 +311,29 @@ export class AvBridge {
 
   /**
    * Phase 2: every control as it stands (settings, or automation while the song plays) and the GGS Synth's live
-   * modulation — only what changed since the last frame, and everything once a second (`full`).
+   * modulation — only what changed since the last frame, and each value again once a second, in its own frame of
+   * the second (a full frame would be one burst of hundreds of UDP messages: a receiver with a small buffer loses the
+   * end of it). `full`: this frame carries everything — the first one, after a lost frame, a takeover or a renamed
+   * channel.
    */
   phase2(frame, p, tick, automated, slugs) {
     const { engine } = this;
-    const full = this.forceFull || this.frames % FULL_EVERY === 0;
+    const full = this.forceFull;
     this.forceFull = false;
     const sent = this.sentValues;
+    const slot = this.frames % FULL_EVERY;
     if (full) {
       frame.full = 1;
-      sent.clear(); // (it fills again with what exists now: nothing of a deleted channel lingers)
+      sent.clear();
+      this.touched.clear();
+    } else if (slot === 0) {
+      // once a second: forget what no longer exists (a deleted channel, an ended note)
+      for (const key of sent.keys()) if (!this.touched.has(key)) sent.delete(key);
+      this.touched.clear();
     }
     const changed = (key, v) => {
-      if (!full && sent.get(key) === v) return false;
+      this.touched.add(key);
+      if (!full && sent.get(key) === v && slotOf(key) !== slot) return false;
       sent.set(key, v);
       return true;
     };
@@ -397,8 +425,11 @@ export class AvBridge {
     }
     if (!this.expressive.length) return;
     const now = this.engine.ctx.currentTime;
-    this.expressive = this.expressive.filter((e) => e.end > now);
+    // (a note whose off goes in this frame says nothing more: its end is within the same horizon as the offs)
+    this.expressive = this.expressive.filter((e) => e.end > this.lastDue);
+    let count = 0;
     for (const e of this.expressive) {
+      if (count >= MAX_EXPR) break; // (the rest wait: not marked as sent)
       // (a note the visuals haven't been told about yet: its values come with it, in a later frame)
       if (e.start > this.lastDue) continue;
       const ch = slugs.get(e.channelId);
@@ -406,7 +437,10 @@ export class AvBridge {
       const values = { ...expressionAt(e.curves, now - e.start, e.seconds), ...e.live };
       for (const dim in values) {
         const v = Math.round(values[dim] * 10000) / 10000;
-        if (changed(`expr/${e.channelId}/${e.key}/${e.start}/${dim}`, v)) (frame.expr ||= []).push({ ch, key: e.key, dim, v });
+        if (changed(`expr/${e.id}/${dim}`, v)) {
+          (frame.expr ||= []).push({ ch, key: e.key, dim, v });
+          count++;
+        }
       }
     }
   }
