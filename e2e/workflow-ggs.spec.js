@@ -304,7 +304,7 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   await ggs.locator('.ggs-presets-name').click();
   const search = ggs.locator('.ggs-browser input[type=search]');
   await expect(search).toBeFocused();
-  await expect(ggs.locator('.ggs-browser li')).toHaveCount(31);
+  await expect(ggs.locator('.ggs-browser li')).toHaveCount(32);
   await search.fill('glassy partials');
   await expect(ggs.locator('.ggs-browser li')).toHaveCount(1);
   await ggs.locator('.ggs-browser li', { hasText: 'Glass Horizon' }).click();
@@ -317,7 +317,7 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   await expect(ggs.locator('.ggs-browser li b').first()).toHaveText('Acid Line');
   await search.fill('');
   await ggs.locator('.ggs-browser .chip', { hasText: 'Pads' }).click();
-  await expect(ggs.locator('.ggs-browser li')).toHaveCount(5);
+  await expect(ggs.locator('.ggs-browser li')).toHaveCount(6);
   await search.press('ArrowDown');
   await expect.poll(async () => (await instrument()).preset).toBe('Cinema Atmos');
   await search.press('ArrowUp');
@@ -1111,6 +1111,58 @@ test('MPE input: each note of a chord gets its own bend, pressure and slide — 
   expect(r.f.expression.timbre.at(-1).v).toBeLessThan(0.35);
   expect(r.f.releaseVelocity).toBeLessThan(0.3);
   for (const c of [r.d.expression.pitch, r.f.expression.pressure, r.f.expression.timbre]) expect(c.length).toBeLessThanOrEqual(64);
+});
+
+test('the layered preset in the real engine: a strike, a body that swells in, a pulse on the song\'s sixteenths', async () => {
+  await claude.call('create_project', { name: 'E2E Layers', bpm: 120 });
+  await expect(page).toHaveTitle(/E2E Layers/);
+  expect(await claude.call('add_channel', { name: 'Layers', instrument: 'ggs', preset: 'Kaleidoscope' })).toMatch(/ggs\/Kaleidoscope/);
+  const patternName = await page.evaluate(() => window.ggs.store.getState().project.patterns[0].name);
+  await claude.call('add_notes', { pattern: patternName, channel: 'Layers', notes: [{ note: 'C4', start: 0, length: 16 }] });
+  await inTab(() => window.ggs.store.getState().project.patterns[0].notes && Object.values(window.ggs.store.getState().project.patterns[0].notes).flat().length === 1);
+  // one bar (2 s at 120 BPM) and its tail, measured in the page: level in windows, and per sixteenth
+  const measure = () => page.evaluate(async () => {
+    const { store, render } = window.ggs;
+    const project = store.getState().project;
+    const r = await render(project, { mode: 'pattern', patternId: project.patterns[0].id, loops: 1, tail: 1, encode: false, sampleRate: 44100 });
+    const sr = r.buffer.sampleRate;
+    return { sr, left: Array.from(r.buffer.getChannelData(0)), right: Array.from(r.buffer.getChannelData(1)) };
+  });
+  const db = (x, t0, t1, sr) => {
+    let sum = 0;
+    const a = Math.round(t0 * sr);
+    const b = Math.round(t1 * sr);
+    for (let i = a; i < b; i++) sum += x[i] * x[i];
+    return 10 * Math.log10(sum / (b - a) + 1e-20);
+  };
+  const full = await measure();
+  expect(full.left.every(Number.isFinite) && full.right.every(Number.isFinite)).toBe(true);
+  const peak = full.left.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  expect(peak).toBeGreaterThan(0.05);
+  expect(peak).toBeLessThan(0.7);
+  // (the render starts a moment before the first note: measure from where the sound begins)
+  const t0 = full.left.findIndex((v) => Math.abs(v) > 1e-4) / full.sr;
+  expect(t0).toBeLessThan(0.1);
+  // the strike speaks at once, the note dips while it fades, then the body arrives louder than the strike was
+  const strike = db(full.left, t0 + 0.02, t0 + 0.1, full.sr);
+  const dip = db(full.left, t0 + 0.25, t0 + 0.4, full.sr);
+  const body = db(full.left, t0 + 1.4, t0 + 1.95, full.sr);
+  expect(strike).toBeGreaterThan(dip + 1);
+  expect(body).toBeGreaterThan(strike + 1.5);
+  // two layers stand apart in the stereo field: the channels are not the same signal
+  expect(full.left.some((v, i) => Math.abs(v - full.right[i]) > 0.01)).toBe(true);
+  // the pulse alone = this render minus the same one with its macro at 0 (the effects are linear): it is loud on the
+  // drawn accents (steps 1, 4, 7, 9) and nearly gone on the rests after them (2, 5, 10)
+  await claude.call('update_channel', { channel: 'Layers', params: { macro2: 0 } });
+  await inTab(() => window.ggs.store.getState().project.channels.find((c) => c.name === 'Layers').instrument.params.macro2 === 0);
+  const quiet = await measure();
+  const pulse = full.left.map((v, i) => v - quiet.left[i]);
+  const step = (k) => db(pulse, t0 + (k - 1) * 0.125, t0 + k * 0.125, full.sr);
+  const mean = (list) => list.reduce((a, b) => a + b, 0) / list.length;
+  const accents = mean([1, 4, 7, 9].map(step));
+  const rests = mean([2, 5, 10].map(step));
+  expect(accents).toBeGreaterThan(-50);
+  expect(accents).toBeGreaterThan(rests + 4);
 });
 
 test('no uncaught errors in the browser', async () => {

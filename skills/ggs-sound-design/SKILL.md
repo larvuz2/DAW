@@ -21,7 +21,7 @@ the table, `pitch 0.5` = 12 semitones, `pitchFine 0.3` = 0.3 semitones.
 
 ## 2. Start close, then shape
 
-- `create_synth_patch name="Pad" preset="Velvet Pad"` when a preset is near (30 presets; each says what its macros,
+- `create_synth_patch name="Pad" preset="Velvet Pad"` when a preset is near (31 presets; each says what its macros,
   pressure and slide do). Then adjust with the `set_synth_*` tools.
 - From scratch: `create_synth_patch` with a `patch` document, or Init + section tools. Recipes: [recipes.md](recipes.md).
 

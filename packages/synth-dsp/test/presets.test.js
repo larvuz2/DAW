@@ -9,8 +9,8 @@ import { analyzeAudio } from '../../core/src/analysis.js';
 
 const NAMES = Object.keys(GGS_PRESETS).filter((n) => n !== 'Init');
 
-test('the library: 30 presets in six families, every value valid', () => {
-  assert.equal(NAMES.length, 30);
+test('the library: 31 presets in six families, every value valid', () => {
+  assert.equal(NAMES.length, 31);
   const families = new Map(GGS_PRESET_CATEGORIES.map(([id]) => [id, 0]));
   for (const name of NAMES) {
     const info = GGS_PRESET_INFO[name];
@@ -32,7 +32,7 @@ test('the library: 30 presets in six families, every value valid', () => {
     for (const m of ['macro1', 'macro2', 'macro3', 'macro4']) assert.ok(sources.has(m), `${name}: ${m} (${info.macros[m.slice(5) - 1]}) does something`);
     assert.ok(info.macros.every((label) => label.length <= 16 && !/…/.test(label)), `${name}: macro labels fit a knob`);
   }
-  for (const [id, count] of families) assert.equal(count, 5, `five ${id} presets`);
+  for (const [id, count] of families) assert.ok(count >= 5, `at least five ${id} presets`);
 });
 
 // The levelling policy (scripts/level-presets.mjs): one note at velocity 0.8 peaks at -18 LUFS (loudest 400 ms),
@@ -41,7 +41,7 @@ test('presets are levelled: one note lands at -18 LUFS or at the peak cap, and p
   for (const name of NAMES) {
     const params = GGS_PRESETS[name];
     const key = GGS_PRESET_INFO[name].test?.key ?? 60;
-    const duration = (params.env1A ?? 0.005) > 0.3 ? 5 : 2;
+    const duration = GGS_PRESET_INFO[name].test?.hold ?? ((params.env1A ?? 0.005) > 0.3 ? 5 : 2);
     const note = { key, velocity: 0.8, start: 0.05, duration, seed: 2 };
     const plain = renderPatch({ params, notes: [note], seconds: duration + 0.6, sampleRate: 48000 });
     assert.ok(plain.channels[0].every(Number.isFinite), `${name}: finite`);

@@ -1,6 +1,6 @@
 {
   "name": "@ggs/synth-dsp",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "GGS Synth: a wavetable/FM hybrid synthesizer engine in plain JavaScript (runs in an AudioWorklet and in Node)",
   "license": "MIT",
   "type": "module",

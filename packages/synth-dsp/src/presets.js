@@ -1,4 +1,4 @@
-// The GGS Synth preset library: 30 original patches in six families. Every preset is a set of overrides on the init
+// The GGS Synth preset library: 31 original patches in six families. Every preset is a set of overrides on the init
 // patch, and every one answers to the performance: pressure and slide (timbre) are routed in the matrix, and the
 // first four macros are assigned to the moves a player (or an agent) would reach for first — see GGS_PRESET_INFO.
 // The output gains were levelled by measurement (scripts/level-presets.mjs): a single note at velocity 0.8 lands
@@ -30,6 +30,11 @@ const lfo = (i, shape, rate, o = {}) => ({
   ...(o.fade ? { [`lfo${i}Fade`]: o.fade } : {}),
   ...(o.phase ? { [`lfo${i}Phase`]: o.phase } : {})
 });
+/** The drawn shape of LFO i (shape "steps"): one height per step, -1..1, and how much each glides into the next. */
+const steps = (i, heights, smooth = 0) => ({
+  [`lfo${i}Steps`]: heights.length, ...(smooth ? { [`lfo${i}Smooth`]: smooth } : {}),
+  ...Object.fromEntries(heights.map((v, k) => [`lfo${i}S${k + 1}`, v]))
+});
 /** Chaos generator i: type, then a rate in Hz or a tempo division, then { character, steps, same (one path for every note) }. */
 const chaos = (i, type, rate, o = {}) => ({
   [`chaos${i}Type`]: type,
@@ -40,6 +45,8 @@ const osc = (x, o) => Object.fromEntries(Object.entries({ On: true, ...o }).map(
 
 const P = {};
 const INFO = {};
+// test: how a preset is auditioned and levelled — key (its typical pitch), chord (it is made for chords), hold (seconds
+// to hold the note when the loudest layer arrives later than the amp envelope says).
 function preset(name, category, description, macros, expression, params, test = {}) {
   P[name] = params;
   INFO[name] = { category, description, macros, expression, test };
@@ -127,6 +134,44 @@ preset('Solar Drift', 'pad', 'Bright pulse-width pad, wide and slowly breathing,
     ]),
     chorusMix: 0.6, chorusRate: 0.5, chorusDepth: 0.6, reverbMix: 0.3, reverbSize: 0.65, gain: 0.69
   }, { chord: true });
+
+// Five layers that each keep their own time: the strike has its envelope (3), the body swells on another (2), the
+// pulse is drawn into an LFO that follows the song, and the amp envelope (1) only opens the door and closes it.
+// The pulse: sixteenths with the accents of a tresillo (3 + 3 + 2), answered in the second half of the bar.
+const KALEIDOSCOPE_PULSE = [1, 0, 0.3, 0.85, 0, 0.3, 0.9, 0.2, 1, 0, 0.3, 0.85, 0, 0.55, 0.9, 0.4];
+
+preset('Kaleidoscope', 'pad', 'Five layers in one note: a plucked strike, a body of seven saws that swells in behind it and stacks octaves as it opens, an icy sixteenth-note pulse that follows the song, a breath of air and a sub — each with its own envelope, its own place and its own movement.',
+  ['Bloom', 'Pulse', 'Sparkle', 'Weight'],
+  'Pressure opens the body, brings the pulse forward and adds vibrato; slide stacks more saws and brightens the pulse.', {
+    // the body: saws that swell in behind the strike, each unison copy reading its own place in the table
+    ...osc('A', { Table: 'sawstack', Pos: 0.1, Level: 0, Unison: 7, UniLaw: 'super', Detune: 62, Blend: 0.7, Spread: 0.85, UniPos: 0.25 }),
+    // the strike: a plucked string an octave up, bright for an instant and then mellow, past the filters
+    ...osc('B', { Table: 'pluck', Pos: 0.85, Level: 0, Oct: 1, Rand: 0, Dest: 'direct' }),
+    // the pulse: octaves and fifths of glass through a wandering band-pass, gated by the drawn rhythm
+    ...osc('C', { Table: 'crystal', Pos: 0.6, Level: 0.08, Oct: 1, Unison: 4, Detune: 12, Spread: 0.9, Dest: 'f2' }),
+    subLevel: 0.16,
+    noiseLevel: 0.06, noiseType: 'pink', noiseColor: 0.3, noiseDest: 'f2',
+    f1Type: 'lp24', f1Cutoff: 620, f1Res: 0.14, f1Key: 0.35,
+    f2On: true, f2Type: 'bp12', f2Cutoff: 2400, f2Res: 0.1, f2Key: 0.4, filterRoute: 'parallel',
+    ...env(1, 0.003, 0.6, 1, 2.4), ...env(2, 1.1, 3, 0.8, 2.6, { ac: 0.1 }), ...env(3, 0.001, 0.7, 0, 0.6, { dc: -0.6 }), ...env(4, 0.001, 0.07, 0, 0.07),
+    ...lfo(1, 'sine', 0.09, { free: true }),
+    ...lfo(2, 'steps', '1bar', { free: true }), ...steps(2, KALEIDOSCOPE_PULSE, 0.3),
+    ...lfo(3, 'triangle', '2bar', { free: true }), ...lfo(4, 'sine', 5.4, { fade: 0.6 }),
+    ...chaos(1, 'lorenz', 0.08, { character: 0.4, same: true }), ...chaos(2, 'turing', '1/16', { character: 0.08, steps: 16, same: true }),
+    macro2: 0.66,
+    ...mods([
+      ['env2', 'oscALevel', 0.62], ['env2', 'f1Cutoff', 0.2], ['env2', 'oscAPos', 0.22], ['lfo1', 'oscAPos', 0.06], ['lfo3', 'f1Cutoff', 0.04],
+      ['env3', 'oscBLevel', 0.5], ['env3', 'oscBPos', -0.85], ['velocity', 'oscBLevel', 0.2, 'env3'], ['random', 'oscBPan', 0.45], ['env4', 'noiseLevel', 0.5],
+      ['lfo2', 'oscCLevel', 1, 'macro2'], ['lfo2', 'oscCLevel', 0.5, 'macro2'], ['chaos2', 'oscCPos', 0.3], ['chaos1', 'oscCPan', 0.45], ['lfo3', 'f2Cutoff', 0.12], ['chaos1', 'f2Cutoff', 0.04],
+      ['pressure', 'f1Cutoff', 0.22], ['pressure', 'oscCLevel', 0.25], ['lfo4', 'pitchFine', 0.18, 'pressure'],
+      ['timbre', 'oscAPos', 0.4], ['timbre', 'f2Cutoff', 0.25], ['timbre', 'oscCPos', 0.3], ['velocity', 'f1Cutoff', 0.08],
+      ['macro1', 'f1Cutoff', 0.3], ['macro1', 'oscAPos', 0.4], ['macro3', 'oscBLevel', 0.4, 'env3'], ['macro3', 'f2Cutoff', 0.15],
+      ['macro4', 'subLevel', 0.2], ['macro4', 'f1Cutoff', -0.06], ['key', 'subLevel', 0.2]
+    ]),
+    polyphony: 10,
+    chorusMix: 0.22, chorusRate: 0.3, delayMix: 0.2, delaySync: '1/8d', delayFb: 0.42, delayTone: 4200,
+    reverbMix: 0.3, reverbSize: 0.86, reverbDamp: 0.35, gain: 0.52
+  }, { chord: true, hold: 5 });
 
 // ------------------------------------------------------------------------------------------------------ leads
 

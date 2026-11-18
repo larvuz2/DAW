@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.23.0 — Kaleidoscope, a layered preset
+
+- **GGS Synth preset "Kaleidoscope"** (Pads): five layers in one note, each with its own envelope, place and
+  movement — a plucked strike an octave up, a body of seven saws (supersaw spacing, every copy reading its own place
+  in the table) that swells in behind it and stacks octaves as it opens, an icy sixteenth-note pulse drawn into an
+  LFO that follows the song (a Turing machine picks its twinkle, a Lorenz generator its place in the stereo field, a
+  band-pass wanders over it every two bars), a breath of noise on the attack and a sub that follows the keyboard.
+  Macros: Bloom, Pulse (0 = no rhythm; it starts at two thirds), Sparkle, Weight. Pressure opens the body, brings
+  the pulse forward and adds vibrato; slide stacks more saws and brightens the pulse. 30 of the 64 modulation routes.
+- Measured, not judged by ear: every layer was rendered alone to balance it (the first draft's pulse sat 15 dB under
+  the body and its air 40 dB — both inaudible; the pulse now sits 6 dB under, its accents at the body's level); one
+  note is within 3 dB of the same loudness from C2 to C6; a held chord loses 1.7 dB when summed to mono and stays
+  under full scale with every macro at 1; no step between samples larger than a plain tone makes; two renders are
+  identical; 3 % of a core for one voice, 17 % for eight (polyphony 10).
+- The levelling script and the preset tests hold a preset as long as it asks (`test.hold`): this one's amp envelope
+  is fast but its loudest layer arrives a second later. No other preset changed (their gains are as they were).
+- Guide, sound-design skill (a recipe: layers that each keep their own time) and `docs/ggs-synth.md` describe how
+  the layers are built, so Claude and you can make more of them.
+
 ## 0.22.0 — The studio is called GGS
 
 - **One name everywhere**: the app (title, toolbar, About), the server and its log, the MCP server (`ggs`, resources

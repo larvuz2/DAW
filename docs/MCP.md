@@ -96,13 +96,18 @@ GGS is an FL Studio-style DAW in the browser. Everything you change appears live
   all-pass/morph, analog-style ladder24/ladder12/ladderBp/ladderHp, acid (TB-303 diode ladder), ms20Lp/ms20Hp,
   formant (vowels), phaser, comb/combNeg; drive, key tracking and a per-type "morph"), 4 envelopes (delay, attack,
   hold, decay, sustain, release, each slope with its own curve), 4 LFOs, 2 chaos generators, 8 macros, a 64-route modulation matrix and
-  built-in drive (driveOs "4x" / "8x" for bright, hard-driven sounds: less fold-back) /chorus/delay/reverb. 30 presets in six families (pads, leads, bass, keys, sequences, experimental),
+  built-in drive (driveOs "4x" / "8x" for bright, hard-driven sounds: less fold-back) /chorus/delay/reverb. 31 presets in six families (pads, leads, bass, keys, sequences, experimental),
   all levelled to about -18 LUFS per note.
 - Pick the filter for the job: lp24 = neutral and precise; ladder24 = warm, fat, sings (basses, leads; resonance
   above 0.9 self-oscillates in tune); acid = squelch (resonance 0.75-0.95, a fast envelope on the cutoff, cutoff
   300-600 Hz: it sounds darker than the number); ms20Lp = snarl that keeps its bass; formant = vowels (cutoff 1000,
   keyTrack 0, move f1Morph); comb with keyTrack 1 and a noise burst = plucked string (resonance = ring time,
   morph = damping). set_synth_filter replies with the measured response of what you set.
+- Layers in one patch: a voice has one amp envelope, so a layer gets its own time through its level — set the
+  source's level to 0 and route its own modulator to it (env3 → oscBLevel = a strike, env2 → oscALevel = a swell,
+  a drawn lfo "steps" synced to "1bar" → oscCLevel = a rhythm), keep the amp envelope open (sustain 1), and give
+  each layer its own filter (oscCDest "f2", filterRoute "parallel") or none ("direct"). The preset "Kaleidoscope"
+  is the worked example: strike + body + pulse + air + sub; its macro 2 (Pulse) at 0 switches the rhythm off.
 - describe_synth is the reference (topics: overview, parameters, filters, wavetables, modulation, presets). create_synth_patch
   makes a channel from a preset or from scratch; set_synth_oscillator / set_synth_filter / set_synth_envelope /
   set_synth_lfo / set_synth_chaos / set_synth_modulation / set_synth_effect edit one section each; get_synth_patch reads a patch back
@@ -1448,7 +1453,7 @@ Add a GGS Synth channel with its own mixer insert: start from a preset (describe
 |---|---|---|---|
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `name` | string | yes | Channel name, e.g. "Pad", "Lead" |
-| `preset` | `Init` \| `Velvet Pad` \| `Glass Horizon` \| `Cinema Atmos` \| `Choir of Air` \| `Solar Drift` \| `Touch Lead` \| `Crystal Lead` \| `Mono Titan` \| `Sync Razor` \| `Overtone Flute` \| `Deep Sub` \| `Analog Bass` \| `Neuro Bass` \| `Reese Engine` \| `Acid Line` \| `Glass Keys` \| `Tine Electric` \| `Pluck Garden` \| `Dream EP` \| `Hollow Mallet` \| `Arp Prism` \| `Pulse Runner` \| `Poly Rhythm` \| `Bell Sequence` \| `Chip Stepper` \| `Spectral Motion` \| `Metal Resonator` \| `Nova Stack` \| `Vowel Morph` \| `Fold Drone` |  | Default: Init |
+| `preset` | `Init` \| `Velvet Pad` \| `Glass Horizon` \| `Cinema Atmos` \| `Choir of Air` \| `Solar Drift` \| `Kaleidoscope` \| `Touch Lead` \| `Crystal Lead` \| `Mono Titan` \| `Sync Razor` \| `Overtone Flute` \| `Deep Sub` \| `Analog Bass` \| `Neuro Bass` \| `Reese Engine` \| `Acid Line` \| `Glass Keys` \| `Tine Electric` \| `Pluck Garden` \| `Dream EP` \| `Hollow Mallet` \| `Arp Prism` \| `Pulse Runner` \| `Poly Rhythm` \| `Bell Sequence` \| `Chip Stepper` \| `Spectral Motion` \| `Metal Resonator` \| `Nova Stack` \| `Vowel Morph` \| `Fold Drone` |  | Default: Init |
 | `patch` | object |  | Patch document sections to apply on top of the preset |
 | `volume` | number |  |  |
 | `pan` | number |  |  |
@@ -1474,7 +1479,7 @@ Apply a whole or partial patch document to a GGS Synth channel in one edit: any 
 |---|---|---|---|
 | `projectId` | string |  | Project id. Defaults to the active project (the one open in the browser). |
 | `channel` | string | yes | A GGS Synth channel (id or name) |
-| `preset` | `Init` \| `Velvet Pad` \| `Glass Horizon` \| `Cinema Atmos` \| `Choir of Air` \| `Solar Drift` \| `Touch Lead` \| `Crystal Lead` \| `Mono Titan` \| `Sync Razor` \| `Overtone Flute` \| `Deep Sub` \| `Analog Bass` \| `Neuro Bass` \| `Reese Engine` \| `Acid Line` \| `Glass Keys` \| `Tine Electric` \| `Pluck Garden` \| `Dream EP` \| `Hollow Mallet` \| `Arp Prism` \| `Pulse Runner` \| `Poly Rhythm` \| `Bell Sequence` \| `Chip Stepper` \| `Spectral Motion` \| `Metal Resonator` \| `Nova Stack` \| `Vowel Morph` \| `Fold Drone` |  | Load this preset first (resets the patch) |
+| `preset` | `Init` \| `Velvet Pad` \| `Glass Horizon` \| `Cinema Atmos` \| `Choir of Air` \| `Solar Drift` \| `Kaleidoscope` \| `Touch Lead` \| `Crystal Lead` \| `Mono Titan` \| `Sync Razor` \| `Overtone Flute` \| `Deep Sub` \| `Analog Bass` \| `Neuro Bass` \| `Reese Engine` \| `Acid Line` \| `Glass Keys` \| `Tine Electric` \| `Pluck Garden` \| `Dream EP` \| `Hollow Mallet` \| `Arp Prism` \| `Pulse Runner` \| `Poly Rhythm` \| `Bell Sequence` \| `Chip Stepper` \| `Spectral Motion` \| `Metal Resonator` \| `Nova Stack` \| `Vowel Morph` \| `Fold Drone` |  | Load this preset first (resets the patch) |
 | `patch` | object |  | Patch document sections |
 | `dryRun` | boolean |  | true = check the call and report what it would change, without changing anything |
 

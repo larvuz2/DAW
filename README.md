@@ -39,7 +39,7 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 104 music-pr
   response; browse presets and wavetables by search and sight; read every route in real units. It opens on the
   **synth page**: the whole patch on one screen, laid out and coloured like the /synth editor and scaled to fit any
   window, in modules you can rearrange, resize, hide and save as layouts — full screen for recording a video; the
-  classic tabs are one click away. 30 presets levelled by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
+  classic tabs are one click away. 31 presets levelled by measurement. → [docs/ggs-synth.md](docs/ggs-synth.md)
 - **Per-note expression (MPE-style)** — every note has its own pitch, pressure and slide curve and a release
   velocity: draw them in the piano roll's expression lane, play them in from an MPE controller (or any keyboard),
   have Claude write them. Bend one note of a chord; pitch curves work on every instrument.

@@ -122,11 +122,11 @@ cannot alias. Frames of a table share a phase convention, so scanning between th
 
 ### Presets
 
-30 presets in six families, each with four named macros and a stated response to pressure and slide:
+31 presets in six families, each with four named macros and a stated response to pressure and slide:
 
 | Family | Presets |
 |--------|---------|
-| Pads | Velvet Pad, Glass Horizon, Cinema Atmos, Choir of Air, Solar Drift |
+| Pads | Velvet Pad, Glass Horizon, Cinema Atmos, Choir of Air, Solar Drift, Kaleidoscope |
 | Leads | Touch Lead, Crystal Lead, Mono Titan, Sync Razor, Overtone Flute |
 | Bass | Deep Sub, Analog Bass, Neuro Bass, Reese Engine, Acid Line |
 | Keys | Glass Keys, Tine Electric, Pluck Garden, Dream EP, Hollow Mallet |
@@ -136,6 +136,19 @@ cannot alias. Frames of a table share a phase convention, so scanning between th
 Presets built on the analog-style and special filters: *Acid Line* (`acid`), *Analog Bass* and *Mono Titan*
 (`ladder24`), *Neuro Bass* (`ms20Lp`), *Vowel Morph* (`formant`), *Solar Drift* (a `phaser` after its low-pass),
 *Pluck Garden* and *Metal Resonator* (`comb`).
+
+**Kaleidoscope** is the layered one, and a worked example of how to build layers in a synth with one amp envelope:
+every source starts at level 0 and gets its level from its own modulator. The strike (a `pluck` table an octave up,
+sent past the filters) follows envelope 3, which also sweeps its position from bright to mellow; the body (seven
+`sawstack` copies under the supersaw law, each reading its own place in the table) follows envelope 2, which opens
+filter 1 and stacks octaves as it rises; the pulse (`crystal` through a wandering band-pass on filter 2) is gated
+by LFO 2, a drawn 16-step rhythm locked to the song, while a Turing machine picks a new twinkle every sixteenth and
+a Lorenz generator moves it across the stereo field; envelope 4 is a 70 ms breath of noise on the attack, and the
+sub follows the keyboard. The amp envelope only opens the door and closes it. Macros: *Bloom* (body opens and
+stacks), *Pulse* (depth of the rhythm, 0 = none; it starts at two thirds), *Sparkle* (the strike and the pulse's
+brightness), *Weight* (sub). Measured: the pulse sits 6 dB under the body with its accents at the body's level;
+3 % of a core per voice, 17 % for eight (polyphony 10); one note within 3 dB of the same loudness from C2 to C6; a
+chord sums to mono 1.7 dB down.
 
 Presets are **levelled by measurement** (`node packages/synth-dsp/scripts/level-presets.mjs`): one note at velocity
 0.8 peaks at −18 LUFS (loudest 400 ms), unless its sample peak would pass −9 dBFS — sharp attacks are capped by

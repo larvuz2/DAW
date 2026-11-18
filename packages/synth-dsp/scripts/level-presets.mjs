@@ -17,7 +17,8 @@ let source = readFileSync(file, 'utf8');
 
 function measure(params, info) {
   const slow = (params.env1A ?? 0.005) > 0.3;
-  const duration = slow ? 5 : 2;
+  // (a preset whose loudest layer arrives on another envelope than the amp's says how long to hold: test.hold)
+  const duration = info.test?.hold ?? (slow ? 5 : 2);
   // unison stacks and free LFOs beat differently on every take: average a few (the seeds the tests use too)
   let lufs = 0;
   let peak = -200;

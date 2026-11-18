@@ -104,11 +104,13 @@ as 0.8.0. Nothing allocates per sample.
 `node packages/synth-dsp/scripts/level-presets.mjs` measures every preset (and `--write` re-levels them):
 
 - one note at velocity 0.8, no pressure, no slide, at the preset's typical pitch → **−18 LUFS** (loudest 400 ms,
-  K-weighted), averaged over four takes (unison stacks and free LFOs beat differently each time);
+  K-weighted), averaged over four takes (unison stacks and free LFOs beat differently each time); the note is held
+  2 s, 5 s when the amp envelope is slow, or as long as the preset says (`test.hold`: Kaleidoscope's amp envelope is
+  fast but its body swells in on another one);
 - unless its sample peak would pass **−9 dBFS**: plucks and other sharp attacks are capped by their peak;
 - a four-note chord at the same velocity stays within 1 dB of full scale.
 
-`packages/synth-dsp/test/presets.test.js` asserts all three for all 30 presets, plus that pressure and slide audibly
+`packages/synth-dsp/test/presets.test.js` asserts all three for all 31 presets, plus that pressure and slide audibly
 change every one of them.
 
 ## Wavetables

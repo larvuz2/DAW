@@ -7,7 +7,8 @@ import { test, expect } from '@playwright/test';
 import { packPlugin } from '../scripts/pack-plugin.mjs';
 import { ADMIN, connectMcp, makeWav, menuItem, voiceWav, chromiumPath } from './helpers.js';
 
-const OUT = 'docs/screenshots';
+// (SCREENSHOTS_OUT=<folder> shoots somewhere else: to look first, or to take only the pictures that changed)
+const OUT = process.env.SCREENSHOTS_OUT || 'docs/screenshots';
 test.skip(!process.env.SCREENSHOTS, 'set SCREENSHOTS=1 (npm run screenshots) to regenerate README images');
 test.describe.configure({ mode: 'serial' });
 test.use({

@@ -188,3 +188,26 @@ One bar of sixteen steps on the level — a trance gate — with a second, smoot
 
 `steps` is the shape, one cycle of the LFO plays it; `smooth` 0 = steps, 1 = a curve through them. `trigger "free"`
 keeps the pattern on the song's clock for every note.
+
+## Layers that each keep their own time
+
+A voice has one amp envelope, so a layer gets its own shape through its *level*: set the source's level to 0 and
+route its own modulator to it. Keep envelope 1 open (sustain 1) — it only opens the door and closes it.
+
+```json
+{ "modulation": [{ "source": "env3", "target": "oscBLevel", "amount": 0.5 },
+                 { "source": "env3", "target": "oscBPos", "amount": -0.85 },
+                 { "source": "env2", "target": "oscALevel", "amount": 0.62 },
+                 { "source": "env2", "target": "f1Cutoff", "amount": 0.2 },
+                 { "source": "lfo2", "target": "oscCLevel", "amount": 1, "via": "macro2" },
+                 { "source": "env4", "target": "noiseLevel", "amount": 0.5 }] }
+```
+
+That is the skeleton of the preset **Kaleidoscope** (`create_synth_patch name="Layers" preset="Kaleidoscope"`, then
+`get_synth_patch` to read all of it): a strike on envelope 3 (a `pluck` table whose position the same envelope sweeps
+from bright to mellow, sent `direct` so the filters do not dull it), a body that swells on envelope 2, a pulse gated
+by a drawn 16-step LFO on the song's clock through its own band-pass (`to: "f2"`, routing `parallel`), and a 70 ms
+breath of noise on envelope 4. Give each layer its own register and place (the strike an octave up and panned by
+`random`, the pulse above the body and moved by a chaos generator, the sub in the middle), and check them one at a
+time with `analyze_synth_patch` — a layer 15 dB under the others is not a layer.
+
