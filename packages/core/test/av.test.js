@@ -6,7 +6,7 @@ import {
   createDefaultProject, applyOps, normalizeProject, PPQ, AV_USER_LANES, AV_BANDS, AV_SPECTRUM_BANDS, avSlug, channelSlugs, avMap, usedInserts,
   automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, avFrameToOsc, encodeOsc, decodeOsc, AV_MAP_MAX_BYTES, diffProjects,
   effectiveValuesAt, ggsTelemetry, GGS_SOURCES, GGS_TARGETS, effectSlugs, createChannel, normalizeParam, denormalizeParam, EFFECTS,
-  targetValuesAt, AV_PHASE2_BUDGET
+  targetValuesAt, AV_PHASE2_BUDGET, objectPositionsAt, expressionAt
 } from '../src/index.js';
 import { MOD_SOURCES, MOD_TARGETS } from '@greanteadawy/synth-dsp';
 
@@ -400,4 +400,42 @@ test('phase 2 at scale: a frame of a big song stays cheap, and a huge frame is h
   const msgs = avFrameToOsc({ fx: fxs, ggs: Object.fromEntries(Array.from({ length: 64 }, (_, g) => [`g${g}`, { src: { env1: 1 }, dst: { pitch: [0, 0.5] } }])) });
   assert.ok(msgs.length <= AV_PHASE2_BUDGET + 20, `${msgs.length} messages`);
   assert.ok(performance.now() - t1 < 200);
+});
+
+test('phase 3: 3D objects in room units, their automation while the song plays; nothing while the spatial mix is off', () => {
+  let p = createDefaultProject();
+  p = applyOps(p, [{ type: 'mixer/update', index: 2, patch: { spatial: { enabled: true, x: -0.5, y: 0.25, z: 0.75 } } }]);
+  assert.deepEqual(objectPositionsAt(p, 0), {}, 'the spatial mix of the project is off');
+  p = applyOps(p, [
+    { type: 'project/update', patch: { spatial: { enabled: true } } },
+    { type: 'automation/add', automation: { id: 'oy', target: { type: 'mixer', index: 2, param: 'spatialY' }, length: BAR, points: [{ t: 0, v: 0 }, { t: BAR, v: 1 }] } },
+    { type: 'clip/add', clips: [{ id: 'ky', kind: 'automation', refId: 'oy', track: 5, start: BAR, length: BAR }] }
+  ]);
+  assert.deepEqual(objectPositionsAt(p, 0), { 2: [-0.5, 0.25, 0.75] });
+  assert.deepEqual(objectPositionsAt(p, BAR * 1.5), { 2: [-0.5, 0, 0.75] }, 'halfway through y −1 … 1');
+  const held = objectPositionsAt(p, BAR * 9)[2];
+  assert.ok(held[0] === -0.5 && near(held[1], 1, 0.01) && held[2] === 0.75, `held after the clip (the engine holds its last tick): ${held}`);
+  assert.deepEqual(objectPositionsAt(p, BAR * 9, { automated: false }), { 2: [-0.5, 0.25, 0.75] }, 'stopped: its own place');
+  assert.deepEqual(avMap(p).objects, [{ insert: 2, name: p.mixer[2].name }]);
+  const msgs = avFrameToOsc({ spatial: { 2: [-0.5, 2, -1], x: [0, 0, 0] } });
+  assert.deepEqual(msgs.find(([a]) => a === '/gtd/spatial/2').slice(1), [{ f: -0.5 }, { f: 1 }, { f: 0 }], 'clamped to the room');
+  assert.ok(!msgs.some(([a]) => a === '/gtd/spatial/x'));
+});
+
+test('phase 3: a note’s expression where it stands, and its addresses', () => {
+  const curves = { pitch: [{ t: 0, v: 0 }, { t: 1, v: 12 }], pressure: [{ t: 0, v: 0.2 }, { t: 0.5, v: 1, c: 'hold' }, { t: 1, v: 0 }] };
+  assert.deepEqual(expressionAt(curves, 0, 2), { pitch: 0, pressure: 0.2 });
+  assert.deepEqual(expressionAt(curves, 1, 2), { pitch: 6, pressure: 1 });
+  assert.deepEqual(expressionAt(curves, 1.5, 2), { pitch: 9, pressure: 1 }, 'a hold holds');
+  assert.deepEqual(expressionAt(curves, 9, 2), { pitch: 12, pressure: 0 }, 'past the end: the last value');
+  assert.deepEqual(expressionAt(null, 1, 2), {});
+  assert.deepEqual(expressionAt({ timbre: [] }, 1, 2), {}, 'only the dimensions it has');
+  const msgs = avFrameToOsc({ expr: [{ ch: 'lead', key: 64, dim: 'pitch', v: 60 }, { ch: 'lead', key: 64, dim: 'pressure', v: 0.5 }, { ch: 'lead', key: 1, dim: 'volume', v: 1 }, { ch: 'Bad', key: 1, dim: 'pitch', v: 1 }] });
+  const ex = msgs.filter(([a]) => a.includes('/expr/'));
+  assert.deepEqual(ex.map(([a, ...v]) => [a, ...v.map((x) => x.i ?? x.f)]), [['/gtd/ch/lead/expr/pitch', 64, 48], ['/gtd/ch/lead/expr/pressure', 64, 0.5]]);
+  // after the phase 2 values, before the latency
+  const order = avFrameToOsc({ param: { kick: { volume: 1 } }, spatial: { 1: [0, 0, 0] }, expr: [{ ch: 'kick', key: 36, dim: 'pitch', v: 1 }], latency: 0.01 }).map(([a]) => a);
+  assert.ok(order.indexOf('/gtd/ch/kick/param/volume') < order.indexOf('/gtd/spatial/1'));
+  assert.ok(order.indexOf('/gtd/spatial/1') < order.indexOf('/gtd/ch/kick/expr/pitch'));
+  assert.ok(order.indexOf('/gtd/ch/kick/expr/pitch') < order.indexOf('/gtd/latency'));
 });

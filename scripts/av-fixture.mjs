@@ -123,6 +123,9 @@ try {
   await call('set_spatial', { enabled: true, monitor: 'stereo' });
   await call('place_object', { insert: 'Lead', position: 'front' });
   await call('move_object', { insert: 'Lead', path: 'circle', startBar: 9, bars: 4, turns: 1 });
+  // phase 3: the lead plays expressively — its long last note gets a vibrato and a pressure swell, its first a scoop
+  await call('set_note_expression', { pattern: 'Lead', channel: 'Lead', fromStep: 56, pitch: { shape: 'vibrato', depth: 0.4 }, pressure: { shape: 'swell', peak: 1 } });
+  await call('set_note_expression', { pattern: 'Lead', channel: 'Lead', toStep: 1, pitch: { shape: 'scoop', depth: 2 } });
   // a reverb throw on the pad in the outro: its mix is a phase 2 value that moves (/gtd/fx/5/reverb/mix)
   await call('add_effect', { insert: 5, type: 'reverb', params: { mix: 0.2, decay: 3 } });
   await call('add_automation', { name: 'Reverb throw', target: { type: 'effect', insert: 5, effectId: 'reverb', param: 'mix' }, points: [{ bar: 0, value: 0.2 }, { bar: 4, value: 0.8 }], startBar: 13, bars: 4, track: 9 });
@@ -243,8 +246,8 @@ Automation (\`/gtd/auto/{id}\`, 0…1, from the moment its clip starts, held aft
 |---|---|---|
 ${autoRows}
 
-The 3D position isn't a bridge message of its own yet (phase 3); its X/Y automation is: the circle arrives as
-\`/gtd/auto/${autoId('Lead 3D X')}\` and \`/gtd/auto/${autoId('Lead 3D Y')}\`.
+The lead's circle arrives as \`/gtd/spatial/6\` in room units (phase 3, below), and also as its X/Y automation,
+0…1: \`/gtd/auto/${autoId('Lead 3D X')}\` and \`/gtd/auto/${autoId('Lead 3D Y')}\`.
 
 ## Phase 2 in the capture
 
@@ -253,6 +256,13 @@ Every control as it stands, when it changes and all once a second: \`/gtd/ch/{ki
 \`/gtd/fx/5/reverb/…\` (its \`mix\` rises in the outro). And the live modulation of the three GGS channels, \`bass\`, \`pad\`
 and \`lead\`: \`/gtd/ggs/{channel}/voices\`, \`…/src/env1\` (each note's amp envelope), \`…/src/lfo1\`, \`…/src/chaos1\`…,
 \`…/dst/f1Cutoff\` (Hz) and \`…/dst/f1Cutoff/n\` (0…1), and the rest of the 25 sources and 39 targets.
+
+## Phase 3 in the capture
+
+The lead is a 3D object: \`/gtd/spatial/6\` x, y, z in room units (x −1 left … 1 right, y −1 back … 1 front, z 0 floor
+… 1 ceiling) — at the front, then a full circle during the drop. And its notes play expressively:
+\`/gtd/ch/lead/expr/pitch\` (semitones) and \`…/expr/pressure\` (0…1) with the note's key — a scoop into its first note
+(bar 9), a vibrato and a pressure swell on its long last note (bar 12).
 
 ## The capture
 

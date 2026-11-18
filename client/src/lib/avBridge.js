@@ -9,7 +9,7 @@
 // doesn't slow the timers of a tab that is playing sound).
 import {
   AV_FPS, PPQ, avMap, channelSlugs, automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, ticksPerBar, usedInserts,
-  effectiveValuesAt, ggsTelemetry, targetValuesAt, MACRO_PARAMS, GGS_SOURCES
+  effectiveValuesAt, ggsTelemetry, targetValuesAt, MACRO_PARAMS, GGS_SOURCES, objectPositionsAt, expressionAt
 } from '@greanteadawy/core';
 
 const MAP_EVERY = 2 * AV_FPS; // the map again every 2 s, for a visual app that starts after the studio
@@ -27,6 +27,7 @@ export class AvBridge {
     this.notes = []; // { channelId, key, vel, dur, at } waiting for their moment
     this.offs = []; // { channelId, key, rel, at, start }
     this.held = new Set(); // voices of keys held by hand (their end comes with noteOff)
+    this.expressive = []; // phase 3: sounding notes with curves or live MPE input { channelId, key, start, end, seconds, curves, live }
   }
 
   get running() { return this.timer !== null; }
@@ -101,13 +102,19 @@ export class AvBridge {
     this.notes = [];
     this.offs = [];
     this.held.clear();
+    this.expressive = [];
   }
 
   // ---- the engine calls these (realtime only; offline renders have no tap)
 
-  on(channelId, key, velocity, time, duration, voice) {
+  /** expr: the note's curves { curves, seconds } (phase 3), or null. */
+  on(channelId, key, velocity, time, duration, voice, expr = null) {
     this.followSession(this.engine.ctx.currentTime);
     this.notes.push({ channelId, key, vel: velocity, dur: duration ?? 0, at: time });
+    if (expr?.curves) {
+      voice.avExpr = { channelId, key, start: time, end: duration != null ? time + duration : Infinity, seconds: expr.seconds, curves: expr.curves, live: null };
+      this.expressive.push(voice.avExpr);
+    }
     if (duration != null) {
       voice.avOff = { channelId, key, rel: 0.5, at: time + duration, start: time };
       this.offs.push(voice.avOff);
@@ -117,9 +124,21 @@ export class AvBridge {
     }
   }
 
+  /** A finger moved on a sounding note (MPE): pitch in semitones, pressure and timbre 0 … 1. */
+  expr(voice, dim, value) {
+    const n = voice.avNote || voice.avOff;
+    if (!n) return;
+    if (!voice.avExpr) {
+      voice.avExpr = { channelId: n.channelId, key: n.key, start: n.start, end: voice.avOff ? voice.avOff.at : Infinity, seconds: 0, curves: null, live: null };
+      this.expressive.push(voice.avExpr);
+    }
+    (voice.avExpr.live ||= {})[dim] = value;
+  }
+
   off(voice, releaseVelocity) {
     const n = voice.avNote;
     if (!n) return;
+    if (voice.avExpr) voice.avExpr.end = Math.min(voice.avExpr.end, this.engine.ctx.currentTime);
     voice.avNote = null;
     this.held.delete(voice);
     this.offs.push({ ...n, rel: releaseVelocity ?? 0.5, at: this.engine.ctx.currentTime });
@@ -128,6 +147,7 @@ export class AvBridge {
   /** The engine cut a note short (choke group, mono, polyphony): it ends then, not at its written end. */
   cut(voice, time) {
     if (voice.avOff && voice.avOff.at > time) voice.avOff.at = Math.max(voice.avOff.start, time);
+    if (voice.avExpr) voice.avExpr.end = Math.min(voice.avExpr.end, time);
     if (voice.avNote) {
       this.offs.push({ ...voice.avNote, rel: 0.5, at: Math.max(voice.avNote.start, time) });
       voice.avNote = null;
@@ -147,6 +167,8 @@ export class AvBridge {
       this.notes = this.notes.filter((n) => n.at <= now || n.dur === 0);
       this.offs = this.offs.filter((o) => o.start <= now);
       for (const o of this.offs) o.at = Math.min(o.at, now);
+      this.expressive = this.expressive.filter((e) => e.start <= now);
+      for (const e of this.expressive) e.end = Math.min(e.end, now);
     }
     this.session = session;
   }
@@ -356,6 +378,37 @@ export class AvBridge {
       ((frame.ggs ||= {})[slug] = { voices: 0, src: Object.fromEntries(GGS_SOURCES.map((k) => [k, 0])) });
     }
     this.ggsSlugs = ggsSlugs;
+    this.phase3(frame, p, at, automated, slugs, changed);
+  }
+
+  /**
+   * Phase 3: where every 3D object stands (room units, when it moves, all once a second), and the expression of every
+   * note that is sounding with curves or a finger on it (pitch in semitones, pressure, timbre), as it moves.
+   */
+  phase3(frame, p, at, automated, slugs, changed) {
+    if (p !== this.posProject || at !== this.posAt) {
+      this.posProject = p;
+      this.posAt = at;
+      this.positions = objectPositionsAt(p, at, { automated, targets: automated ? this.targets : null });
+    }
+    for (const n in this.positions) {
+      const pos = this.positions[n];
+      if (changed(`spatial/${n}`, pos.join(' '))) (frame.spatial ||= {})[n] = pos;
+    }
+    if (!this.expressive.length) return;
+    const now = this.engine.ctx.currentTime;
+    this.expressive = this.expressive.filter((e) => e.end > now);
+    for (const e of this.expressive) {
+      // (a note the visuals haven't been told about yet: its values come with it, in a later frame)
+      if (e.start > this.lastDue) continue;
+      const ch = slugs.get(e.channelId);
+      if (!ch) continue;
+      const values = { ...expressionAt(e.curves, now - e.start, e.seconds), ...e.live };
+      for (const dim in values) {
+        const v = Math.round(values[dim] * 10000) / 10000;
+        if (changed(`expr/${e.channelId}/${e.key}/${e.start}/${dim}`, v)) (frame.expr ||= []).push({ ch, key: e.key, dim, v });
+      }
+    }
   }
 }
 

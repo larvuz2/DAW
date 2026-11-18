@@ -4,7 +4,8 @@ GreanTeaDawy can send what it plays to a visual app — TouchDesigner, Blender, 
 a second: the transport, every note at the moment it sounds, levels, bands, a spectrum, onsets, the section of the
 song, automation values and eight free **visual lanes** (phase 1), plus where every control of the mix stands and the
 GGS Synth's live modulation — envelopes, LFOs, chaos, macros, and what they do to the filter, the wavetable, the pitch —
-for every GGS channel (phase 2). The phases are those of the audio → visual bible (`docs/av-bible.pdf`, chapter 7).
+for every GGS channel (phase 2), and where each 3D object stands in the room and how each sounding note bends, presses
+and slides (phase 3). The phases are those of the audio → visual bible (`docs/av-bible.pdf`, chapter 7).
 
 ```
 studio tab (plays, measures)  ──WebSocket {type:'av', frame}──▶  server  ──OSC/UDP──▶  visual app (AV_OSC, default 127.0.0.1:7000)
@@ -124,12 +125,21 @@ A channel that goes away (deleted, renamed, or a GGS channel turned into another
 sent, or a tab that takes over the OSC port, makes the next frame a full one. One frame becomes at most 4096 phase 2
 messages (a whole big project is about 1500).
 
+### 3D objects and note expression (phase 3)
+
+The same way as phase 2 — when they move, and all of them once a second — after the GGS values:
+
+| Address | Args | Meaning |
+|---|---|---|
+| `/gtd/spatial/{n}` | f f f | where 3D object n (a mixer insert) stands, in room units: x −1 (left) … 1 (right), y −1 (back) … 1 (front), z 0 (floor) … 1 (ceiling) — its place, or its `spatialX/Y/Z` automation while the song plays. Only while the project's spatial mix is on; the map lists the objects (`objects: [{insert, name}]`) |
+| `/gtd/ch/{channel}/expr/{pitch\|pressure\|timbre}` | i f | key, value: a sounding note's expression as it moves — its written curves (pitch in semitones −48…48, pressure and timbre 0…1), or a finger on an MPE controller. Only notes that have them, from the frame of their `note` to their end (a cut note stops at the cut). The key is the one its `note` gave |
+
 ### Occasional
 
 | Address | Args | Meaning |
 |---|---|---|
 | `/gtd/latency` | f | the output latency of the tab (seconds), once a second |
-| `/gtd/map` | s | JSON: `{ project, id, bpm, timeSig, ppq, ticksPerBar, channels: [{slug, id, name, color, kind, insert}], buses: [{index, name}], effects: [{insert, slug, type, id}], markers: [{name, tick}], automations: [{id, name, target}] }` — when the project's shape changes and every 2 s. At most 8 KB (macOS refuses bigger UDP messages): a bigger map leaves out `automations`, then `effects`, then `markers`, and if still too big only the `/gtd/map/ch/…` messages carry it (the WebSocket frame always has all of it) |
+| `/gtd/map` | s | JSON: `{ project, id, bpm, timeSig, ppq, ticksPerBar, channels: [{slug, id, name, color, kind, insert}], buses: [{index, name}], effects: [{insert, slug, type, id}], objects: [{insert, name}], markers: [{name, tick}], automations: [{id, name, target}] }` — when the project's shape changes and every 2 s. At most 8 KB (macOS refuses bigger UDP messages): a bigger map leaves out `automations`, then `effects`, then `markers`, and if still too big only the `/gtd/map/ch/…` messages carry it (the WebSocket frame always has all of it) |
 | `/gtd/map/ch/{channel}` | s s s i | id, colour, instrument kind, mixer insert — the map for apps that can't parse JSON |
 | `/gtd/map/bus/{n}` | s | insert name |
 
@@ -153,20 +163,24 @@ decides, else the one that ended last (the engine's rule for any automated param
 it played. `npm run av:replay` plays that capture to `127.0.0.1:7000` with its original timing (`-- --to host:port`,
 `-- --loop`). See `fixtures/av/README.md`.
 
-## Not yet (phase 3)
+## Not sent
 
-3D object positions in room units (`/gtd/spatial/{n}`; until then their `spatialX/Y/Z` automation arrives as
-`/gtd/auto/…`) and per-note expression while a note sounds (`/gtd/ch/{channel}/expr/{pitch|pressure|timbre}`).
+The master's waveform and its full 1024-bin spectrum, per-channel spectra, and the loop range: ask if a scene needs
+them (the bible lists what the engine has).
 
 ## For developers
 
 - `packages/core/src/av.js`: slugs, the map, automation values at a tick (`targetValuesAt`: the engine's rule per
   target), the effective values of every control (`effectiveValuesAt`), the GGS telemetry in units (`ggsTelemetry`),
+  3D positions (`objectPositionsAt`), a note's expression at a moment (`expressionAt`),
   spectrum features, the onset detector, the frame → OSC mapping (`avFrameToOsc`) and the OSC 1.0 encoder. Shared by
   all three sides. `normalizeParam` / `denormalizeParam` (core `effects.js`) are the one 0…1 ↔ range mapping, used by
   the engine's automation and by the bridge.
 - GGS telemetry: `GgsChannel.setWatch(on, who)` — the synth editor (`'editor'`) and the bridge (`'av'`) each watch;
   the voices report while anyone does.
+- Expression: `engine.triggerNote` hands the tap a note's curves (`noteTap.on(…, { curves, seconds })`) and
+  `setVoiceExpression` reports a finger's moves (`noteTap.expr`); the bridge evaluates curves on the AudioContext
+  clock, never per sample.
 - `client/src/lib/avBridge.js`: the frame builder in the playing tab (timers, not animation frames: those stop in a
   hidden tab; Chrome doesn't slow the timers of a tab playing sound). The engine calls it back on each note
   (`engine.noteTap`); its meters are side branches made only while it runs.

@@ -475,7 +475,7 @@ export class AudioEngine {
       if (dest !== bus) { try { dest.disconnect(); } catch { /* ignore */ } }
     };
     if (p.mono) this.monoLast.set(channelId, v);
-    this.noteTap?.on(channelId, k, velocity, time, duration, v);
+    this.noteTap?.on(channelId, k, velocity, time, duration, v, expression ? { curves: expression, seconds: exprSeconds ?? duration ?? 1 } : null);
     return v;
   }
 
@@ -539,6 +539,7 @@ export class AudioEngine {
    */
   setVoiceExpression(voice, dim, value) {
     if (!voice || voice.done) return;
+    this.noteTap?.expr(voice, dim, value);
     const now = this.ctx.currentTime;
     if (voice.expr) {
       voice.expr[dim]?.setTargetAtTime(value, now, 0.006); // a few ms of glide: controller steps don't zipper

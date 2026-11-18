@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.18.0 — Send to visuals, phase 3: the room and the touch
+
+**The last phase of the audio → visual bridge:** with *☰ → Send to visuals* on, the visuals now also get
+
+- **where every 3D object stands**, in room units — `/gtd/spatial/{insert}` x (−1 left … 1 right), y (−1 back … 1 front),
+  z (0 floor … 1 ceiling) — its place, or its movement while the song plays (an object circling the room arrives as a
+  circle). Only while the project's spatial mix is on; the map lists the objects.
+- **how every note bends, presses and slides while it sounds** — `/gtd/ch/{channel}/expr/pitch|pressure|timbre` with
+  the note's key: the curves written into a note (pitch in semitones, pressure and slide 0…1), and a finger on an MPE
+  controller as it moves. Only notes that have them, from the moment they sound to their end.
+- Both go out when they move, and all once a second, like phase 2.
+- The fixture's lead plays expressively (a scoop, a vibrato, a pressure swell) while it circles the room, and its
+  capture has all of it; the bible (chapter 7) and `docs/av-bridge.md` document phase 3. "PRÓXIMO" in the bible now
+  only marks what the engine has but the bridge doesn't send (the waveform, the full spectrum).
+
 ## 0.17.0 — Send to visuals, phase 2: the mix and the synth
 
 **The visuals now see the controls and the GGS Synth from the inside.** With *☰ → Send to visuals* on, the bridge

@@ -32,8 +32,8 @@ packages/core/   @greanteadawy/core — shared by server AND browser (keep it de
                       the Versions window)      src/suggest.js  nearest / didYouMean for error messages
   src/renders.js      audioFingerprint, nullTest (subtract two renders), maskingReport (Bark bands), compareRenders
   src/av.js           audio → visual bridge: channel slugs, avMap, automation/visual-lane values at a tick, effective
-                      control values + GGS telemetry (phase 2), spectrum features, onset detector, avFrameToOsc (the
-                      OSC address map: add, never rename), encodeOsc/decodeOsc
+                      control values + GGS telemetry (phase 2), 3D positions + note expression (phase 3), spectrum
+                      features, onset detector, avFrameToOsc (the OSC address map: add, never rename), encodeOsc/decodeOsc
   src/builders.js     chord/bass/melody/roll generators
   src/templates.js    genre starter projects: build() + the menu order; each genre is src/templates/<id>.js { label, spec }
   src/analysis.js     LUFS/peak/spectrum/tempo/key/pitch + createLevelMeter (streaming, used for render stems)
@@ -213,7 +213,8 @@ server↔browser protocol changed. Update docs (and `npm run docs:mcp` for tool 
   `{ type: 'user', index: 1…8 }` is a visual lane: `resolveTarget` ignores it on purpose. Phase 2 values (controls,
   GGS telemetry) go out on change plus all once a second; effective values follow the engine's automation rule
   (`targetValuesAt` = `chaseAutomation`): change one, change both. GGS reports are watched per `who` (`setWatch(on,
-  'editor' | 'av')`).
+  'editor' | 'av')`). Phase 3: `triggerNote` hands the tap a note's curves, `setVoiceExpression` calls `noteTap.expr`
+  — keep both when changing how notes get their expression.
 - **Spatial**: an insert with `spatial.enabled` is a 3D object; the `SpatialRig` (not the stereo router) connects it.
   Exports are rendered by the `spatial` job; positions automate `spatialX/Y/Z`. See `docs/spatial.md`.
 - **Samples**: a sample's audio can be replaced (wave editor "Replace original", `edit_sample saveAs=replace`): the id stays,

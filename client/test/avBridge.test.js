@@ -328,3 +328,68 @@ test('phase 2 recovers: a lost frame or a takeover sends everything next; a chan
   const next = step();
   assert.ok(!next.ggs?.lead && !next.param?.kick, 'once');
 });
+
+test('phase 3: a note with curves sends its expression as it moves; a finger on a held key too; a cut ends it', (t) => {
+  t.after(() => mock.timers.reset());
+  const { engine, project, step } = setup();
+  const lead = project.channels[1];
+  engine.transport.play(10);
+  step();
+  const t0 = engine.ctx.currentTime;
+  // a 1 s note bending up an octave, with a pressure that holds
+  const curves = { pitch: [{ t: 0, v: 0 }, { t: 1, v: 12 }], pressure: [{ t: 0, v: 0.8 }, { t: 1, v: 0.8 }] };
+  engine.noteTap.on(lead.id, 64, 0.8, t0 + 0.02, 1, {}, { curves, seconds: 1 });
+  const seen = [];
+  for (let i = 0; i < 70; i++) {
+    const f = step();
+    for (const e of f.expr || []) seen.push({ ...e, at: engine.ctx.currentTime - t0 });
+  }
+  const pitch = seen.filter((e) => e.dim === 'pitch');
+  assert.ok(pitch.length > 40, `${pitch.length} pitch values`);
+  assert.ok(pitch.every((e, i) => i === 0 || e.v >= pitch[i - 1].v), 'it only rises');
+  assert.ok(Math.abs(pitch.at(-1).v - 12) < 0.5);
+  assert.equal(pitch[0].key, 64);
+  assert.ok(seen.filter((e) => e.dim === 'pressure').length <= 2, 'a value that holds goes once (and with the full frame each second)');
+  assert.ok(seen.every((e) => e.at <= 1.03 + 1 / AV_FPS), 'nothing after the note ends');
+  // a key held by hand, played with an MPE controller
+  const voice = {};
+  engine.noteTap.on(lead.id, 60, 0.7, engine.ctx.currentTime + 0.001, null, voice);
+  step();
+  engine.noteTap.expr(voice, 'pressure', 0.4);
+  const slug = lead.name.toLowerCase();
+  assert.deepEqual(step().expr, [{ ch: slug, key: 60, dim: 'pressure', v: 0.4 }]);
+  engine.noteTap.expr(voice, 'pitch', -2);
+  assert.deepEqual(step().expr, [{ ch: slug, key: 60, dim: 'pitch', v: -2 }]);
+  assert.equal(step().expr, undefined, 'no movement, nothing');
+  engine.noteTap.off(voice, 0.5);
+  step();
+  engine.noteTap.expr(voice, 'pressure', 0.9);
+  assert.equal(step().expr, undefined, 'after its end, the key says nothing more');
+  // a choked note's curve stops at the cut
+  const choked = {};
+  engine.noteTap.on(lead.id, 67, 0.8, engine.ctx.currentTime + 0.01, 2, choked, { curves, seconds: 2 });
+  step(); step();
+  engine.noteTap.cut(choked, engine.ctx.currentTime + 0.02);
+  for (let i = 0; i < 3; i++) step();
+  const later = [];
+  for (let i = 0; i < 10; i++) later.push(...(step().expr || []));
+  assert.equal(later.length, 0);
+});
+
+test('phase 3: 3D objects go out when they move, all of them once a second', (t) => {
+  t.after(() => mock.timers.reset());
+  const { state, step } = setup();
+  state.project = applyOps(state.project, [
+    { type: 'project/update', patch: { spatial: { enabled: true } } },
+    { type: 'mixer/update', index: 1, patch: { spatial: { enabled: true, x: 0.5, y: 0, z: 0 } } }
+  ]);
+  const first = step();
+  assert.deepEqual(first.spatial, { 1: [0.5, 0, 0] });
+  assert.ok(first.map.objects.some((o) => o.insert === 1));
+  assert.equal(step().spatial, undefined);
+  state.project = applyOps(state.project, [{ type: 'mixer/update', index: 1, patch: { spatial: { x: -1 } } }]);
+  assert.deepEqual(step().spatial, { 1: [-1, 0, 0] });
+  let again = 0;
+  for (let i = 0; i < AV_FPS; i++) if (step().spatial) again++;
+  assert.equal(again, 1);
+});

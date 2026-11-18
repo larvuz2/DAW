@@ -46,7 +46,12 @@ test.beforeAll(async ({ browser, baseURL }) => {
   // phase 2: an effect whose mix the song moves
   await claude.call('add_effect', { insert: 1, type: 'delay', params: { mix: 0.1 } });
   await claude.call('add_automation', { name: 'Echo', target: { type: 'effect', insert: 1, effectId: 'delay', param: 'mix' }, points: [{ bar: 0, value: 0 }, { bar: 4, value: 1 }], startBar: 1 });
-  await expect.poll(() => store(() => window.greanteadawy.store.getState().project.automations.length)).toBe(2);
+  // phase 3: the lead is a 3D object that circles the room, and its A4 bends up two semitones
+  await claude.call('set_note_expression', { pattern: 'A', channel: 'Lead Synth', note: 'A4', pitch: { shape: 'bend', from: 0, to: 2, start: 0, end: 1 } });
+  await claude.call('set_spatial', { enabled: true, monitor: 'stereo' });
+  await claude.call('place_object', { insert: 'Lead Synth', position: 'front' });
+  await claude.call('move_object', { insert: 'Lead Synth', path: 'circle', startBar: 1, bars: 4, turns: 1 });
+  await expect.poll(() => store(() => window.greanteadawy.store.getState().project.automations.length)).toBe(4);
 });
 test.afterAll(async () => {
   await store(() => window.greanteadawy.store.getState().stop()).catch(() => {});
@@ -167,6 +172,26 @@ test('phase 2: controls as they stand, the automated delay, and the GGS pad\'s l
   await page.waitForTimeout(300);
   const after = got.length;
   await expect.poll(() => got.slice(after).filter((m) => m.addr === '/gtd/ggs/pad/src/env1').length, { timeout: 4000 }).toBeGreaterThan(5);
+});
+
+test('phase 3: the lead circles the room in room units, and its bent note sends its pitch as it moves', async () => {
+  const frames = got.slice(playFrom);
+  const map = JSON.parse(got.findLast((m) => m.addr === '/gtd/map').args[0]);
+  const lead = map.channels.find((c) => c.slug === 'lead_synth');
+  expect(map.objects.map((o) => o.insert)).toEqual([lead.insert]);
+  const pos = frames.filter((m) => m.addr === `/gtd/spatial/${lead.insert}`).map((m) => m.args);
+  expect(pos.length).toBeGreaterThan(60); // it moves: a message nearly every frame
+  // clockwise from the front: right first, then behind (about half a turn in the 4.5 s played)
+  expect(pos[0][1]).toBeGreaterThan(0.9);
+  expect(Math.max(...pos.map(([x]) => x))).toBeGreaterThan(0.9);
+  expect(Math.min(...pos.map(([, y]) => y))).toBeLessThan(-0.5);
+  expect(pos.every(([x, y, z]) => Math.abs(x) <= 1 && Math.abs(y) <= 1 && z >= 0 && z <= 1)).toBe(true);
+  // the A4 (half a second) bends 0 → +2 semitones; the C5 has no curve and sends none
+  const bend = frames.filter((m) => m.addr === '/gtd/ch/lead_synth/expr/pitch');
+  expect(bend.length).toBeGreaterThan(10);
+  expect(bend.every((m) => m.args[0] === 69)).toBe(true);
+  expect(Math.max(...bend.map((m) => m.args[1]))).toBeGreaterThan(1.5);
+  expect(Math.min(...bend.map((m) => m.args[1]))).toBeLessThan(0.5);
 });
 
 test('stop: the visuals hear it at once; switching off sends the last frame and then nothing', async () => {

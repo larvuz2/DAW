@@ -1,6 +1,7 @@
 // The audio → visual bridge, the parts shared by the browser (which measures), the server (which sends OSC) and the
 // tests: channel slugs, the map of the project for visual scenes, automation and visual-lane values at a tick, the
 // effective values of channel, bus and effect controls (phase 2), the GGS Synth's live modulation in real units,
+// the positions of 3D objects and the expression of a sounding note (phase 3),
 // spectrum features (levels, six bands, 32 log bands, centroid), a small onset detector, and the frame → OSC mapping
 // with its encoder. The addresses are the contract with the visual side (docs/av-bible.pdf, chapter 7): add, never
 // rename.
@@ -8,7 +9,8 @@ import { PPQ, AV_USER_LANES, MAX_VOLUME, MAX_INSERTS, MAX_EFFECTS_PER_INSERT, ti
 import { songAutomationInRange, automationValueAt } from './timeline.js';
 import { EFFECTS, normalizeParam } from './effects.js';
 import { MACRO_PARAMS } from './model.js';
-import { isSpatialObject, spatialToNorm } from './spatial.js';
+import { isSpatialObject, spatialToNorm, spatialFromNorm, normalizeInsertSpatial, SPATIAL_PARAMS } from './spatial.js';
+import { EXPRESSION_DIMS, EXPRESSION_RANGE, curveValueAt } from './expression.js';
 import { MOD_SOURCES, MOD_TARGETS, modTargetSpec, targetValue, ggsDefaults } from '@greanteadawy/synth-dsp';
 
 export const AV_FPS = 60;
@@ -83,6 +85,8 @@ export function avMap(project) {
       const slugs = effectSlugs(fx);
       return fx.map((e) => ({ insert, slug: slugs.get(e.id), type: e.type, id: e.id }));
     }),
+    // the inserts that are 3D objects (/gtd/spatial/{insert}): none while the project's spatial mix is off
+    objects: project.mixer.map((m, insert) => (isSpatialObject(project, insert) ? { insert, name: m.name } : null)).filter(Boolean),
     markers: [...(project.markers || [])].sort((a, b) => a.tick - b.tick).map((m) => ({ name: m.name, tick: m.tick })),
     automations: (project.automations || []).map((a) => ({ id: a.id, name: a.name, target: a.target }))
   };
@@ -234,6 +238,38 @@ export function effectiveValuesAt(project, tick, { automated = true, targets = n
   return { param, bus, fx };
 }
 
+/**
+ * Phase 3: where every 3D object stands at a song tick, in room units — x −1 (left) … 1 (right), y −1 (back) … 1
+ * (front), z 0 (floor) … 1 (ceiling): its own place, or its spatialX/Y/Z automation while the song plays (the
+ * engine's rule, as for every control). { [insert]: [x, y, z] }; empty while the project's spatial mix is off.
+ */
+export function objectPositionsAt(project, tick, { automated = true, targets = null } = {}) {
+  const autos = automated ? targets || targetValuesAt(project, tick) : new Map();
+  const out = {};
+  project.mixer.forEach((m, i) => {
+    if (!isSpatialObject(project, i)) return;
+    const own = normalizeInsertSpatial(m.spatial, m.pan);
+    out[i] = Object.keys(SPATIAL_PARAMS).map((param) => {
+      const a = autos.get(targetKey({ type: 'mixer', index: i, param }));
+      return r4(a ? spatialFromNorm(param, a.v) : own[SPATIAL_PARAMS[param].axis] ?? 0);
+    });
+  });
+  return out;
+}
+
+/**
+ * Phase 3: a note's expression where it stands `elapsed` seconds into it — its curves (pitch in semitones −48 … 48,
+ * pressure and timbre 0 … 1) over `seconds`, the length they span (the note's full written length). { pitch?, … }:
+ * only the dimensions the note has.
+ */
+export function expressionAt(curves, elapsed, seconds) {
+  const out = {};
+  if (!curves) return out;
+  const t = seconds > 0 ? Math.min(1, Math.max(0, elapsed / seconds)) : 0;
+  for (const dim of EXPRESSION_DIMS) if (curves[dim]?.length) out[dim] = r4(curveValueAt(curves[dim], t));
+  return out;
+}
+
 /** The GGS Synth's modulation sources and targets as the bridge names them (without "none"). */
 export const GGS_SOURCES = MOD_SOURCES.filter((s) => s !== 'none');
 export const GGS_TARGETS = MOD_TARGETS.filter((t) => t !== 'none');
@@ -366,7 +402,7 @@ export function createOnsetDetector({ sensitivity = 1.6, minGap = 0.08 } = {}) {
 
 // ---- frames → OSC ----------------------------------------------------------------------------------------------
 
-/** The most phase 2 messages one frame may become (a full frame of a big project is about 1500). */
+/** The most phase 2 and 3 messages one frame may become (a full frame of a big project is about 1500). */
 export const AV_PHASE2_BUDGET = 4096;
 const SLUG = /^[a-z0-9_]{1,48}$/;
 const ID = /^[\w-]{1,64}$/;
@@ -384,7 +420,8 @@ const text = (v, max) => String(v ?? '').replace(/\0/g, '').slice(0, max);
 export const AV_MAP_MAX_BYTES = 8000;
 function mapJson(map) {
   const enc = utf8;
-  for (const m of [map, { ...map, automations: [] }, { ...map, automations: [], effects: [] }, { ...map, automations: [], effects: [], markers: [] }]) {
+  const lean = { automations: [], effects: [] };
+  for (const m of [map, { ...map, automations: [] }, { ...map, ...lean }, { ...map, ...lean, markers: [] }]) {
     let json = '';
     try { json = JSON.stringify(m).replace(/\0/g, ''); } catch { return ''; }
     if (enc.encode(json).length <= AV_MAP_MAX_BYTES) return json;
@@ -470,6 +507,16 @@ export function avFrameToOsc(frame) {
       if (!KEY.test(k) || !Array.isArray(v)) continue;
       add([`/gtd/ggs/${slug}/dst/${k}`, f(num(v[0], -1e6, 1e6))], [`/gtd/ggs/${slug}/dst/${k}/n`, f(num(v[1], 0, 1))]);
     }
+  }
+  // phase 3: 3D objects in room units, and the expression of sounding notes (key, value)
+  for (const [n, pos] of entries(frame.spatial, MAX_INSERTS + 1)) {
+    if (!INDEX.test(n) || !Array.isArray(pos)) continue;
+    add([`/gtd/spatial/${Number(n)}`, f(num(pos[0], -1, 1)), f(num(pos[1], -1, 1)), f(num(pos[2], 0, 1))]);
+  }
+  for (const e of Array.isArray(frame.expr) ? frame.expr.slice(0, 512) : []) {
+    if (!slugOk(e?.ch) || !EXPRESSION_DIMS.includes(e.dim)) continue;
+    const [lo, hi] = EXPRESSION_RANGE[e.dim];
+    add([`/gtd/ch/${e.ch}/expr/${e.dim}`, i(num(e.key, 0, 127)), f(num(e.v, lo, hi))]);
   }
   if (typeof frame.latency === 'number') out.push(['/gtd/latency', f(num(frame.latency, 0, 10))]);
   if (frame.map && typeof frame.map === 'object' && !Array.isArray(frame.map)) {
