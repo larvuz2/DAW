@@ -5,8 +5,9 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
-  // (tools/song-analyzer/.venv is the analyzer's Python environment, uploads/ the songs being studied: neither is ours to lint)
-  { ignores: ['**/node_modules/**', '**/dist/**', 'data/**', 'test-results/**', 'playwright-report/**', '**/.venv/**', 'uploads/**'] },
+  // (tools/song-analyzer/.venv is the analyzer's Python environment, uploads/ the songs being studied, and
+  // packages/chord-grid/src/tuple-engine.js is Tuple's engine as its authors wrote it: none is ours to lint)
+  { ignores: ['**/node_modules/**', '**/dist/**', 'data/**', 'test-results/**', 'playwright-report/**', '**/.venv/**', 'uploads/**', 'packages/chord-grid/src/tuple-engine.js'] },
   js.configs.recommended,
   {
     files: ['**/*.{js,mjs,jsx}'],

@@ -14,6 +14,7 @@
     "test": "node --test --test-timeout=90000 test/*.test.js"
   },
   "dependencies": {
+    "@greanteadawy/chord-grid": "*",
     "@greanteadawy/core": "*",
     "@greanteadawy/synth-dsp": "*",
     "@modelcontextprotocol/sdk": "^1.31.0",

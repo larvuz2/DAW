@@ -19,7 +19,7 @@
     "build": "npm run build -w client",
     "start": "npm run start -w server",
     "mcp": "node server/src/mcp/stdio.js",
-    "test": "npm test -w packages/core && npm test -w packages/synth-dsp && npm test -w server && npm test -w client",
+    "test": "npm test -w packages/core && npm test -w packages/synth-dsp && npm test -w packages/chord-grid && npm test -w server && npm test -w client",
     "docs:av": "node scripts/av-bible.mjs",
     "docs:mcp": "cd server && node ../scripts/gen-mcp-docs.mjs",
     "test:e2e": "npm run build && playwright test",

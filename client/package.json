@@ -12,6 +12,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "@greanteadawy/chord-grid": "*",
     "@greanteadawy/core": "*",
     "@greanteadawy/synth-dsp": "*",
     "react": "^19.2.0",

@@ -1,0 +1,15 @@
+{
+  "name": "@greanteadawy/chord-grid",
+  "version": "0.19.0",
+  "description": "The chord grid: Tuple's chord engine (MIT, c0remusic) wrapped for the studio — every chord of a key, borrowed chords, what could come next, voicings, voice leading, tensions, a progression track. Plain JavaScript, no dependencies; runs in the browser and in Node.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test --test-timeout=120000 test/*.test.js",
+    "vendor": "node scripts/vendor-tuple.mjs"
+  }
+}

@@ -8,6 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/core/package.json packages/core/
 COPY packages/synth-dsp/package.json packages/synth-dsp/
+COPY packages/chord-grid/package.json packages/chord-grid/
 COPY server/package.json server/
 COPY client/package.json client/
 RUN npm ci --no-audit --no-fund
