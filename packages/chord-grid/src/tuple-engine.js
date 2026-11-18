@@ -6242,6 +6242,7 @@ _clipHereInitTask.schedule(900);
         case 'captureMode': return captureMode;
         case 'lastChordNotes': return lastChordNotes;
         case 'progMode': return progMode;
+        case 'GRID_TYPES': return GRID_TYPES;
         default: throw new Error('chord-grid: the engine variable "' + name + '" is not exposed (scripts/vendor-tuple.mjs)');
       }
     },

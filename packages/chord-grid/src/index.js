@@ -544,15 +544,19 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
         out.ext.push({ degree: d, roman: fns._romanOf(d), cells: fns._extTable().map((c) => colour(c, 'ext', { degree: d })) });
       }
       eng.set('_extDeg', wasDeg);
-      sounds = [];
       cached = null;
+      // (turning a page lets go of a held chord: whoever plays the grid's notes must hear that)
+      const let_go = sounds;
+      sounds = [];
+      if (let_go.length && onNotes) onNotes(let_go);
       return out;
     },
     /**
      * The cell a chord name stands for in this key ("Dm9", "Cmaj7", "Eb", "Db7", "FM13"), or null:
      * { cell, id, label, roman, group }. Looked for in the key's own columns first, then the borrowed column's pages
-     * (as it shows them, then its other face: the names with EXT off or on), then the Ext page of each degree. A chord
-     * no page offers but the engine can spell (E7 in A minor, Cm7 in C major) is answered too, as group 'chromatic'.
+     * as they show, then the Ext page of each degree. A chord no page offers but the engine can spell (E7 in A minor,
+     * Cm7 in C major) is answered too, as group 'chromatic'. Looking changes nothing a listener would hear: the page,
+     * the voice-leading memory and what was last played stay as they were.
      */
     find(text) {
       const want = chordKey(text);
@@ -562,13 +566,10 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
         const cat = grid.catalog();
         return [...cat.columns.flatMap((c) => c.cells), ...cat.borrowed, ...cat.mediants, ...cat.tritone, ...cat.tritoneAll, ...cat.ext.flatMap((e) => e.cells)].find(is) || null;
       };
-      let hit = search();
-      if (!hit) {
-        // the borrowed column has two faces: plain, and enriched under EXT ("Eb" / "EbM9")
-        const was = ui.extended;
-        send('extended', was ? 0 : 1);
-        try { hit = search(); } finally { send('extended', was ? 1 : 0); sounds = []; cached = null; }
-      }
+      // (The borrowed column has a second face under EXT — "Eb" / "Ebadd9". It is not switched to look: switching EXT
+      // empties the engine's voice-leading memory, and the next chord would no longer be led from the last one. A name
+      // of the other face is spelled out below instead: the same notes.)
+      const hit = search();
       if (hit) return { cell: cellFromId(hit.id), id: hit.id, label: hit.label, roman: hit.roman ?? null, group: hit.group };
       // not on any page: a chord the engine can still spell and voice
       const type = spelledTypes().get(want.suffix);
@@ -721,6 +722,16 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
       let track;
       try { track = JSON.parse(d.track); } catch { return false; }
       if (!track || track.v !== 1 || !Array.isArray(track.cards)) return false;
+      // The engine takes the cards as they are and plays them as stored: what is not a card must stop here, or the
+      // grid would throw on every look at it from then on.
+      const num = (x, lo, hi) => typeof x === 'number' && x >= lo && x <= hi;
+      const card = (c) => c && typeof c === 'object' && typeof c.name === 'string' && c.name.length <= 40 && typeof c.fn === 'string'
+        && (c.fn === 'color' ? num(c.colorSemis, 0, 11) && typeof c.colorType === 'string' && c.colorType.length <= 40 && playable({ kind: 'b', semis: c.colorSemis, type: c.colorType }) : Number.isInteger(c.deg) && c.deg >= 0 && c.deg < 7 && eng.get('GRID_TYPES').includes(c.fn))
+        && Array.isArray(c.notes) && c.notes.length >= 1 && c.notes.length <= 12 && c.notes.every((n) => Number.isInteger(n) && n >= 0 && n <= 127)
+        && (c.notesBase === undefined || (Array.isArray(c.notesBase) && c.notesBase.length <= 12 && c.notesBase.every((n) => Number.isInteger(n) && n >= 0 && n <= 127)))
+        && (c.bars === undefined || num(c.bars, eng.get('PROG_BARS_MIN'), eng.get('PROG_BARS_MAX'))) && (c.start === undefined || num(c.start, 0, eng.get('PROG_TRACK_BARS')))
+        && (c.tensions === undefined || (Array.isArray(c.tensions) && c.tensions.length <= 7 && c.tensions.every((t) => TENSIONS.includes(t))));
+      if (track.cards.length > 256 || !track.cards.every(card)) return false;
       const before = version;
       const { capture: _c, ...settings } = d.settings || {};
       for (const [k, v] of Object.entries(settings)) { try { if (SETTERS[k] && v !== undefined) SETTERS[k](v); } catch { /* a setting a newer version wrote: skipped */ } }

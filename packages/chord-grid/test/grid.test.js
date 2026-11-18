@@ -354,6 +354,14 @@ test('save and load: the track, its key and the settings come back; the key can 
   h.setKey({ root: 2 });
   assert.deepEqual(h.view().progression.cards.map((c) => c.roman), a.progression.cards.map((c) => c.roman), 'the same degrees');
   assert.deepEqual(h.view().progression.cards.map((c) => c.name.slice(0, 2)), ['Em', 'A7', 'Bb'], 'a tone higher');
+  // what is not a track of cards is refused whole
+  const bad = (edit) => { const d = JSON.parse(saved); const t = JSON.parse(d.track); edit(t); d.track = JSON.stringify(t); return JSON.stringify(d); };
+  for (const edit of [(t) => { t.cards[0].notes = ['C4']; }, (t) => { t.cards[0].notes = [400]; }, (t) => { t.cards[0].fn = 'banana'; }, (t) => { t.cards[0].deg = 9; }, (t) => { t.cards[1].bars = 1e9; },
+    (t) => { t.cards[2].colorType = 'x.nope'; }, (t) => { t.cards[0].tensions = ['7']; }, (t) => { t.cards = Array(300).fill(t.cards[0]); }, (t) => { t.cards[0] = null; }]) {
+    assert.equal(h.load(bad(edit)), false);
+    assert.equal(h.view().progression.cards.length, 3);
+    h.notes();
+  }
   assert.equal(h.load('not json'), false);
   assert.equal(h.load('{"chordGrid":2}'), false);
   assert.equal(h.load(JSON.stringify({ chordGrid: 1, track: '{"v":9}' })), false);
@@ -398,6 +406,7 @@ test('a chord by its name: the many ways to write one find the same cell', () =>
   assert.equal(where('C5'), null, 'a bare fifth is not a chord the engine spells');
   assert.equal(g.view().borrowed.page, 0, 'looking leaves the page where it was');
   assert.equal(g.view().settings.extended, false);
+  assert.equal(g.find('Ebadd9').id, 'b:3:x.t4.f7.n2', 'a name of the column\'s richer face is spelled out');
   // found cells are playable and become cards, whatever page shows
   for (const name of ['Db7', 'FM13', 'E', 'Dm9']) assert.ok(g.add(g.find(name).cell).index >= 0, name);
   assert.deepEqual(g.view().progression.cards.map((c) => c.name), ['Db7', 'FM13', 'E', 'Dm9']);
@@ -452,4 +461,24 @@ test('a chord no page offers is still spelled and voiced: E7 in A minor, Cm7 in 
   const { index, refused } = c.add(c.find('Cm7').cell, { tensions: ['9', '11'] });
   assert.deepEqual(refused, []);
   assert.equal(c.view().progression.cards[index].name, 'Cm11');
+});
+
+test('looking a chord up by name does not disturb voice leading: the same progression by name and by cell', () => {
+  const names = ['Am7', 'Dm9', 'E7', 'Am9', 'FM7', 'E7b9', 'Bb', 'Am7'];
+  const cells = names.map((n) => createChordGrid({ root: 9, scale: 'minor' }).find(n).cell);
+  const run = (byName, leading) => {
+    const g = createChordGrid({ root: 9, scale: 'minor' });
+    g.set({ leading });
+    names.forEach((n, i) => g.add(byName ? g.find(n).cell : cells[i]));
+    return g.view().progression.cards.map((c) => c.notes);
+  };
+  for (const leading of ['follow', 'anchor', 'off']) assert.deepEqual(run(true, leading), run(false, leading), leading);
+  // and a held chord that a look lets go of is told to whoever plays the notes
+  const heard = [];
+  const g = createChordGrid({ root: 0, scale: 'major', onNotes: (n) => heard.push(...n) });
+  g.press('d:0:seven');
+  heard.length = 0;
+  g.catalog();
+  g.release();
+  assert.deepEqual(heard.filter((n) => !n.on).map((n) => n.pitch).sort(), [48, 52, 55, 59].map(String).sort().map(Number));
 });

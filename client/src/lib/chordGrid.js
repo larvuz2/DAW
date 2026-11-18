@@ -98,7 +98,16 @@ function createSession(mod, first) {
   let saveTimer = null;
   const save = () => { try { localStorage.setItem(STORE + project.id, grid.save()); } catch { /* storage full or off: the grid still works */ } };
   let restored = false;
-  try { const saved = localStorage.getItem(STORE + project.id); restored = !!saved && grid.load(saved); } catch { /* unreadable: start empty */ }
+  try {
+    const saved = localStorage.getItem(STORE + project.id);
+    if (saved) {
+      // tried on a grid of its own first: a save that reads but cannot be shown must not take the tab with it
+      const probe = mod.createChordGrid(key);
+      if (probe.load(saved)) { probe.view(); probe.notes(); restored = grid.load(saved); }
+    }
+  } catch {
+    try { localStorage.removeItem(STORE + project.id); } catch { /* storage is off */ }
+  }
   // a first visit shows what the grid is for: after a chord, where it could go lights up
   if (!restored) grid.set({ smart: 'function' });
   grid.setKey(key);
