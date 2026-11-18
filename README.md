@@ -4,7 +4,7 @@
 
 GreanTeaDawy is an open-source, self-hosted beat-making studio: channel rack and step sequencer, piano roll, playlist,
 mixer with effects, automation, sampler and audio clips, all running in the browser with a Node.js backend. Its
-built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-production tools, so you can say
+built-in [MCP](https://modelcontextprotocol.io) server gives Claude 104 music-production tools, so you can say
 *"make a dark trap beat at 145 BPM and mix it for streaming"* and watch every edit appear live in your studio.
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
@@ -55,6 +55,10 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
   pentatonic and Indian thaat scales.
 - **Piano roll** — draw/select/erase tools, chord stamp, snap, quantize, legato, humanize, scale highlighting, ghost
   notes, velocity lane, copy/paste/duplicate, keyboard nudging.
+- **Chord grid** — every chord of the key on one colour-coded grid, with borrowed chords, tritone substitutes and
+  extensions beside it, suggestions that light up after each chord, eight voicings, voice leading, tensions with
+  avoid notes, strum and humanize, and a track of cards that loops against the song and writes to a pattern. The
+  harmonic engine is [Tuple](https://github.com/c0remusic/tuple)'s (MIT). See [The chord grid](docs/chord-grid.md).
 - **Harmony & tuning** — a Harmony window with the chords that fit the key and what could follow them (ranked,
   coloured by function, each with its reason), the progression with its tension curve, substitutes for any chord,
   a library of 82 progressions and voice-led writing into a pattern; 57 scales and 65 chord types; and the project's
@@ -111,9 +115,14 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 102 music-pr
 **Claude integration (MCP)**
 
 - **Streamable HTTP** (`/mcp`) and **stdio** (for Claude Desktop) transports.
-- 102 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
+- 104 tools: projects, sounds, drums, chords (symbols or roman numerals, jazz/neo-soul voicings), basslines (degree
   lines with 808 slides), melodies, rolls, transforms, arrangement with markers, automation, mixer and effects,
   samples, versions, undo, play/stop, MIDI and stem export.
+- **The chord grid** — `chord_grid` shows every chord the key offers (7ths, 9ths, sus, 6/9, borrowed chords,
+  secondary dominants, tritone substitutes, 11th and 13th forms), where a progression could go next and which
+  tensions a chord takes; `add_grid_chords` writes them voiced and voice-led by the engine of the Harmony window's
+  Grid tab, with strum and humanize — so Claude's progressions are more than four triads. See
+  [The chord grid](docs/chord-grid.md).
 - **Harmony and tuning** — `harmony` reads chords in the key (numeral, function, tension), suggests what could come
   next with reasons, finds substitutes and ways to another key, and searches a library of 82 progressions;
   `add_chords` voice-leads a whole progression; `add_arpeggio`, `add_drum_groove` (16 styles) and Euclidean rhythms
@@ -326,3 +335,6 @@ in [docs/development.md](docs/development.md).
 ## Licence
 
 [MIT](LICENSE) © GreanTeaDawy contributors.
+
+The chord grid runs the chord engine of [Tuple](https://github.com/c0remusic/tuple) © 2026 c0remusic, used under the
+MIT licence ([`packages/chord-grid/LICENSE-tuple.txt`](packages/chord-grid/LICENSE-tuple.txt)).

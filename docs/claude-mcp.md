@@ -60,7 +60,7 @@ Use the URL form `https://your-server/mcp?token=gtd_…`. Treat that URL like a 
 
 ## What Claude can do
 
-102 tools in twelve groups — see the full [MCP reference](MCP.md):
+104 tools in twelve groups — see the full [MCP reference](MCP.md):
 
 - **Working safely and cheaply** (see [below](#how-claude-works-dry-runs-batches-notes-as-text)): `batch` (several
   edits as one change: all or nothing, one undo), `dryRun` on every editing tool, `diff_versions` (what changed since
@@ -72,6 +72,12 @@ Use the URL form `https://your-server/mcp?token=gtd_…`. Treat that URL like a 
   `disperser`, `lofi`, `utility`) go on any insert with `add_effect`; `analog`, `additive` and `modal` are
   instruments for `add_channel`; `set_synth_oscillator` takes `unisonLaw`, `stack` and `unisonTable`, and
   `set_synth_effect` a `drive.oversampling`.
+
+- **The chord grid** ([guide](chord-grid.md)): `chord_grid` — every chord the key offers by degree, its borrowed
+  chords, tritone substitutes and 11th/13th forms, where a progression could go next, and which tensions a chord
+  takes; `add_grid_chords` writes them voiced and voice-led by the same engine the Harmony window's Grid tab uses
+  (Tuple's), with tensions per chord, strum and humanize. It is where Claude starts harmony, so progressions are
+  more than plain triads.
 
 - **Harmony and tuning** ([guide](harmony-and-tuning.md)): **harmony** — what each chord is in the key (numeral,
   function, origin, tension), what could come next and why, substitutes, negative harmony, ways to another key, and a

@@ -8,6 +8,9 @@ rewritten in JavaScript for this engine.
 
 ## The Harmony window
 
+The window opens on the **Grid** tab — every chord of the key on one grid, with a track to build a progression on:
+see [The chord grid](chord-grid.md). The tabs described here are **Chords**, **Library** and **Tuning**.
+
 Open it with the ♪ button in the toolbar (or **Chords** in the piano roll). Its title bar holds the **key**, the
 **scale** (57 of them, grouped by family — hover the picker to read what a scale sounds like) and the **channel**
 that plays what you click and receives what you write.

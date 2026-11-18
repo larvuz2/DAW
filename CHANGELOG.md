@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.20.0 — The chord grid
+
+**Every chord of the key on one grid.** The Harmony window opens on a new **Grid** tab: seven colour-coded columns
+with every chord the scale has on each degree, a Borrowed column with four pages (modal interchange and secondary
+dominants, tritone substitutes, chromatic mediants, extensions), suggestions that light up after each chord, and a
+track of cards to try a progression on (`docs/chord-grid.md`). The harmonic engine is
+[Tuple](https://github.com/c0remusic/tuple)'s — a free Max for Live chord device by c0remusic, MIT — running outside
+Ableton Live, unchanged; the layout follows Tuple's.
+
+- **Play**: click a chord to hear it on a channel of the song (hold to sustain); eight voicings (Closed, Open,
+  Section / drop 2, Chord Melody / drop 3, Two Hands, Rootless…), voice leading Off / Anchor / Follow, EXT, octave,
+  strum with a velocity ramp, humanize, a velocity range. Arrows, Enter and Shift+Enter do it from the keyboard.
+- **Build**: Capture puts what you play on the track; or double-click, or drag a chord to a bar. Cards move, stretch
+  down to an eighth of a bar and take tensions (♭9 9 ♯9 11 ♯11 ♭13 13, with avoid notes held back and the reason on
+  hover), a voicing, an inversion and an octave of their own; *Instead / Next / Voicings* offer substitutes, what
+  could follow and other spreads; the track has its own undo.
+- **Hear and keep**: Play loops the track on the audio clock — *With the song* starts the song's playback at the same
+  instant — and *Write to pattern* turns it into notes in one undo step. The grid follows the song's key and scale
+  (30 scales; any other shows the closest and says so) and is kept per project in the browser.
+- **Claude composes from the same grid**: `chord_grid` lists the palette of the key, where a progression could go
+  next and what one chord takes; `add_grid_chords` writes chords voiced and led by the engine, with tensions per
+  chord, strum and humanize. Any standard chord name is spelled and voiced even when no page offers it (E7 in
+  A minor). The guide, the beat-making prompt and skill now start harmony there: sevenths or richer on most chords,
+  one colour from outside the key per phrase, a top voice that moves by step — triads where the style is made of
+  them. 104 tools (was 102).
+- **How it is built**: `packages/chord-grid` keeps Tuple's script as written inside a generated module
+  (`scripts/vendor-tuple.mjs` brings a newer Tuple in and stops if the engine lost something the adapter uses); a
+  host stands in for Max — outlets as events, `Task` on a virtual clock (no timers), a seeded `Math.random` — so the
+  same call gives the same notes in the browser, in Node and in tests. The engine is a separate chunk (121 kB, 46 kB
+  gzipped) loaded when the tab first opens.
+
+Good to know: the grid's cards live in the browser, not in the project (the notes it writes are in the project);
+chords have six notes at most; the Rootless voicing plays the natural ninth where the root was, so an altered ninth
+on top sounds with it (the card says so, `add_grid_chords` refuses it); changing the scale drops tensions a chord can
+no longer take. The Harmony window now opens on Grid — Chords, Library and Tuning are the tabs beside it. Nothing was
+judged by ear: the tests check notes.
+
 ## 0.19.0 — Song studies
 
 **Learn from a song you like.** Upload a song in a Claude session on this repository and ask to understand it: the

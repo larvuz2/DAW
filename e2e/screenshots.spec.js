@@ -390,6 +390,39 @@ test('Versions screenshot', async ({ browser, baseURL }) => {
   await page.close();
 });
 
+// The chord grid (Harmony → Grid): a ii–V–I–VI being built, the dominant's card selected. Regenerate on its own:
+//   SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.js -g "Chord grid"
+test('Chord grid screenshot', async ({ browser, baseURL }) => {
+  fs.mkdirSync(OUT, { recursive: true });
+  const page = await browser.newPage({ viewport: { width: 1000, height: 860 } });
+  await page.goto('/');
+  const status = await (await page.request.get('/api/auth/status')).json();
+  if (status.setupRequired) await page.request.post('/api/auth/setup', { data: ADMIN });
+  else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
+  await page.goto('/');
+  await expect(page.locator('.toolbar')).toBeVisible();
+  const claude = await connectMcp(baseURL);
+  await claude.call('create_project', { name: 'Late Train Home', template: 'empty', key: 'C', scale: 'major', bpm: 92 });
+  await expect(page).toHaveTitle(/Late Train Home/);
+  await claude.call('add_channel', { name: 'Keys', instrument: 'synth' });
+  await claude.call('create_pattern', { name: 'Verse', bars: 4 });
+  await layout(page, { harmony: [10, 10, 960, 800] }, { browserOpen: false });
+  const win = page.locator('.window.harmony');
+  await expect(win.locator('.cgrid-grid')).toBeVisible({ timeout: 15000 });
+  const cell = (name) => win.getByRole('gridcell', { name: new RegExp(`^${name}(,|$)`) });
+  await win.getByRole('radio', { name: 'Follow' }).click();
+  await win.getByRole('button', { name: 'Capture' }).click();
+  for (const name of ['Dm9', 'G7', 'CM9', 'A7']) await cell(name).click();
+  await win.locator('.cgrid-card').nth(1).click();
+  await win.locator('.cgrid-detail').getByRole('button', { name: '13', exact: true }).click();
+  await win.locator('.cgrid-detail').getByRole('button', { name: '♭9', exact: true }).click();
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/chord-grid.png`, clip: { x: 0, y: 0, width: 980, height: 820 } });
+  await claude.close();
+  await page.close();
+});
+
 // The Harmony window: a progression being built, and the tuning table. Regenerate on its own:
 //   SCREENSHOTS=1 npx playwright test e2e/screenshots.spec.js -g "Harmony"
 test('Harmony screenshots', async ({ browser, baseURL }) => {
