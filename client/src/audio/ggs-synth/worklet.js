@@ -9,7 +9,7 @@
 // Messages are only used for edits made while a note sounds (a knob turned in the editor) and tempo changes — and,
 // the other way, for what the editor shows while it is open: a watched voice reports where its modulation stands
 // about thirty times a second (nothing in the audio depends on it).
-import { GgsVoice, GgsFx, prewarmTables, MACRO_COUNT, STUDIO_FX, SYNTH_ENGINES } from '@greanteadawy/synth-dsp/engine';
+import { GgsVoice, GgsFx, prewarmTables, MACRO_COUNT, STUDIO_FX, SYNTH_ENGINES } from '@ggs/synth-dsp/engine';
 
 const MACROS = Array.from({ length: MACRO_COUNT }, (_, i) => `macro${i + 1}`);
 

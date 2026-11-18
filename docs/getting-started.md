@@ -13,8 +13,8 @@ Prefer containers? `docker compose up -d --build` runs everything (ffmpeg includ
 ## Install & run
 
 ```bash
-git clone <your fork or the release zip> greanteadawy
-cd greanteadawy
+git clone <your fork or the release zip> ggs
+cd ggs
 npm install
 npm run build      # builds the web UI into client/dist
 npm start          # http://127.0.0.1:3001
@@ -58,7 +58,7 @@ The [user guide](user-guide.md) covers everything in detail.
 3. Copy the command for Claude Code, e.g.
 
    ```bash
-   claude mcp add --transport http greanteadawy http://localhost:3001/mcp \
+   claude mcp add --transport http ggs http://localhost:3001/mcp \
      --header "Authorization: Bearer gtd_…"
    ```
 

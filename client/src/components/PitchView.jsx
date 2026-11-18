@@ -3,7 +3,7 @@
 // down to place it by hand (Alt/Shift = fine), double-click to give it back to the scale, right-click to split or join
 // notes the detection got wrong, and more.
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { SCALES, noteName, scaleSnapper, snapNotes, correctionCurve, correctedPitch, hzToMidi, noteCenter, parsePitchClass } from '@greanteadawy/core';
+import { SCALES, noteName, scaleSnapper, snapNotes, correctionCurve, correctedPitch, hzToMidi, noteCenter, parsePitchClass } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Select } from './ui/Controls.jsx';
 import { capturePointer, useElementSize } from '../lib/hooks.js';

@@ -1,4 +1,4 @@
-// Starts a throwaway GreanTeaDawy server (fresh data dir) for the Playwright end-to-end tests.
+// Starts a throwaway GGS server (fresh data dir) for the Playwright end-to-end tests.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,7 +6,7 @@ import { createServer } from '../server/src/index.js';
 import { loadConfig } from '../server/src/config.js';
 
 const port = Number(process.env.E2E_PORT || 3199);
-const dataDir = path.join(os.tmpdir(), `greanteadawy-e2e-${port}`);
+const dataDir = path.join(os.tmpdir(), `ggs-e2e-${port}`);
 fs.rmSync(dataDir, { recursive: true, force: true });
 
 // the audio → visual bridge sends its OSC where workflow-visuals.spec.js listens (helpers.js: OSC_PORT)

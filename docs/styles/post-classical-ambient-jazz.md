@@ -133,7 +133,7 @@ bright synth leads; side-chain pumping; harmonic-minor cadences; lyrics that tel
 | **Felt and strings** | Ólafur Arnalds, Lambert, most of Hania Rani | slow, rubato | felted piano, string quartet swells, tape and pads |
 | **ECM guitar** | Jakob Bro, Eivind Aarset, Dominic Miller | free or very slow | clean or nylon guitar, loops and washes, cymbals as weather |
 
-## Making it in GreanTeaDawy
+## Making it in GGS
 
 **The template.** *New from template → Post-classical ambient jazz* (`create_project template="postclassical"`)
 opens **"Winter Light"**: 72 bars in E minor at 108 BPM, a little under three minutes, built the way this page

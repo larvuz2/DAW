@@ -3,8 +3,8 @@
 // old one's notes, keys held by hand end with their key, the map comes again every 2 s, and switching off says so.
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createDefaultProject, createChannel, applyOps, PPQ, AV_FPS, avFrameToOsc } from '@greanteadawy/core';
-import { MOD_SOURCES, MOD_TARGETS } from '@greanteadawy/synth-dsp';
+import { createDefaultProject, createChannel, applyOps, PPQ, AV_FPS, avFrameToOsc } from '@ggs/core';
+import { MOD_SOURCES, MOD_TARGETS } from '@ggs/synth-dsp';
 import { AvBridge } from '../src/lib/avBridge.js';
 
 function fakeEngine() {

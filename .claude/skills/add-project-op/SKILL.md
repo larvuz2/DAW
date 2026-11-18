@@ -1,6 +1,6 @@
 ---
 name: add-project-op
-description: Add a new edit operation (op) to GreanTeaDawy's project model so the UI, MCP and REST can make a new kind of change with live sync, undo and deterministic replay.
+description: Add a new edit operation (op) to GGS's project model so the UI, MCP and REST can make a new kind of change with live sync, undo and deterministic replay.
 ---
 
 # Add a project op

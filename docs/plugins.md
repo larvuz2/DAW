@@ -1,10 +1,10 @@
 # Plugins
 
-You can add your own **instruments**, **effects** and **note generators** to GreanTeaDawy. A plugin is a `.zip` with
+You can add your own **instruments**, **effects** and **note generators** to GGS. A plugin is a `.zip` with
 a `plugin.json` manifest and, depending on its type, one JavaScript file and/or audio samples. Each user installs
 plugins for their own account (Settings → Plugins). Claude can use the installed plugins too, but it can't install any.
 
-> **Only install plugins from people you trust.** GreanTeaDawy sandboxes plugin code (no network, no access to your
+> **Only install plugins from people you trust.** GGS sandboxes plugin code (no network, no access to your
 > account, projects, files or other plugins' data) and checks everything a plugin produces, but a plugin is still
 > someone else's code: it can make very loud or unpleasant sound, use a lot of CPU, or do something other than its
 > description says. The studio shows this warning, the plugin's author, permissions and SHA-256 hash, and asks you to

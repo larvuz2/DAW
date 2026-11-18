@@ -225,7 +225,7 @@ export function createFfmpeg({ path: configured = '', timeoutSec = 300, maxJobs 
     if (format === 'flac') codec.push('-compression_level', '8', '-sample_fmt', bits === 24 ? 's32' : 's16', ...(bits === 24 ? ['-bits_per_raw_sample', '24'] : []));
     if (format === 'alac') codec.push('-sample_fmt', bits === 24 ? 's32p' : 's16p', ...(bits === 24 ? ['-bits_per_raw_sample', '24'] : []));
     if (format === 'aiff') codec[1] = bits === 24 && st.encoders.includes('pcm_s24be') ? 'pcm_s24be' : 'pcm_s16be';
-    const meta = cleanMetadata({ comment: 'Made with GreanTeaDawy', ...metadata });
+    const meta = cleanMetadata({ comment: 'Made with GGS', ...metadata });
     const metaArgs = Object.entries(meta).flatMap(([k, v]) => ['-metadata', `${k}=${v}`]);
 
     let outPath = null;

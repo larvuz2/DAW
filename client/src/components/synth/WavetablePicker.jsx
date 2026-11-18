@@ -1,7 +1,7 @@
 // Choosing a wavetable by looking at it: a grid of every table with its wave drawn at the start, middle and end of
 // the table, searchable, with arrow keys that load as they move.
 import { useEffect, useRef, useState } from 'react';
-import { describeWavetables, wavetablePreview } from '@greanteadawy/synth-dsp';
+import { describeWavetables, wavetablePreview } from '@ggs/synth-dsp';
 
 const TABLES = describeWavetables();
 const CELL_W = 78;

@@ -1,7 +1,7 @@
 // Decodes + analyses a WAV off the main thread (a long file would otherwise block every request for seconds).
 // Only the first MAX_SECONDS are analysed so memory stays bounded; the full duration is still reported.
 import { parentPort, workerData } from 'node:worker_threads';
-import { decodeWav, analyzeAudio } from '@greanteadawy/core';
+import { decodeWav, analyzeAudio } from '@ggs/core';
 
 const MAX_SECONDS = 180;
 

@@ -1,4 +1,4 @@
-// Chiptune — example instrument plugin for GreanTeaDawy (runs in the browser's audio worklet).
+// Chiptune — example instrument plugin for GGS (runs in the browser's audio worklet).
 // The harness calls createVoice() for every note and process() for every 128-sample block; release() at note-off.
 gtd.registerInstrument({
   createVoice({ sampleRate, frequency, velocity, params }) {

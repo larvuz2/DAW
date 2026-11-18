@@ -1,5 +1,5 @@
 // Synthesized instruments. Every function schedules one note ("voice") on a Web Audio graph.
-import { midiToFreq, instrumentDefaults, INSTRUMENTS, followsTuning } from '@greanteadawy/core';
+import { midiToFreq, instrumentDefaults, INSTRUMENTS, followsTuning } from '@ggs/core';
 import { noiseSource, shaperCurve, adsr, percEnv, timbre, FLAT_Q, scheduleCurve } from './dsp.js';
 import { BAND } from './band.js';
 import { WORLD } from './world.js';
@@ -604,7 +604,7 @@ export function playNote(ctx, dest, instrument, opts) {
     v.cleanup();
     if (!warned.has(kind)) {
       warned.add(kind);
-      console.warn(`GreanTeaDawy: a ${kind} note could not be played:`, err);
+      console.warn(`GGS: a ${kind} note could not be played:`, err);
     }
     return null;
   }

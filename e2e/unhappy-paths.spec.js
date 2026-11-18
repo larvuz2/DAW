@@ -19,7 +19,7 @@ async function signIn(p) {
   }
   await p.goto('/');
   await expect(p.locator('.toolbar')).toBeVisible();
-  await p.waitForFunction(() => window.greanteadawy?.store.getState().project);
+  await p.waitForFunction(() => window.ggs?.store.getState().project);
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -69,10 +69,10 @@ test('dragging an instrument from the browser onto the channel rack adds a chann
 });
 
 test('the open project deleted elsewhere: the studio moves to another project', async () => {
-  const current = await page.evaluate(() => window.greanteadawy.store.getState().project.id);
+  const current = await page.evaluate(() => window.ggs.store.getState().project.id);
   const res = await page.request.delete(`/api/projects/${current}`);
   expect(res.status()).toBe(200);
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().project?.id)).not.toBe(current);
+  await expect.poll(() => page.evaluate(() => window.ggs.store.getState().project?.id)).not.toBe(current);
   // and after a reload it doesn't hang on "Loading project…"
   await page.reload();
   await expect(page.locator('.toolbar')).toBeVisible();
@@ -85,7 +85,7 @@ test('phone layout: the toolbar never makes the page scroll sideways (narrow pho
     const phone = await ctx.newPage();
     await signIn(phone);
     for (const bpm of [120, 128.5]) {
-      await phone.evaluate((v) => window.greanteadawy.store.getState().dispatch([{ type: 'project/update', patch: { bpm: v } }]), bpm);
+      await phone.evaluate((v) => window.ggs.store.getState().dispatch([{ type: 'project/update', patch: { bpm: v } }]), bpm);
       await expect.poll(() => phone.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: `${width} px at ${bpm} BPM` }).toBeLessThanOrEqual(0);
     }
     await ctx.close();
@@ -103,7 +103,7 @@ test('phone layout: one-finger drag scrolls the piano roll instead of drawing', 
   const grid = phone.locator('.pr-grid');
   await expect(grid).toBeVisible();
   const count = () => phone.evaluate(() => {
-    const s = window.greanteadawy.store.getState();
+    const s = window.ggs.store.getState();
     const pt = s.project.patterns.find((p) => p.id === s.selectedPatternId);
     return Object.values(pt.notes).reduce((n, l) => n + l.length, 0);
   });
@@ -161,7 +161,7 @@ test('submenus stay on screen near the edges; Space in a menu activates the item
       { label: 'Plain', onClick: () => { window.__picked = 'plain'; } },
       { label: 'Long submenu', submenu: long }
     ];
-    window.greanteadawy.store.getState().showContextMenu({ clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} }, items);
+    window.ggs.store.getState().showContextMenu({ clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} }, items);
   }, { x: vp.width - 10, y: vp.height - 10, long });
   await page.locator('.context-menu .cm-item', { hasText: 'Long submenu' }).hover();
   const sub = page.locator('.cm-sub');
@@ -175,14 +175,14 @@ test('submenus stay on screen near the edges; Space in a menu activates the item
   await expect(page.locator('.context-menu')).toHaveCount(0);
 
   await page.evaluate(() => {
-    window.greanteadawy.store.getState().showContextMenu({ clientX: 200, clientY: 200, preventDefault() {}, stopPropagation() {} },
+    window.ggs.store.getState().showContextMenu({ clientX: 200, clientY: 200, preventDefault() {}, stopPropagation() {} },
       [{ label: 'Plain', onClick: () => { window.__picked = 'plain'; } }]);
   });
   await expect(page.locator('.context-menu .cm-item').first()).toBeFocused();
   await page.keyboard.press('Space');
   await expect(page.locator('.context-menu')).toHaveCount(0);
   expect(await page.evaluate(() => window.__picked)).toBe('plain');
-  expect(await page.evaluate(() => window.greanteadawy.store.getState().playing)).toBe(false);
+  expect(await page.evaluate(() => window.ggs.store.getState().playing)).toBe(false);
 });
 
 test('each click is its own undo step', async () => {
@@ -190,7 +190,7 @@ test('each click is its own undo step', async () => {
   const grid = page.locator('[data-window="pianoRoll"] .pr-grid');
   await expect(grid).toBeVisible();
   const count = () => page.evaluate(() => {
-    const s = window.greanteadawy.store.getState();
+    const s = window.ggs.store.getState();
     const pt = s.project.patterns.find((p) => p.id === s.selectedPatternId);
     return (pt.notes[s.pianoRollChannelId] || []).length;
   });
@@ -224,9 +224,9 @@ test('a sampler channel made from a one-shot uses its detected pitch', async () 
   await page.getByTestId('sample-file-input').setInputFiles({ name: 'tone-a3.wav', mimeType: 'audio/wav', buffer: makeWav({ freq: 220, seconds: 0.5 }) });
   const row = page.locator('.br-item.sample', { hasText: 'tone-a3' });
   await expect(row).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().samples.find((s) => s.name === 'tone-a3')?.analysis?.pitch?.midi)).toBe(57);
+  await expect.poll(() => page.evaluate(() => window.ggs.store.getState().samples.find((s) => s.name === 'tone-a3')?.analysis?.pitch?.midi)).toBe(57);
   await row.locator('.br-add[title="Add as sampler channel"]').click();
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().project.channels.find((c) => c.name === 'tone-a3')?.instrument.params.rootKey)).toBe(57);
+  await expect.poll(() => page.evaluate(() => window.ggs.store.getState().project.channels.find((c) => c.name === 'tone-a3')?.instrument.params.rootKey)).toBe(57);
 });
 
 /** Bounding box of a locator, rounded (layout comparisons). */
@@ -242,7 +242,7 @@ test('selecting a playlist clip or a long note keeps its size (the select tool, 
   await page.locator('.modal input').press('Enter');
   await expect(page).toHaveTitle(/Selection Sizes/);
   const ids = await page.evaluate(() => {
-    const s = window.greanteadawy.store.getState();
+    const s = window.ggs.store.getState();
     const p = s.project;
     const pat = p.patterns[0];
     const ch = p.channels.find((c) => c.kind !== 'sampler') || p.channels[0];
@@ -255,7 +255,7 @@ test('selecting a playlist clip or a long note keeps its size (the select tool, 
     const windows = { ...s.windows };
     for (const k of Object.keys(windows)) windows[k] = { ...windows[k], open: false, max: false };
     windows.playlist = { ...windows.playlist, open: true, x: 10, y: 10, w: 900, h: 360, z: 50 };
-    window.greanteadawy.store.setState({ windows, zTop: 50 });
+    window.ggs.store.setState({ windows, zTop: 50 });
     return { pat: pat.id, ch: ch.id };
   });
   const pl = page.locator('[data-window="playlist"]');
@@ -269,12 +269,12 @@ test('selecting a playlist clip or a long note keeps its size (the select tool, 
   // double-click: the pattern opens in the channel rack, the clip stays as it was
   await page.mouse.dblclick(before.x + before.w / 2, before.y + before.h / 2);
   await expect(page.locator('[data-window="channelRack"]')).toBeVisible();
-  expect(await page.evaluate(() => window.greanteadawy.store.getState().selectedPatternId)).toBe(ids.pat);
+  expect(await page.evaluate(() => window.ggs.store.getState().selectedPatternId)).toBe(ids.pat);
   expect(await box(clip)).toEqual(before);
-  expect(await page.evaluate(() => window.greanteadawy.store.getState().project.playlist.clips.map((c) => c.length))).toEqual([1536]);
+  expect(await page.evaluate(() => window.ggs.store.getState().project.playlist.clips.map((c) => c.length))).toEqual([1536]);
 
   // a one-bar note in the piano roll (384 px wide at the default zoom) keeps its width when selected
-  await page.evaluate(({ ch }) => window.greanteadawy.store.getState().openPianoRoll(ch), ids);
+  await page.evaluate(({ ch }) => window.ggs.store.getState().openPianoRoll(ch), ids);
   const note = page.locator('[data-window="pianoRoll"] .pr-note').first();
   await expect(note).toBeVisible();
   const nb = await box(note);
@@ -289,7 +289,7 @@ test('selecting a playlist clip or a long note keeps its size (the select tool, 
 
 test('windows move by the empty middle of their title bar; title-bar controls keep working', async () => {
   await page.evaluate(() => {
-    const s = window.greanteadawy.store;
+    const s = window.ggs.store;
     const st = s.getState();
     s.setState({ windows: { ...st.windows, channelRack: { ...st.windows.channelRack, open: true, max: false, x: 60, y: 60, w: 900, h: 340, z: 60 } }, zTop: 60 });
   });
@@ -324,7 +324,7 @@ test('windows move by the empty middle of their title bar; title-bar controls ke
   await page.keyboard.press('ArrowDown');
   await expect.poll(async () => Number(await steps.innerText())).toBe(s1 - 1);
   // a toolbar button still clicks without moving the window (the playlist's tools)
-  await page.evaluate(() => window.greanteadawy.store.getState().openWindow('playlist'));
+  await page.evaluate(() => window.ggs.store.getState().openWindow('playlist'));
   const pl = page.locator('[data-window="playlist"]');
   const plBefore = await box(pl);
   await pl.getByRole('button', { name: /^Erase/ }).click();

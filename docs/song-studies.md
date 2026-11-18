@@ -2,7 +2,7 @@
 
 Learning from songs you like: upload a song in a Claude session on this repository, say *"understand this song and
 take it to the studio"*, and Claude analyses it there — stems, tempo, key, chords, structure, grooves, sounds, mix —
-and brings what is worth keeping into GreanTeaDawy as a **preset**: a template under *New from template → Study: …*
+and brings what is worth keeping into GGS as a **preset**: a template under *New from template → Study: …*
 with the song's form, chord progressions, grooves and kinds of sound. You also get a private bundle with the
 transcription, the stems and the report.
 

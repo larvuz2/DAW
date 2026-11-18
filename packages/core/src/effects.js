@@ -2,7 +2,7 @@ import { uid } from './ids.js';
 import { sanitizeParams } from './instruments.js';
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
 import { didYouMean } from './suggest.js';
-import { STUDIO_FX } from '@greanteadawy/synth-dsp';
+import { STUDIO_FX } from '@ggs/synth-dsp';
 
 const n = (key, label, min, max, def, extra = {}) => ({ key, label, type: 'number', min, max, default: def, ...extra });
 const sel = (key, label, options, def, extra = {}) => ({ key, label, type: 'select', options, default: def, ...extra });

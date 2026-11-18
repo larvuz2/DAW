@@ -83,14 +83,14 @@ function Studio() {
     };
   }, []);
   useEffect(() => {
-    if (projectName) document.title = `${projectName} — GreanTeaDawy`;
+    if (projectName) document.title = `${projectName} — GGS`;
   }, [projectName]);
 
   if (!hasProject) {
     return (
       <div className="splash">
-        <div className="logo-big">◆ GreanTeaDawy</div>
-        <p>{loading && connected ? 'Loading project…' : connected ? 'Preparing…' : 'Connecting to the GreanTeaDawy server…'}</p>
+        <div className="logo-big">◆ GGS</div>
+        <p>{loading && connected ? 'Loading project…' : connected ? 'Preparing…' : 'Connecting to the GGS server…'}</p>
         {!connected && <p className="muted">Make sure the server is running: <code>npm run dev</code> or <code>npm start</code></p>}
       </div>
     );

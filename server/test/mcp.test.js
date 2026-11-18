@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { analyzeAudio, decodeWav } from '@greanteadawy/core';
+import { analyzeAudio, decodeWav } from '@ggs/core';
 import { startServer, agent, mcpClient, callTool, openSocket, waitFor, makeWav } from './helpers.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -35,8 +35,8 @@ test('lists 70+ tools, prompts and resources', async () => {
   for (const n of ['render_mix', 'get_sample_info', 'save_version', 'undo', 'music_theory', 'add_roll', 'update_notes', 'copy_bars', 'list_export_formats', 'export_audio', 'set_spatial', 'place_object', 'move_object', 'export_spatial']) assert.ok(names.has(n), n);
   const { prompts } = await client.listPrompts();
   assert.deepEqual(prompts.map((p) => p.name).sort(), ['make_beat', 'mix_review', 'spatial_mix', 'use_my_samples']);
-  const res = await client.readResource({ uri: 'greanteadawy://guide' });
-  assert.match(res.contents[0].text, /GreanTeaDawy/);
+  const res = await client.readResource({ uri: 'ggs://guide' });
+  assert.match(res.contents[0].text, /GGS/);
 });
 
 test('build a full track with the tools, live in a connected browser', async () => {
@@ -432,7 +432,7 @@ test('stdio bridge forwards to the server with the API token', async () => {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [path.join(here, '..', 'src', 'mcp', 'stdio.js')],
-    env: { ...process.env, GREANTEADAWY_URL: srv.base, GREANTEADAWY_TOKEN: token, DATA_DIR: srv.dataDir },
+    env: { ...process.env, GGS_URL: srv.base, GGS_TOKEN: token, DATA_DIR: srv.dataDir },
     stderr: 'pipe'
   });
   const c = new Client({ name: 'stdio-test', version: '1.0.0' });

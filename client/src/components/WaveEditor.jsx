@@ -2,7 +2,7 @@
 // and pitch correction (the Pitch tab), with undo/redo; save as a new sample or over the original (every project that
 // uses it changes, after a warning that says which).
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { clipLength, sliceClip, deleteRange, insertClip, cropClip, waveformPeaks, nearestZeroCrossing } from '@greanteadawy/core';
+import { clipLength, sliceClip, deleteRange, insertClip, cropClip, waveformPeaks, nearestZeroCrossing } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { api } from '../state/api.js';
 import { Window } from './ui/Window.jsx';

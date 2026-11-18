@@ -11,7 +11,7 @@ import { EFFECTS, normalizeParam } from './effects.js';
 import { MACRO_PARAMS } from './model.js';
 import { isSpatialObject, spatialToNorm, spatialFromNorm, normalizeInsertSpatial, SPATIAL_PARAMS } from './spatial.js';
 import { EXPRESSION_DIMS, EXPRESSION_RANGE, curveValueAt } from './expression.js';
-import { MOD_SOURCES, MOD_TARGETS, modTargetSpec, targetValue, ggsDefaults } from '@greanteadawy/synth-dsp';
+import { MOD_SOURCES, MOD_TARGETS, modTargetSpec, targetValue, ggsDefaults } from '@ggs/synth-dsp';
 
 export const AV_FPS = 60;
 export const AV_BANDS = [['sub', 20, 60], ['low', 60, 250], ['lowMid', 250, 500], ['mid', 500, 2000], ['highMid', 2000, 6000], ['high', 6000, 20000]];

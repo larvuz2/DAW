@@ -2,7 +2,7 @@
 // transitions, fills, audio clip gain/fades/repitch, mix targets, analyze_sound and stem export.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeAudio, ticksPerBar, STEP, PPQ } from '@greanteadawy/core';
+import { analyzeAudio, ticksPerBar, STEP, PPQ } from '@ggs/core';
 import { startServer, agent, mcpClient, callTool, openSocket, waitFor, makeWav } from './helpers.js';
 
 let srv;
@@ -347,7 +347,7 @@ test('roles from sample-file names; melody typos; slides never add a bar', async
   const cases = { Snare_Tight: 'snare', Snare2: 'snare', HH_Closed: 'hat', OpenHat_03: 'hat', Clap_808: 'snare', '808_Sub': 'bass', Perc_Loop_1: 'perc', 'Phat Bass': 'bass', Primary: 'other', 'Oh Yeah Vox': 'other', OH: 'hat', Kick_01: 'kick' };
   for (const [name, want] of Object.entries(cases)) assert.equal(roleOf({ name, instrument: { kind: 'sampler' } }), want, name);
   await fails(call('write_melody', { pattern: 'Music', channel: 'Keys', melody: 'C5:2 D5:x' }), /Invalid melody token "D5:x"/);
-  const { bassLineFromChords } = await import('@greanteadawy/core');
+  const { bassLineFromChords } = await import('@ggs/core');
   const notes = bassLineFromChords(['Am', 'F'], 'R:14 5:2~', { chordLength: 384 });
   assert.ok(Math.max(...notes.map((n) => n.start + n.length)) <= 768);
   assert.ok(notes.find((n) => n.start === 14 * STEP).length > 2 * STEP); // the first chord's slide still overlaps

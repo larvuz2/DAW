@@ -9,7 +9,7 @@
 // arrangement can be saved by name — a screen can show just what a video needs.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MOD_SLOTS } from '@greanteadawy/synth-dsp';
+import { MOD_SLOTS } from '@ggs/synth-dsp';
 import { useStore } from '../../state/store.js';
 import { Select } from '../ui/Controls.jsx';
 import { setDisplayScale } from './displays.jsx';

@@ -2,7 +2,7 @@
 // fades, save as new / replace original), pitch correction (auto-tune + a note moved by hand), the recorder (a fake
 // microphone, alone and over the song) and Claude's edit_sample — in a real browser.
 import { test, expect } from '@playwright/test';
-import { trackPitch, findNotes, decodeWav } from '@greanteadawy/core';
+import { trackPitch, findNotes, decodeWav } from '@ggs/core';
 import { ADMIN, connectMcp, makeWav, menuItem, voiceWav, chromiumPath } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
@@ -21,7 +21,7 @@ const errors = [];
 
 const sharp = (hz, cents) => hz * Math.pow(2, cents / 1200);
 
-const state = (fn, arg) => page.evaluate(([f, a]) => new Function('s', 'a', `return (${f})(s, a)`)(window.greanteadawy.store.getState(), a), [fn.toString(), arg]);
+const state = (fn, arg) => page.evaluate(([f, a]) => new Function('s', 'a', `return (${f})(s, a)`)(window.ggs.store.getState(), a), [fn.toString(), arg]);
 const sampleByName = (name) => state((s, n) => s.samples.find((x) => x.name === n) || null, name);
 const upload = async (name, buffer) => {
   const r = await page.request.post('/api/samples', { multipart: { file: { name: `${name}.wav`, mimeType: 'audio/wav', buffer } } });
@@ -202,7 +202,7 @@ test('wave editor: select, delete, undo, fade, save as new, replace original (wi
   await expect.poll(() => sampleByName('Vox Hook').then((s) => s.rev)).toBe(2);
   // the engine drops the old decoded audio and loads the new revision
   await expect.poll(() => page.evaluate(async (id) => {
-    const eng = await window.greanteadawy.store.getState().unlockAudio();
+    const eng = await window.ggs.store.getState().unlockAudio();
     const buf = await eng.loadSample(id);
     let peak = 0;
     for (const v of buf.getChannelData(0)) peak = Math.max(peak, Math.abs(v));

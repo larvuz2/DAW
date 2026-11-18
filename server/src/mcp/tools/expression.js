@@ -3,8 +3,8 @@
 import {
   findChannel, findPattern, parseNote, noteName, STEP, ticksToSeconds, evaluateComposition, formatEvaluation,
   EXPRESSION_DIMS, EXPRESSION_RANGE, CURVE_SHAPES, MAX_EXPRESSION_POINTS, makeCurve, sanitizeCurve, transformCurve, describeExpression, expressionFields
-} from '@greanteadawy/core';
-import { modulationRoutes } from '@greanteadawy/synth-dsp';
+} from '@ggs/core';
+import { modulationRoutes } from '@ggs/synth-dsp';
 import { z, ok, projectIdArg, annotations as A, steps } from '../util.js';
 
 const pointSchema = z.object({

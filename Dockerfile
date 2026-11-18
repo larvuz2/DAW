@@ -1,5 +1,5 @@
-# GreanTeaDawy — production image: Node 22 on Alpine with ffmpeg (MP3/AAC/Ogg/Opus/FLAC/ALAC/AIFF export),
-# running as an unprivileged user with a health check. Build: `docker build -t greanteadawy .`
+# GGS — production image: Node 22 on Alpine with ffmpeg (MP3/AAC/Ogg/Opus/FLAC/ALAC/AIFF export),
+# running as an unprivileged user with a health check. Build: `docker build -t ggs .`
 # Run: see docker-compose.yml and docs/docker.md.
 
 # ---- build: install everything, build the web client, then drop dev dependencies

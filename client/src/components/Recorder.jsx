@@ -2,7 +2,7 @@
 // compensation). Every take is saved as a WAV sample in the "Recordings" folder and, over the song, placed on the
 // playlist where it was recorded. From the take list a take opens in the wave editor (or straight in its Pitch tab).
 import { useState, useRef, useEffect } from 'react';
-import { PPQ, beatsPerBar, ticksPerBar, songLength, uid, clipLength, encodeWav, MAX_TRACKS } from '@greanteadawy/core';
+import { PPQ, beatsPerBar, ticksPerBar, songLength, uid, clipLength, encodeWav, MAX_TRACKS } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Icon } from './ui/Icon.jsx';

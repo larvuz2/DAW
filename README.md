@@ -1,8 +1,8 @@
-# ◆ GreanTeaDawy
+# ◆ GGS
 
 **A pattern-based browser DAW — with Claude as your co-producer.**
 
-GreanTeaDawy is an open-source, self-hosted beat-making studio: channel rack and step sequencer, piano roll, playlist,
+GGS is an open-source, self-hosted beat-making studio: channel rack and step sequencer, piano roll, playlist,
 mixer with effects, automation, sampler and audio clips, all running in the browser with a Node.js backend. Its
 built-in [MCP](https://modelcontextprotocol.io) server gives Claude 104 music-production tools, so you can say
 *"make a dark trap beat at 145 BPM and mix it for streaming"* and watch every edit appear live in your studio.
@@ -14,7 +14,7 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 104 music-pr
 
 [![The studio: playlist, channel rack and piano roll](docs/screenshots/studio.png)](docs/screenshots/studio.png)
 
-> GreanTeaDawy is an independent experimental project. It is not affiliated with or endorsed by a Music Software company.
+> GGS is an independent experimental project. It is not affiliated with or endorsed by a Music Software company.
 
 ## Contents
 
@@ -179,7 +179,7 @@ built-in [MCP](https://modelcontextprotocol.io) server gives Claude 104 music-pr
 Requirements: **Node.js 20.19+** (22 LTS recommended) and a modern browser.
 
 ```bash
-git clone <repo-url> greanteadawy && cd greanteadawy
+git clone <repo-url> ggs && cd ggs
 npm install
 npm run build
 npm start                 # → http://127.0.0.1:3001
@@ -199,7 +199,7 @@ URL and token filled in.
 **Claude Code**
 
 ```bash
-claude mcp add --transport http greanteadawy http://localhost:3001/mcp \
+claude mcp add --transport http ggs http://localhost:3001/mcp \
   --header "Authorization: Bearer <your gtd_ token>"
 ```
 
@@ -208,10 +208,10 @@ claude mcp add --transport http greanteadawy http://localhost:3001/mcp \
 ```json
 {
   "mcpServers": {
-    "greanteadawy": {
+    "ggs": {
       "command": "node",
-      "args": ["/absolute/path/to/greanteadawy/server/src/mcp/stdio.js"],
-      "env": { "GREANTEADAWY_URL": "http://127.0.0.1:3001", "GREANTEADAWY_TOKEN": "<your gtd_ token>" }
+      "args": ["/absolute/path/to/ggs/server/src/mcp/stdio.js"],
+      "env": { "GGS_URL": "http://127.0.0.1:3001", "GGS_TOKEN": "<your gtd_ token>" }
     }
   }
 }
@@ -242,7 +242,7 @@ Environment variables (or a `.env` file — see [`.env.example`](.env.example)):
 | `MAX_UPLOAD_MB` | `50` | sample upload limit |
 | `FFMPEG_PATH` | `ffmpeg` on the PATH | MP3/AAC/Ogg/Opus/FLAC/ALAC/AIFF export (`off` disables) |
 | `PLUGINS_ENABLED` | `true` | allow users to install their own plugins (also an admin setting) |
-| `GREANTEADAWY_URL` / `GREANTEADAWY_TOKEN` | — | for the stdio bridge |
+| `GGS_URL` / `GGS_TOKEN` | — | for the stdio bridge |
 
 Full details: [docs/deployment.md](docs/deployment.md).
 
@@ -251,7 +251,7 @@ Full details: [docs/deployment.md](docs/deployment.md).
 ```bash
 cp .env.example .env               # optional settings
 docker compose up -d --build       # studio on http://localhost:3001 (ffmpeg included)
-docker compose logs greanteadawy   # first run: the setup code for the admin account
+docker compose logs ggs   # first run: the setup code for the admin account
 ```
 
 Add HTTPS for other computers with the bundled Caddy profile (`docker compose --profile proxy up -d` after setting
@@ -303,7 +303,7 @@ e2e             Playwright tests (a real browser plus an MCP client playing "Cla
 plugins         example plugins (npm run plugin:pack -- --examples → plugins/dist/*.zip)
 skills          music-production skills for Claude users (npm run skills:pack → skills/dist/*.zip)
 docs            documentation
-.claude         skills & agents for developing GreanTeaDawy with Claude Code (see CLAUDE.md)
+.claude         skills & agents for developing GGS with Claude Code (see CLAUDE.md)
 ```
 
 Working on the code with Claude Code? Start with [CLAUDE.md](CLAUDE.md); recipes for common changes are in
@@ -334,7 +334,8 @@ in [docs/development.md](docs/development.md).
 
 ## Licence
 
-[MIT](LICENSE) © GreanTeaDawy contributors.
+[MIT](LICENSE). The licence file carries the copyright notice of the project GGS is built on, which the app credits in
+**About**.
 
 The chord grid runs the chord engine of [Tuple](https://github.com/c0remusic/tuple) © 2026 c0remusic, used under the
 MIT licence ([`packages/chord-grid/LICENSE-tuple.txt`](packages/chord-grid/LICENSE-tuple.txt)).

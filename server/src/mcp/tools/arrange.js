@@ -1,5 +1,5 @@
 // Playlist arrangement, tracks, automation, transport and MIDI export.
-import { STEP, ticksPerBar, uid, findChannel, findPattern, findAutomation, patternLength, songLength, MAX_TRACKS, AV_USER_LANES } from '@greanteadawy/core';
+import { STEP, ticksPerBar, uid, findChannel, findPattern, findAutomation, patternLength, songLength, MAX_TRACKS, AV_USER_LANES } from '@ggs/core';
 import { z, ok, projectIdArg, annotations as A, pickTrack, findEffect, barsOf } from '../util.js';
 import { requirePlugin } from './plugins.js';
 
@@ -388,7 +388,7 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
     const m = mode || (p.playlist.clips.length ? 'song' : 'pattern');
     const pt = pattern ? findPattern(p, pattern) : p.patterns[0];
     const n = await backend.transport(p.id, { action: 'play', mode: m, patternId: pt?.id, position: Math.round((fromBar - 1) * ticksPerBar(p)) });
-    if (!n) return ok('No browser has this project open, so nothing is playing. Ask the user to open GreanTeaDawy in their browser (and click once to enable audio).');
+    if (!n) return ok('No browser has this project open, so nothing is playing. Ask the user to open GGS in their browser (and click once to enable audio).');
     return ok(`Playing ${m === 'song' ? `song (${Math.round(songLength(p) / ticksPerBar(p))} bars)` : `pattern "${pt.name}" (looping)`} in ${n} browser tab(s). Note: browsers need one user click before audio can start.`);
   });
 

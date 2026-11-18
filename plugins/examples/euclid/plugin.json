@@ -1,9 +1,9 @@
 {
-  "id": "greanteadawy.euclid",
+  "id": "ggs.euclid",
   "name": "Euclidean Rhythms",
   "version": "1.0.0",
   "type": "generator",
-  "author": "GreanTeaDawy examples",
+  "author": "GGS examples",
   "description": "Spreads N hits as evenly as possible over a cycle of steps (Bjorklund/Euclid), with rotation, an accent on the cycle's first hit and gentle velocity humanizing. 3/8 = tresillo, 5/8 = cinquillo, 7/16 = samba-ish.",
   "license": "MIT",
   "apiVersion": 1,

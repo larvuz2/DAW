@@ -1,5 +1,5 @@
 // Studio status, projects, versions and undo.
-import { TEMPLATES, summarizeProject, normalizeKey, diffProjects, didYouMean, requireScale, SCALE_INFO } from '@greanteadawy/core';
+import { TEMPLATES, summarizeProject, normalizeKey, diffProjects, didYouMean, requireScale, SCALE_INFO } from '@ggs/core';
 import { z, ok, projectIdArg, scaleArg, annotations as A } from '../util.js';
 
 export function registerProjectTools({ tool, backend, load, resolveProjectId }) {

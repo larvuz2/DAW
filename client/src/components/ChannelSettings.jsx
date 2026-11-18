@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, noteName, COLORS, MAX_NUDGE_MS, pluginParamValues } from '@greanteadawy/core';
+import { INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, noteName, COLORS, MAX_NUDGE_MS, pluginParamValues } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Knob } from './ui/Knob.jsx';

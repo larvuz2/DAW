@@ -1,6 +1,6 @@
 ---
 name: plugin-system
-description: Change GreanTeaDawy's plugin system (manifest schema, install flow, worklet harness, generator sandbox, plugin UI or MCP tools) without weakening its security model. Use for any edit to core/plugins.js, server/src/plugins.js, zip.js, sandbox.js, client audio/plugins.js or lib/sandbox.js.
+description: Change GGS's plugin system (manifest schema, install flow, worklet harness, generator sandbox, plugin UI or MCP tools) without weakening its security model. Use for any edit to core/plugins.js, server/src/plugins.js, zip.js, sandbox.js, client audio/plugins.js or lib/sandbox.js.
 ---
 
 # The plugin system

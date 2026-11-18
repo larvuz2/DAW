@@ -2,7 +2,7 @@
 // what could come next glowing, and a track of cards to try a progression on — the layout and the harmonic engine of
 // Tuple (c0remusic, MIT; packages/chord-grid), in the studio's own controls, playing a channel of the song.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { SCALE_INFO, spelledNoteName } from '@greanteadawy/core';
+import { SCALE_INFO, spelledNoteName } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { loadChordGrid, gridSession } from '../lib/chordGrid.js';
 import { Select, DragNumber } from './ui/Controls.jsx';

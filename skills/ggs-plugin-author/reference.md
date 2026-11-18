@@ -1,4 +1,4 @@
-# GreanTeaDawy plugin API reference (apiVersion 1)
+# GGS plugin API reference (apiVersion 1)
 
 ## plugin.json
 

@@ -2,7 +2,7 @@
 // handles in the middle of a slope to bend it. It draws with the same formula the voices render with (envShape),
 // so the picture is the sound.
 import { useRef, useState } from 'react';
-import { envShape, envCurveK, ENV_CURVE_SCALE } from '@greanteadawy/synth-dsp';
+import { envShape, envCurveK, ENV_CURVE_SCALE } from '@ggs/synth-dsp';
 import { formatValue } from '../ui/Knob.jsx';
 import { DragNumber } from '../ui/Controls.jsx';
 

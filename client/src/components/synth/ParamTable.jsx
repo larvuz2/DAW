@@ -2,7 +2,7 @@
 // the one control you need, for seeing at a glance what makes a patch different from the init patch ("Changed"),
 // and for typing exact values.
 import { useMemo, useState } from 'react';
-import { GGS_PARAMS, ggsDefaults } from '@greanteadawy/synth-dsp';
+import { GGS_PARAMS, ggsDefaults } from '@ggs/synth-dsp';
 import { Select } from '../ui/Controls.jsx';
 import { formatValue } from '../ui/Knob.jsx';
 

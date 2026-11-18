@@ -1,12 +1,12 @@
 {
-  "name": "@greanteadawy/server",
-  "version": "0.21.0",
-  "description": "GreanTeaDawy backend: REST API, WebSocket live sync and MCP server (stdio + Streamable HTTP)",
+  "name": "@ggs/server",
+  "version": "0.22.0",
+  "description": "GGS backend: REST API, WebSocket live sync and MCP server (stdio + Streamable HTTP)",
   "license": "MIT",
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "greanteadawy-mcp": "src/mcp/stdio.js"
+    "ggs-mcp": "src/mcp/stdio.js"
   },
   "scripts": {
     "dev": "node --watch src/index.js",
@@ -14,9 +14,9 @@
     "test": "node --test --test-timeout=90000 test/*.test.js"
   },
   "dependencies": {
-    "@greanteadawy/chord-grid": "*",
-    "@greanteadawy/core": "*",
-    "@greanteadawy/synth-dsp": "*",
+    "@ggs/chord-grid": "*",
+    "@ggs/core": "*",
+    "@ggs/synth-dsp": "*",
     "@modelcontextprotocol/sdk": "^1.31.0",
     "express": "^5.2.1",
     "multer": "^2.0.2",

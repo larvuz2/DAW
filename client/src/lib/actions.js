@@ -2,7 +2,7 @@
 import {
   uid, INSTRUMENTS, patternLength, STEP, PPQ, projectToMidi, parseMidi,
   ticksPerBar, COLORS, pluginParamValues, scaleNotes, cleanGeneratedNotes
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { runInSandbox } from './sandbox.js';
 import { useStore } from '../state/store.js';
 import { api } from '../state/api.js';
@@ -34,7 +34,7 @@ export function pickFile(accept) {
   });
 }
 
-const safe = (s) => String(s).replace(/[^\w\- ]+/g, '').trim() || 'greanteadawy';
+const safe = (s) => String(s).replace(/[^\w\- ]+/g, '').trim() || 'ggs';
 
 // ------------------------------------------------------------ channels
 

@@ -20,7 +20,7 @@ test.use({
 /** Lay out the studio windows (x, y, w, h) and close the rest. */
 async function layout(page, wins, extra = {}) {
   await page.evaluate(({ wins, extra }) => {
-    const s = window.greanteadawy.store;
+    const s = window.ggs.store;
     const st = s.getState();
     const windows = { ...st.windows };
     for (const k of Object.keys(windows)) windows[k] = { ...windows[k], open: false, max: false };
@@ -46,7 +46,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await page.locator('input[type=password]').nth(1).fill(ADMIN.password);
   await page.getByRole('button', { name: /create admin/i }).click();
   await expect(page.locator('.toolbar')).toBeVisible();
-  await page.waitForFunction(() => window.greanteadawy?.store.getState().project);
+  await page.waitForFunction(() => window.ggs?.store.getState().project);
 
   // Claude adds a sample-based layer and a melody, so the activity log has content
   await page.getByRole('tab', { name: 'Samples' }).click();
@@ -65,7 +65,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
 
   // 2. hero: playlist + channel rack + piano roll, playing in song mode
   const ids = await page.evaluate(() => {
-    const p = window.greanteadawy.store.getState().project;
+    const p = window.ggs.store.getState().project;
     return { hat: p.channels.find((c) => c.name === 'Hat')?.id, drums: p.patterns.find((x) => x.name === 'Drums')?.id };
   });
   await layout(page, {
@@ -74,7 +74,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
     pianoRoll: [818, 388, 500, 470]
   }, { pianoRollChannelId: ids.hat, selectedChannelId: ids.hat, selectedPatternId: ids.drums });
   await page.mouse.click(1590, 930);
-  await page.evaluate(() => window.greanteadawy.store.getState().play({ mode: 'song', position: 384 * 6 }));
+  await page.evaluate(() => window.ggs.store.getState().play({ mode: 'song', position: 384 * 6 }));
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${OUT}/studio.png` });
 
@@ -82,11 +82,11 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await layout(page, { playlist: [8, 8, 1310, 300], mixer: [8, 318, 1310, 440] }, { selectedInsert: 2 });
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${OUT}/mixer.png` });
-  await page.evaluate(() => window.greanteadawy.store.getState().stop());
+  await page.evaluate(() => window.ggs.store.getState().stop());
 
   // 3b. spatial: Claude places a few objects, the Spatial window next to the mixer
   const claude3d = await connectMcp(baseURL);
-  const chNames = await page.evaluate(() => window.greanteadawy.store.getState().project.channels.map((c) => c.name));
+  const chNames = await page.evaluate(() => window.ggs.store.getState().project.channels.map((c) => c.name));
   const spots = [['Hat', 'rear-left'], ['Open Hat', 'rear-right'], ['Pad', 'overhead'], ['Bell', 'top-front-right'], ['Clap', 'wide-left']];
   await claude3d.call('set_spatial', { enabled: true, monitor: 'binaural' });
   for (const [name, position] of spots) if (chNames.includes(name)) await claude3d.call('place_object', { insert: name, position });
@@ -97,7 +97,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
 
   // 4. piano roll on the melody
   const lead = await page.evaluate(() => {
-    const p = window.greanteadawy.store.getState().project;
+    const p = window.ggs.store.getState().project;
     const pat = p.patterns.find((x) => x.name === 'Melody') || p.patterns.at(-1);
     const chId = Object.keys(pat.notes).find((k) => pat.notes[k].length) || p.channels.at(-1).id;
     return { pat: pat.id, ch: chId };
@@ -116,7 +116,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await lib('Kick Dusty', makeWav({ freq: 52, seconds: 0.5, channels: 1 }), drumsF);
   await lib('Snare Vinyl', makeWav({ freq: 190, seconds: 0.3, channels: 1 }), drumsF);
   await lib('Hat Closed', makeWav({ freq: 2800, seconds: 0.12, channels: 1 }), drumsF);
-  const vinyl = await page.evaluate(() => window.greanteadawy.store.getState().samples.find((x) => x.name === 'Vinyl Pluck C4').id);
+  const vinyl = await page.evaluate(() => window.ggs.store.getState().samples.find((x) => x.name === 'Vinyl Pluck C4').id);
   await page.request.post('/api/samples/move', { data: { ids: [vinyl], folderId: keysF } });
   // a sung phrase, a little out of tune (A minor), for the editor and pitch correction
   const sung = (hz, cents) => hz * Math.pow(2, cents / 1200);
@@ -125,7 +125,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
     { hz: sung(493.88, 18), dur: 0.36 }, { hz: 0, dur: 0.08 }, { hz: sung(440, -22), dur: 0.7, vib: 0.35 }, { hz: 0, dur: 0.1 },
     { hz: sung(392, 40), dur: 0.32 }, { hz: sung(440, 12), dur: 0.9, vib: 0.4 }, { hz: 0, dur: 0.2 }
   ]), vocalsF);
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().samples.length)).toBe(6);
+  await expect.poll(() => page.evaluate(() => window.ggs.store.getState().samples.length)).toBe(6);
   await layout(page, { playlist: [8, 8, 1310, 420], channelRack: [8, 438, 800, 300] });
   await page.getByRole('tab', { name: 'Samples' }).click();
   await page.locator('.br-item.sample', { hasText: 'Vinyl Pluck' }).locator('.br-add.info').click();
@@ -134,7 +134,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await page.locator('.br-item.sample', { hasText: 'Vinyl Pluck' }).locator('.br-add.info').click();
 
   // 5a. the wave editor on the vocal take, a phrase selected; then its Pitch tab (auto-tune to A minor)
-  await page.evaluate((id) => window.greanteadawy.store.setState({ editSampleId: id, editTab: 'wave' }), hook);
+  await page.evaluate((id) => window.ggs.store.setState({ editSampleId: id, editTab: 'wave' }), hook);
   await layout(page, { playlist: [8, 8, 1310, 300], waveEditor: [60, 120, 1180, 560] }, { editSampleId: hook, editTab: 'wave' });
   await expect(page.getByTestId('wave-info')).toContainText('3.670 s');
   const wave = await page.getByTestId('wave-canvas').boundingBox();
@@ -154,7 +154,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await page.locator('[data-window="waveEditor"] .wbtn.close').click();
 
   // 5b. the recorder: a take from the (fake) microphone over the song, placed on the playlist
-  await page.evaluate(() => { const s = window.greanteadawy.store.getState(); s.setMode('song'); s.setSongStart(384 * 4); });
+  await page.evaluate(() => { const s = window.ggs.store.getState(); s.setMode('song'); s.setSongStart(384 * 4); });
   await layout(page, { playlist: [8, 8, 880, 560], recorder: [896, 8, 450, 520] });
   const rec = page.getByTestId('recorder');
   await rec.getByRole('button', { name: 'Enable microphone' }).click();
@@ -170,7 +170,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await rec.getByRole('button', { name: 'Stop' }).click();
   await expect(rec.locator('.rec-take')).toHaveCount(2, { timeout: 15000 });
   await page.locator('[data-window="recorder"] .wbtn.close').click();
-  await page.evaluate(() => window.greanteadawy.store.getState().setMode('pattern'));
+  await page.evaluate(() => window.ggs.store.getState().setMode('pattern'));
 
   await layout(page, { playlist: [8, 8, 1310, 420], channelRack: [8, 438, 800, 300] });
   await page.getByRole('tab', { name: 'Claude' }).click();
@@ -182,7 +182,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await claudeWorld.close();
   await expect(page).toHaveTitle(/Raga Sketch/);
   const world = await page.evaluate(() => {
-    const p = window.greanteadawy.store.getState().project;
+    const p = window.ggs.store.getState().project;
     return { sitar: p.channels.find((c) => c.name === 'Sitar').id, theka: p.patterns.find((x) => x.name === 'Theka').id };
   });
   await layout(page, { playlist: [8, 8, 1310, 330], channelRack: [8, 346, 700, 470], channelSettings: [716, 346, 602, 470] }, { selectedChannelId: world.sitar, selectedPatternId: world.theka });
@@ -198,8 +198,8 @@ test('README screenshots', async ({ browser, baseURL }) => {
   await s.getByRole('button', { name: /generate token/i }).click();
   await expect(s.locator('.fresh-token pre')).toBeVisible();
   await page.evaluate(() => {
-    const st = window.greanteadawy.store.getState();
-    window.greanteadawy.store.setState({ windows: { ...st.windows, settings: { ...st.windows.settings, x: 300, y: 40, w: 760, h: 760, z: 99 } }, zTop: 99 });
+    const st = window.ggs.store.getState();
+    window.ggs.store.setState({ windows: { ...st.windows, settings: { ...st.windows.settings, x: 300, y: 40, w: 760, h: 760, z: 99 } }, zTop: 99 });
   });
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/settings-api.png` });
@@ -226,7 +226,7 @@ test('README screenshots', async ({ browser, baseURL }) => {
 
   // 6c. the About dialog (top right)
   await page.getByTestId('about-button').click();
-  await expect(page.getByRole('dialog', { name: 'About GreanTeaDawy' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'About GGS' })).toBeVisible();
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/about.png` });
   await page.keyboard.press('Escape');
@@ -263,11 +263,11 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
   const claude = await connectMcp(baseURL);
-  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'classic'));
+  await page.evaluate(() => window.ggs.store.getState().setPref('synthView', 'classic'));
   await claude.call('create_project', { name: 'Expressive Synths', template: 'expressive' });
   await expect(page).toHaveTitle(/Expressive Synths/);
   const lead = await page.evaluate(() => {
-    const { store } = window.greanteadawy;
+    const { store } = window.ggs;
     const p = store.getState().project;
     const ch = p.channels.find((c) => c.name === 'Lead');
     store.setState({ selectedChannelId: ch.id, pianoRollChannelId: ch.id, selectedPatternId: p.patterns.find((x) => x.name === 'Lead').id, browserOpen: false });
@@ -280,7 +280,7 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await expect(page.locator('.ggs-osc canvas').first()).toBeVisible();
   const tab = async (name) => { await page.locator('.ggs-tabs button', { hasText: name }).click(); await page.waitForTimeout(250); };
   const clip = { x: 10, y: 50, width: 1060, height: 830 };
-  const edit = (params) => page.evaluate(([id, values]) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id, patch: { instrument: { params: values } } }]), [lead, params]);
+  const edit = (params) => page.evaluate(([id, values]) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id, patch: { instrument: { params: values } } }]), [lead, params]);
   // a chaos generator and a drawn LFO on top of the preset's own routes
   await edit({ chaos1Type: 'lorenz', chaos1Rate: 1.5, mod13Src: 'chaos1', mod13Dst: 'oscAPos', mod13Amt: 0.3, mod14Src: 'macro5', mod14Dst: 'f1Res', mod14Amt: 0.4, lfo4Shape: 'steps', lfo4Sync: '1bar', lfo4S2: -0.6, lfo4S5: 0.9, lfo4S7: -0.2, mod15Src: 'lfo4', mod15Dst: 'oscBLevel', mod15Amt: 0.2 });
   await page.mouse.click(600, 30); // the first click unlocks audio
@@ -329,7 +329,7 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await page.screenshot({ path: `${OUT}/ggs-wavetables.png`, clip });
   await page.keyboard.press('Escape');
   // the synth page: the whole patch on one screen, arranged like the /synth editor (full screen, as for a video)
-  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'page'));
+  await page.evaluate(() => window.ggs.store.getState().setPref('synthView', 'page'));
   await layout(page, { channelSettings: [10, 10, 1580, 880] });
   await expect(page.locator('.gsp')).toBeVisible();
   await page.locator('.sp-menu-btn').first().click();
@@ -342,7 +342,7 @@ test('GGS Synth screenshots', async ({ browser, baseURL }) => {
   await page.screenshot({ path: `${OUT}/ggs-page.png` });
   await page.mouse.up();
   await page.keyboard.press('Escape');
-  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'classic'));
+  await page.evaluate(() => window.ggs.store.getState().setPref('synthView', 'classic'));
   // the piano roll: pitch curves over the notes, the pitch lane underneath
   await layout(page, { pianoRoll: [10, 10, 1580, 600] });
   await page.locator('.pr-lane').selectOption('pitch');
@@ -368,7 +368,7 @@ test('Versions screenshot', async ({ browser, baseURL }) => {
   await claude.call('create_project', { name: 'Night Drive', template: 'house', bpm: 122 });
   await expect(page).toHaveTitle(/Night Drive/);
   await claude.call('save_version', { name: 'Before the bridge' });
-  const names = await page.evaluate(() => { const p = window.greanteadawy.store.getState().project; return { channels: p.channels.map((c) => c.name), patterns: p.patterns.map((x) => x.name) }; });
+  const names = await page.evaluate(() => { const p = window.ggs.store.getState().project; return { channels: p.channels.map((c) => c.name), patterns: p.patterns.map((x) => x.name) }; });
   // one round of work by Claude, as one change: a new part, a brighter sound, a mix move
   await claude.call('batch', { calls: [
     { tool: 'update_project', args: { bpm: 124 } },

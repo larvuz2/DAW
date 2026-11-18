@@ -265,7 +265,7 @@ const hex8 = (n) => n.toString(16).toUpperCase().padStart(8, '0');
  * ADM XML for a stereo bed (common-definition FrontLeft/FrontRight) plus mono objects with timed Cartesian positions.
  * objects: [{ name, blocks: [{ start, duration, x, y, z }] }] (seconds). Tracks: 1–2 bed, 3… objects (see admChna).
  */
-export function buildAdmXml({ title = 'GreanTeaDawy mix', duration, sampleRate = 48000, bitDepth = 24, objects = [] }) {
+export function buildAdmXml({ title = 'GGS mix', duration, sampleRate = 48000, bitDepth = 24, objects = [] }) {
   const L = [];
   const end = admTime(duration);
   L.push('<?xml version="1.0" encoding="UTF-8"?>');
@@ -355,7 +355,7 @@ export function admChna(objectCount) {
 }
 
 /** A minimal Broadcast Wave `bext` chunk (description, originator, date/time, version 1). */
-export function bextChunk({ description = '', originator = 'GreanTeaDawy', date = new Date() } = {}) {
+export function bextChunk({ description = '', originator = 'GGS', date = new Date() } = {}) {
   const buf = new Uint8Array(602);
   const put = (s, at, len) => { const t = String(s).slice(0, len); for (let k = 0; k < t.length; k++) buf[at + k] = t.charCodeAt(k) & 0x7f; };
   put(description, 0, 256);

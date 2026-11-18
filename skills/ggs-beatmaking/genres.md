@@ -1,4 +1,4 @@
-# Genre recipes for GreanTeaDawy
+# Genre recipes for GGS
 
 Starting points, not rules — change one thing per genre to make it the user's own. Step strings are one bar of 16ths
 (`write_drums`); "swing" is `apply_groove` (or `update_project swing`, 0–100 where MPC 54 % ≈ 16, 58 % ≈ 32,

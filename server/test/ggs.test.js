@@ -2,7 +2,7 @@
 // slide curves, measures it on the server, and checks the composition — and every invalid call changes nothing.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { curveValueAt } from '@greanteadawy/core';
+import { curveValueAt } from '@ggs/core';
 import { startServer, agent, mcpClient, callTool } from './helpers.js';
 
 let srv;
@@ -398,7 +398,7 @@ test('a vibrato too long for one curve says so instead of silently slowing down'
 
 test('the sound-design skill teaches recipes the tools accept', async () => {
   const fs = await import('node:fs');
-  const text = fs.readFileSync(new URL('../../skills/greanteadawy-sound-design/recipes.md', import.meta.url), 'utf8');
+  const text = fs.readFileSync(new URL('../../skills/ggs-sound-design/recipes.md', import.meta.url), 'utf8');
   const recipes = [...text.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => JSON.parse(m[1]));
   assert.ok(recipes.length >= 6);
   for (const [i, patch] of recipes.entries()) {

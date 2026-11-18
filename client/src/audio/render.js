@@ -1,5 +1,5 @@
 // Offline (faster than realtime) rendering of the song or a pattern, optionally metering stems in the same pass.
-import { patternLength, songLength, songTail, ticksPerBar, PPQ, encodeWav, createLevelMeter, SPEAKER_LAYOUTS } from '@greanteadawy/core';
+import { patternLength, songLength, songTail, ticksPerBar, PPQ, encodeWav, createLevelMeter, SPEAKER_LAYOUTS } from '@ggs/core';
 import { AudioEngine } from './engine.js';
 import { LIMITER_HEADROOM } from './effects.js';
 import { preparePlugins } from './plugins.js';

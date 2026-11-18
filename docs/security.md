@@ -1,6 +1,6 @@
 # Security
 
-GreanTeaDawy is built to be safe on your own computer by default and hardened enough to put on a server for a small
+GGS is built to be safe on your own computer by default and hardened enough to put on a server for a small
 team. This page describes the model and a checklist for exposing it.
 
 ## Accounts and data

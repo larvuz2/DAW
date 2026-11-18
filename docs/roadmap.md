@@ -1,6 +1,6 @@
 # Roadmap & product review
 
-GreanTeaDawy is reviewed by the read-only **music-industry advisor** agent (`.claude/agents/music-industry-advisor.md`):
+GGS is reviewed by the read-only **music-industry advisor** agent (`.claude/agents/music-industry-advisor.md`):
 a producer / mix-and-mastering engineer / A&R / DAW product lead with 20+ years of experience who reads the code and
 says what keeps the music from sounding release-ready. This page records the review and what was done about it, so the
 next round of development starts from the open items.

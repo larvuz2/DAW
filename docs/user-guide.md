@@ -1,6 +1,6 @@
 # User guide
 
-GreanTeaDawy uses a pattern-and-playlist workflow: you build **patterns** (drum grooves, chord parts,
+GGS uses a pattern-and-playlist workflow: you build **patterns** (drum grooves, chord parts,
 melodies) in the **channel rack** and **piano roll**, arrange them in the **playlist**, and balance everything in the
 **mixer**. Everything saves automatically and syncs live between your browser tabs and Claude.
 

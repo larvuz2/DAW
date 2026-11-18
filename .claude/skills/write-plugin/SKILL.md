@@ -1,6 +1,6 @@
 ---
 name: write-plugin
-description: Write, pack and test a GreanTeaDawy plugin (DSP instrument, sample instrument, effect or note generator) — e.g. a new example in plugins/examples — following docs/plugins.md.
+description: Write, pack and test a GGS plugin (DSP instrument, sample instrument, effect or note generator) — e.g. a new example in plugins/examples — following docs/plugins.md.
 ---
 
 # Write a plugin

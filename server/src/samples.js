@@ -6,7 +6,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import { parseBuffer } from 'music-metadata';
-import { uid } from '@greanteadawy/core';
+import { uid } from '@ggs/core';
 import { httpError } from './errors.js';
 import { writeFileAtomic } from './fsutil.js';
 

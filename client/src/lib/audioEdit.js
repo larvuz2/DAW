@@ -1,7 +1,7 @@
 // Shared plumbing for editing samples in the browser (the wave editor, the recorder and Claude's edit_sample jobs):
 // decode a sample at its own sample rate, run slow edits in a worker, encode WAV and save as a new sample or over the
 // original.
-import { applyEdit, analyzeMelody, autotune, encodeWav, makeClip, clipLength } from '@greanteadawy/core';
+import { applyEdit, analyzeMelody, autotune, encodeWav, makeClip, clipLength } from '@ggs/core';
 import { api } from '../state/api.js';
 import { useStore } from '../state/store.js';
 import { sampleFileUrl, noteSampleRevs } from '../audio/engine.js';

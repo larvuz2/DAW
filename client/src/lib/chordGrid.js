@@ -1,14 +1,14 @@
-// The chord grid in the studio: one grid per project (the engine lives in @greanteadawy/chord-grid, loaded when the
+// The chord grid in the studio: one grid per project (the engine lives in @ggs/chord-grid, loaded when the
 // Grid tab first opens), played through a channel of the song, looped on the audio clock, kept across reloads, and
 // written to a pattern as notes.
-import { PPQ, ticksPerBar, parsePitchClass, SCALES, scaleSpelling, uid, maxPatternLength } from '@greanteadawy/core';
+import { PPQ, ticksPerBar, parsePitchClass, SCALES, scaleSpelling, uid, maxPatternLength } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { ensureEngine, getEngine } from '../audio/index.js';
 
 let lib = null;
 /** The engine's module (a separate chunk: 350 KB of harmony that most sessions never open). */
 export function loadChordGrid() {
-  return (lib ??= import('@greanteadawy/chord-grid'));
+  return (lib ??= import('@ggs/chord-grid'));
 }
 
 const STORE = 'gtd.chordGrid.';

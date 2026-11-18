@@ -1,7 +1,7 @@
 // User plugins in the audio engine. DSP plugins (instrument voices, effects) run in the AudioWorklet through the
 // server-generated harness (/api/plugins/:id/worklet.js → processor pluginProcessorName(id, sha256)); sample instruments are played
 // by the studio's own sample voice. The registry (the user's installed plugins) is set by the store.
-import { pluginProcessorName, sanitizePluginValues } from '@greanteadawy/core';
+import { pluginProcessorName, sanitizePluginValues } from '@ggs/core';
 import { setParam } from './dsp.js';
 
 let registry = new Map(); // id → { id, name, type, enabled, sha256, manifest }

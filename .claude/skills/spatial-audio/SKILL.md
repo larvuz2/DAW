@@ -1,6 +1,6 @@
 ---
 name: spatial-audio
-description: Work on GreanTeaDawy's spatial (Dolby Atmos-style) mixing — 3D objects, binaural monitoring, speaker layouts, position automation, object stems and ADM BWF exports — in core, the audio engine, the Spatial window and the MCP tools.
+description: Work on GGS's spatial (Dolby Atmos-style) mixing — 3D objects, binaural monitoring, speaker layouts, position automation, object stems and ADM BWF exports — in core, the audio engine, the Spatial window and the MCP tools.
 ---
 
 # Spatial audio

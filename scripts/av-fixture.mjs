@@ -136,13 +136,13 @@ try {
 
   // ---- play it with the bridge on, and capture what the bridge sends
   t0 = performance.now();
-  await page.evaluate(() => window.greanteadawy.store.getState().setAvBridge(true));
+  await page.evaluate(() => window.ggs.store.getState().setAvBridge(true));
   await page.waitForTimeout(2000); // two seconds stopped: the map, the playhead, the intro marker
-  await page.evaluate(() => window.greanteadawy.store.getState().play({ mode: 'song' }));
+  await page.evaluate(() => window.ggs.store.getState().play({ mode: 'song' }));
   await page.waitForTimeout(SONG_MS);
-  await page.evaluate(() => window.greanteadawy.store.getState().stop());
+  await page.evaluate(() => window.ggs.store.getState().stop());
   await page.waitForTimeout(500);
-  await page.evaluate(() => window.greanteadawy.store.getState().setAvBridge(false));
+  await page.evaluate(() => window.ggs.store.getState().setAvBridge(false));
   await page.waitForTimeout(300);
   t0 = null;
 
@@ -226,7 +226,7 @@ try {
 function readme({ summary, autoRows, autoId, sample }) {
   return `# Audio → visual test fixture
 
-A 16-bar song made for building and testing a visual setup against GreanTeaDawy, and a capture of what the studio's
+A 16-bar song made for building and testing a visual setup against GGS, and a capture of what the studio's
 audio → visual bridge really sent while it played (see \`docs/av-bridge.md\` for every address).
 
 | File | What |

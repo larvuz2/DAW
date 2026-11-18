@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { uid } from '@greanteadawy/core';
+import { uid } from '@ggs/core';
 import { httpError } from '../errors.js';
 import { writeFileAtomic } from '../fsutil.js';
 

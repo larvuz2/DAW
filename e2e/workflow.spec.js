@@ -2,7 +2,7 @@
 // transitions, markers, kick-triggered sidechain), measures sounds, renders against a target and exports stems.
 // Named so it runs after studio.spec.js (which performs first-run setup).
 import { test, expect } from '@playwright/test';
-import { decodeWav } from '@greanteadawy/core';
+import { decodeWav } from '@ggs/core';
 import { ADMIN, connectMcp, menuItem } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
@@ -82,7 +82,7 @@ test('File menu: stems and 24-bit WAV export', async () => {
 
 test('reverb buses add space, not level (regression guard)', async () => {
   const diffs = await page.evaluate(async () => {
-    const p = window.greanteadawy.store.getState().project;
+    const p = window.ggs.store.getState().project;
     const chords = p.patterns.find((x) => x.name === 'Chords');
     const padInsert = p.channels.find((c) => c.name === 'Pad').mixerTrack;
     const noMaster = { ...p, mixer: p.mixer.map((m, i) => (i === 0 ? { ...m, effects: [] } : m)) };
@@ -93,7 +93,7 @@ test('reverb buses add space, not level (regression guard)', async () => {
       for (let c = 0; c < b.numberOfChannels; c++) { const d = b.getChannelData(c); for (let i = 0; i < d.length; i++) s += d[i] * d[i]; n += d.length; }
       return 10 * Math.log10(s / n);
     };
-    const render = async (proj) => db((await window.greanteadawy.render(proj, { mode: 'pattern', patternId: chords.id, loops: 1, encode: false, tail: 3 })).buffer);
+    const render = async (proj) => db((await window.ggs.render(proj, { mode: 'pattern', patternId: chords.id, loops: 1, encode: false, tail: 3 })).buffer);
     const dry = await render(variant(0));
     return { full: (await render(variant(1))) - dry, normal: (await render(variant(0.35))) - dry };
   });

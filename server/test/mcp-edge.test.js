@@ -1,7 +1,7 @@
 // Regression tests for MCP tool edge cases found in QA.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyOps, ticksPerBar } from '@greanteadawy/core';
+import { applyOps, ticksPerBar } from '@ggs/core';
 import { startServer, agent, mcpClient, callTool, openSocket, waitFor } from './helpers.js';
 
 let srv;

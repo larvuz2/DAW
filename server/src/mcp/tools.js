@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { summarizeProject, diffProjects, didYouMean, brief } from '@greanteadawy/core';
+import { summarizeProject, diffProjects, didYouMean, brief } from '@ggs/core';
 import { GUIDE, INSTRUCTIONS } from './guide.js';
 import { z, ok, projectIdArg, annotations as A } from './util.js';
 import { validateArgs } from './validate.js';
@@ -61,7 +61,7 @@ function changesOf(session) {
 /** Build the MCP server for one user. `backend` is a local or remote user-scoped backend. */
 export function createMcpServer(realBackend) {
   const server = new McpServer(
-    { name: 'greanteadawy', title: 'GreanTeaDawy', version: VERSION },
+    { name: 'ggs', title: 'GGS', version: VERSION },
     { instructions: INSTRUCTIONS }
   );
   // what the tools see: the real thing, or — during a dry run or a batch — a working copy
@@ -198,11 +198,11 @@ export function createMcpServer(realBackend) {
   // words; this one answers with what to send instead (see validate.js)
   server.server.setRequestHandler(CallToolRequestSchema, (request, extra) => call(request.params.name, request.params.arguments, extra));
 
-  server.registerResource('guide', 'greanteadawy://guide', {
-    title: 'GreanTeaDawy guide', description: 'Concepts, time units and notation used by the tools', mimeType: 'text/markdown'
+  server.registerResource('guide', 'ggs://guide', {
+    title: 'GGS guide', description: 'Concepts, time units and notation used by the tools', mimeType: 'text/markdown'
   }, async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: GUIDE }] }));
 
-  server.registerResource('active-project', 'greanteadawy://project/active', {
+  server.registerResource('active-project', 'ggs://project/active', {
     title: 'Active project', description: 'Summary of the project currently open', mimeType: 'text/plain'
   }, async (uri) => {
     const p = await load();

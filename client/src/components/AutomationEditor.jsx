@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { EFFECTS, uid, ticksPerBar, STEP, AV_USER_LANES } from '@greanteadawy/core';
-import { GGS_PRESET_INFO, MACRO_COUNT, macroLabel, ggsDefaults } from '@greanteadawy/synth-dsp';
+import { EFFECTS, uid, ticksPerBar, STEP, AV_USER_LANES } from '@ggs/core';
+import { GGS_PRESET_INFO, MACRO_COUNT, macroLabel, ggsDefaults } from '@ggs/synth-dsp';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { DragNumber } from './ui/Controls.jsx';

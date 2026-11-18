@@ -1,4 +1,4 @@
-# @greanteadawy/chord-grid
+# @ggs/chord-grid
 
 The harmonic engine behind the studio's **Chord Grid** (Harmony window → Grid) and the `chord_grid` /
 `add_grid_chords` MCP tools: every chord of a key on one grid, the borrowed ones beside it, what could come next,

@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { encodeWav } from '@greanteadawy/core';
+import { encodeWav } from '@ggs/core';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SR = 44100;

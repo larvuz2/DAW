@@ -1,6 +1,6 @@
 # Spatial mixing (Dolby Atmos-style 3D)
 
-GreanTeaDawy can place parts of a song **around and above the listener**, the way object-based formats such as Dolby
+GGS can place parts of a song **around and above the listener**, the way object-based formats such as Dolby
 Atmos work, and render the result for headphones (binaural), surround speakers (5.1, 7.1, 7.1.4) or as objects with
 position metadata (object stems, an experimental ADM BWF).
 

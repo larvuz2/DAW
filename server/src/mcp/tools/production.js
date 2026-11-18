@@ -3,7 +3,7 @@
 // automation, so everything they make can be edited afterwards like anything else.
 import {
   STEP, PPQ, ticksPerBar, uid, findPattern, patternLength, parsePitchClass, MAX_TRACKS, maxPatternLength, SCALES
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { z, ok, projectIdArg, annotations as A, uniqueName } from '../util.js';
 
 // ------------------------------------------------------------------ channel roles

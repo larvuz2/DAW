@@ -1,6 +1,6 @@
 ---
 name: ggs-synth
-description: Work on the GGS Synth (packages/synth-dsp) or per-note expression in GreanTeaDawy — add a param, wavetable, modulation source/target, filter type or preset, change the voice or effects DSP, the AudioWorklet glue, the synth editor, the expression lane or the related MCP tools — without breaking determinism, the measured quality bars or the levelling of the presets.
+description: Work on the GGS Synth (packages/synth-dsp) or per-note expression in GGS — add a param, wavetable, modulation source/target, filter type or preset, change the voice or effects DSP, the AudioWorklet glue, the synth editor, the expression lane or the related MCP tools — without breaking determinism, the measured quality bars or the levelling of the presets.
 ---
 
 # GGS Synth & expression
@@ -32,7 +32,7 @@ description: Work on the GGS Synth (packages/synth-dsp) or per-note expression i
 ## Rules
 
 - **`packages/synth-dsp` has no dependencies** and uses no Node or DOM API: it runs in an AudioWorkletGlobalScope.
-  The worklet imports `@greanteadawy/synth-dsp/engine` (voice + fx only) to stay small.
+  The worklet imports `@ggs/synth-dsp/engine` (voice + fx only) to stay small.
 - **No allocation and no string-keyed param lookups while rendering.** Everything derived from params is cached as
   numbers in `GgsVoice.configure()`; `control()` and the render loops read fields. (Template-string lookups in the
   control loop cost 3× the whole voice — measured.)
@@ -95,5 +95,5 @@ E2E_CHROMIUM=… npx playwright test e2e/workflow-ggs.spec.js   # worklet, live 
 ```
 
 Update `docs/ggs-synth.md`, `docs/expression-engine.md` and the numbers in `docs/audio-benchmarks.md` when they
-change; `npm run docs:mcp` after tool changes; `server/src/mcp/guide.js` and `skills/greanteadawy-sound-design` so
+change; `npm run docs:mcp` after tool changes; `server/src/mcp/guide.js` and `skills/ggs-sound-design` so
 Claude knows.

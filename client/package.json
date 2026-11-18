@@ -1,8 +1,8 @@
 {
-  "name": "@greanteadawy/client",
-  "version": "0.21.0",
+  "name": "@ggs/client",
+  "version": "0.22.0",
   "private": true,
-  "description": "GreanTeaDawy web UI (React + Web Audio)",
+  "description": "GGS web UI (React + Web Audio)",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -12,9 +12,9 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@greanteadawy/chord-grid": "*",
-    "@greanteadawy/core": "*",
-    "@greanteadawy/synth-dsp": "*",
+    "@ggs/chord-grid": "*",
+    "@ggs/core": "*",
+    "@ggs/synth-dsp": "*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.8"

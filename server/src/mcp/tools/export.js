@@ -1,6 +1,6 @@
 // Audio export in any format: list_export_formats (what this server can make — ffmpeg availability, bitrates) and
 // export_audio (render in the user's browser, then convert with ffmpeg on the server).
-import { findPattern } from '@greanteadawy/core';
+import { findPattern } from '@ggs/core';
 import { z, ok, projectIdArg, annotations as A } from '../util.js';
 import { FORMAT_IDS } from '../../ffmpeg.js';
 import { progressNotifier } from './mix.js';

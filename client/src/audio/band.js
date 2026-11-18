@@ -2,7 +2,7 @@
 // ahead of time (models.js / modelPool.js); electric piano, drawbar organ and bowed strings are oscillator engines.
 // Same voice contract as instruments.js: register sources with v.add, connect to v.out, return the natural end
 // (or null while held) and set v.releaseFn for note-off.
-import { midiToFreq } from '@greanteadawy/core';
+import { midiToFreq } from '@ggs/core';
 import { shaperCurve, adsr, timbre, phasedSine, noiseSource, FLAT_Q } from './dsp.js';
 import { modelOf, layerOf } from './models.js';
 import { noteBuffer, liveNoteBuffer } from './modelPool.js';

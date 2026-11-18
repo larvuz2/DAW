@@ -1,6 +1,6 @@
-export const GUIDE = `# GreanTeaDawy — guide for making music
+export const GUIDE = `# GGS — guide for making music
 
-GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change appears live in the user's browser.
+GGS is an FL Studio-style DAW in the browser. Everything you change appears live in the user's browser.
 
 ## Concepts
 - **Channels** (Channel Rack) = instruments: synthesized drums (kick, snare, clap, hat, tom, rim, cowbell, cymbal, shaker, perc),
@@ -344,9 +344,9 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
    the user wants files.
 `;
 
-export const INSTRUCTIONS = `GreanTeaDawy lets you produce music in a browser DAW (FL Studio-like: channel rack, patterns, piano roll, playlist, mixer, automation).
+export const INSTRUCTIONS = `GGS lets you produce music in a browser DAW (FL Studio-like: channel rack, patterns, piano roll, playlist, mixer, automation).
 Changes appear live in the user's browser. Call get_project first to see the current song. Time is in 16th-note steps
-unless a tool says otherwise; bars/tracks are 1-based. Read the greanteadawy://guide resource for notation details.
+unless a tool says otherwise; bars/tracks are 1-based. Read the ggs://guide resource for notation details.
 Use the user's uploaded and recorded samples (list_samples / get_sample_info include folder, bitrate, sample rate, loudness, tempo,
 key and pitch; sample_folders / move_samples organise them; edit_sample trims, fades, stretches, pitch-shifts and auto-tunes them).
 Use render_mix (with a target) to "hear" the mix as numbers and analyze_sound to measure single sounds; mix by the

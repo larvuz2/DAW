@@ -2,7 +2,7 @@
 // between versions, and renders that are compared with the one before.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeAudio, audioFingerprint, nullTest, toPcm16 } from '@greanteadawy/core';
+import { analyzeAudio, audioFingerprint, nullTest, toPcm16 } from '@ggs/core';
 import { startServer, agent, mcpClient, callTool, openSocket } from './helpers.js';
 import { MORE_THAN_EDITS } from '../src/mcp/tools.js';
 

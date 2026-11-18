@@ -11,8 +11,8 @@ import './styles.css';
 useStore.getState().initAuth();
 
 // Handy for debugging and scripting from the browser console:
-//   greanteadawy.store.getState().project, greanteadawy.engine(), greanteadawy.midi([0x90, 60, 100])
-window.greanteadawy = { store: useStore, engine: getEngine, sync, render: renderProject, midi: injectMidi };
+//   ggs.store.getState().project, ggs.engine(), ggs.midi([0x90, 60, 100])
+window.ggs = { store: useStore, engine: getEngine, sync, render: renderProject, midi: injectMidi };
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

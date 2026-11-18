@@ -77,10 +77,10 @@ test('Claude tries an edit without making it, then makes several as one change',
   const claude = await connectMcp(baseURL);
   // what the studio shows, and the revision the server holds
   const state = () => page.evaluate(() => {
-    const p = window.greanteadawy.store.getState().project;
+    const p = window.ggs.store.getState().project;
     return { patterns: p.patterns.map((x) => x.name), clips: p.playlist.clips.length, notes: p.patterns.reduce((n, x) => n + Object.values(x.notes).reduce((m, list) => m + list.length, 0), 0) };
   });
-  const rev = async () => (await (await page.request.get(`/api/projects/${await page.evaluate(() => window.greanteadawy.store.getState().project.id)}`)).json()).rev;
+  const rev = async () => (await (await page.request.get(`/api/projects/${await page.evaluate(() => window.ggs.store.getState().project.id)}`)).json()).rev;
   try {
     const before = await state();
     const revBefore = await rev();
@@ -196,7 +196,7 @@ test('versions: save from the UI and restore', async () => {
   await expect(changes.locator('b')).toHaveText(/^Since this version: 1 channel/);
   await expect(changes.locator('pre')).toContainText('− Channel "E2E Lead" (synth)');
   // it follows the project: one more edit, one more line
-  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.dispatch([{ type: 'project/update', patch: { bpm: st.project.bpm + 7 } }]); });
+  await page.evaluate(() => { const st = window.ggs.store.getState(); st.dispatch([{ type: 'project/update', patch: { bpm: st.project.bpm + 7 } }]); });
   await expect(changes.locator('pre')).toContainText(/Project: tempo \d+ → \d+ BPM/);
 
   await win.locator('.version-row', { hasText: 'E2E checkpoint' }).getByRole('button', { name: 'Restore' }).click();
@@ -282,24 +282,27 @@ test('About: the top-right button opens a dialog with the app name and version; 
   expect(b.y).toBeLessThan(40);
   expect(Math.abs(avatar.x - (b.x + b.width))).toBeLessThan(16);
   await button.click();
-  const dialog = page.getByRole('dialog', { name: 'About GreanTeaDawy' });
+  const dialog = page.getByRole('dialog', { name: 'About GGS' });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByTestId('about-version')).toHaveText(`Version ${VERSION}`);
-  await expect(dialog.getByTestId('about-server')).toHaveText(`GreanTeaDawy ${VERSION}`); // the server's own version
+  await expect(dialog.getByTestId('about-server')).toHaveText(`GGS ${VERSION}`); // the server's own version
+  // the one place that says where the studio comes from
+  await expect(dialog.getByTestId('about-origin')).toContainText('by Gayan Viduranga and contributors');
+  await expect(dialog.getByTestId('about-origin').getByRole('link')).toHaveAttribute('href', /github\.com\/vidux\//);
   await expect(dialog).toContainText(/\d+ instruments in \d+ collections/);
   await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
   // studio shortcuts don't fire while it is open (focus off the buttons, so Space can't just press Close)
   await dialog.locator('.about-tagline').click();
   await page.keyboard.press('Space');
   await page.keyboard.press('F9');
-  expect(await page.evaluate(() => window.greanteadawy.store.getState().playing)).toBe(false);
+  expect(await page.evaluate(() => window.ggs.store.getState().playing)).toBe(false);
   await expect(dialog).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(button).toBeFocused(); // focus goes back to the ⓘ button
   // from the main menu, closed with the Close button
   await page.locator('.tbtn.logo').click();
-  await menuItem(page, 'About GreanTeaDawy');
+  await menuItem(page, 'About GGS');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toBeHidden();
@@ -308,10 +311,10 @@ test('About: the top-right button opens a dialog with the app name and version; 
   await dialog.getByRole('button', { name: /Shortcuts & help/ }).click();
   await expect(dialog).toBeHidden();
   await expect(page.locator('[data-window="help"]')).toBeVisible();
-  await page.evaluate(() => window.greanteadawy.store.getState().closeWindow('help'));
+  await page.evaluate(() => window.ggs.store.getState().closeWindow('help'));
   // one dialog at a time: opening About over a confirm answers the confirm with "cancel" instead of leaving it hanging
   expect(await page.evaluate(async () => {
-    const st = window.greanteadawy.store.getState();
+    const st = window.ggs.store.getState();
     const pending = st.confirm({ title: 'Delete everything?' });
     st.showAbout();
     return pending;

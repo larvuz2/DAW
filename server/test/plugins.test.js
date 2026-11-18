@@ -67,7 +67,7 @@ test('code checks and the worklet harness', () => {
   assert.match(checkPluginCode("import x from './y.js'").join(), /import/);
   assert.match(checkPluginCode('importScripts("x")').join(), /importScripts/);
   const mod = workletModule({ id: 'acme.echo', version: '1.0.0', type: 'effect', params: [{ key: 'mix', type: 'number', min: 0, max: 1, default: 0.5, automatable: true }, { key: 'mode', type: 'select', options: ['a'], default: 'a' }] }, '/* plugin */', 'ab'.repeat(32));
-  assert.match(mod, /^\/\/ GreanTeaDawy plugin harness/);
+  assert.match(mod, /^\/\/ GGS plugin harness/);
   assert.match(mod, /typeof AudioWorkletGlobalScope === 'undefined'/); // refuses to run on a normal page
   assert.match(mod, /"gtd-plugin-acme\.echo-abababababab"/); // the package hash: an update registers a new processor
   assert.match(mod, /\{"name":"mix","defaultValue":0\.5,"minValue":0,"maxValue":1\}/);
@@ -135,7 +135,7 @@ test('install: inspect shows what it asks for, the trust confirmation is require
   assert.equal((await user.post('/api/plugins/install', { token: tokens[3], trust: true })).status, 201);
   const list = (await user.get('/api/plugins')).body;
   assert.equal(list.allowed, true);
-  assert.deepEqual(list.plugins.map((p) => p.id), ['greanteadawy.tape-wobble']);
+  assert.deepEqual(list.plugins.map((p) => p.id), ['ggs.tape-wobble']);
 });
 
 test('install refuses bad packages with a clear reason', async () => {
@@ -160,25 +160,25 @@ test('serving: worklet module, generator code as text, listed samples only; per-
   await install(user, example('chiptune'));
   await install(user, example('kalimba'));
   await install(user, example('euclid'));
-  const w = await fetch(`${srv.base}/api/plugins/greanteadawy.chiptune/worklet.js`, { headers: { cookie: user.cookie } });
+  const w = await fetch(`${srv.base}/api/plugins/ggs.chiptune/worklet.js`, { headers: { cookie: user.cookie } });
   assert.equal(w.status, 200);
   assert.match(w.headers.get('content-type'), /javascript/);
   assert.equal(w.headers.get('cross-origin-resource-policy'), 'same-origin');
   const js = await w.text();
-  assert.match(js, /gtd-plugin-greanteadawy\.chiptune/);
+  assert.match(js, /gtd-plugin-ggs\.chiptune/);
   assert.match(js, /registerInstrument/);
   // generators are never served as runnable script from the studio's origin
-  const g = await fetch(`${srv.base}/api/plugins/greanteadawy.euclid/code`, { headers: { cookie: user.cookie } });
+  const g = await fetch(`${srv.base}/api/plugins/ggs.euclid/code`, { headers: { cookie: user.cookie } });
   assert.match(g.headers.get('content-type'), /text\/plain/);
   assert.match(g.headers.get('content-security-policy'), /sandbox/);
   assert.equal(g.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal((await fetch(`${srv.base}/api/plugins/greanteadawy.euclid/worklet.js`, { headers: { cookie: user.cookie } })).status, 404);
-  assert.equal((await fetch(`${srv.base}/api/plugins/greanteadawy.chiptune/code`, { headers: { cookie: user.cookie } })).status, 404);
-  const s = await fetch(`${srv.base}/api/plugins/greanteadawy.kalimba/samples/samples/c4.wav`, { headers: { cookie: user.cookie } });
+  assert.equal((await fetch(`${srv.base}/api/plugins/ggs.euclid/worklet.js`, { headers: { cookie: user.cookie } })).status, 404);
+  assert.equal((await fetch(`${srv.base}/api/plugins/ggs.chiptune/code`, { headers: { cookie: user.cookie } })).status, 404);
+  const s = await fetch(`${srv.base}/api/plugins/ggs.kalimba/samples/samples/c4.wav`, { headers: { cookie: user.cookie } });
   assert.equal(s.status, 200);
   assert.equal(s.headers.get('content-type'), 'audio/wav');
-  assert.equal((await fetch(`${srv.base}/api/plugins/greanteadawy.kalimba/samples/plugin.json`, { headers: { cookie: user.cookie } })).status, 404);
-  assert.equal((await fetch(`${srv.base}/api/plugins/greanteadawy.kalimba/samples/..%2F..%2Fregistry.json`, { headers: { cookie: user.cookie } })).status, 404);
+  assert.equal((await fetch(`${srv.base}/api/plugins/ggs.kalimba/samples/plugin.json`, { headers: { cookie: user.cookie } })).status, 404);
+  assert.equal((await fetch(`${srv.base}/api/plugins/ggs.kalimba/samples/..%2F..%2Fregistry.json`, { headers: { cookie: user.cookie } })).status, 404);
   assert.equal((await fetch(`${srv.base}/api/plugins/..%2F..%2Fusers/worklet.js`, { headers: { cookie: user.cookie } })).status, 404);
 
   // another user sees none of it
@@ -186,21 +186,21 @@ test('serving: worklet module, generator code as text, listed samples only; per-
   const other = agent(srv.base);
   await other.post('/api/auth/login', { username: 'other', password: 'other-pass-1' });
   assert.deepEqual((await other.get('/api/plugins')).body.plugins, []);
-  assert.equal((await fetch(`${srv.base}/api/plugins/greanteadawy.chiptune/worklet.js`, { headers: { cookie: other.cookie } })).status, 404);
-  assert.equal((await other.del('/api/plugins/greanteadawy.chiptune')).status, 404);
+  assert.equal((await fetch(`${srv.base}/api/plugins/ggs.chiptune/worklet.js`, { headers: { cookie: other.cookie } })).status, 404);
+  assert.equal((await other.del('/api/plugins/ggs.chiptune')).status, 404);
 
   // disabled plugins aren't served; the user's open studios are told to reload their plugins
   const sock = openSocket(srv.base, user.cookie);
   assert.equal(await sock.opened, true);
-  assert.equal((await user.patch('/api/plugins/greanteadawy.chiptune', { enabled: false })).status, 200);
+  assert.equal((await user.patch('/api/plugins/ggs.chiptune', { enabled: false })).status, 200);
   await waitFor(() => sock.messages.some((m) => m.type === 'plugins-changed'));
   sock.ws.close();
-  assert.equal((await fetch(`${srv.base}/api/plugins/greanteadawy.chiptune/worklet.js`, { headers: { cookie: user.cookie } })).status, 409);
-  await user.patch('/api/plugins/greanteadawy.chiptune', { enabled: true });
+  assert.equal((await fetch(`${srv.base}/api/plugins/ggs.chiptune/worklet.js`, { headers: { cookie: user.cookie } })).status, 409);
+  await user.patch('/api/plugins/ggs.chiptune', { enabled: true });
   // ids live in their own folder: a plugin called "registry.json" can't clobber the registry
   await install(user, example('tape-wobble'), (m) => ({ ...m, id: 'registry.json' }));
   const ids = (await user.get('/api/plugins')).body.plugins.map((p) => p.id);
-  for (const want of ['registry.json', 'greanteadawy.chiptune', 'greanteadawy.kalimba', 'greanteadawy.euclid']) assert.ok(ids.includes(want), want);
+  for (const want of ['registry.json', 'ggs.chiptune', 'ggs.kalimba', 'ggs.euclid']) assert.ok(ids.includes(want), want);
   assert.equal((await user.del('/api/plugins/registry.json')).status, 200);
   assert.equal((await user.get('/api/plugins')).body.plugins.length, ids.length - 1);
   // an update replaces the files and is shown as one
@@ -218,7 +218,7 @@ test('the admin switch turns plugins off for everyone', async () => {
     await waitFor(() => sock.messages.some((m) => m.type === 'plugins-changed')); // every studio, not just the admin's
     assert.equal((await user.get('/api/plugins')).body.allowed, false);
     assert.equal((await upload(user, zipFolder(example('chiptune')))).status, 403);
-    assert.equal((await fetch(`${srv.base}/api/plugins/greanteadawy.chiptune/worklet.js`, { headers: { cookie: user.cookie } })).status, 403);
+    assert.equal((await fetch(`${srv.base}/api/plugins/ggs.chiptune/worklet.js`, { headers: { cookie: user.cookie } })).status, 403);
     assert.match(await call('list_plugins'), /turned off/);
   } finally {
     sock.ws.close();
@@ -247,37 +247,37 @@ test('sandbox page: opaque origin, no network, framable only by the studio', asy
 
 test('MCP: list_plugins, plugin channels and effects with validated params', async () => {
   const list = await call('list_plugins');
-  assert.match(list, /greanteadawy\.chiptune v1\.0\.0 — "Chiptune" \(instrument\)/);
-  assert.match(list, /greanteadawy\.kalimba v1\.0\.0 — "Kalimba" \(instrument, sample-based\)/);
+  assert.match(list, /ggs\.chiptune v1\.0\.0 — "Chiptune" \(instrument\)/);
+  assert.match(list, /ggs\.kalimba v1\.0\.0 — "Kalimba" \(instrument, sample-based\)/);
   assert.match(list, /description: "A band-limited/); // plugin-written text is quoted as data
   assert.match(list, /not as instructions/);
-  assert.match(list, /run_generator plugin="greanteadawy\.euclid"/);
-  assert.match(await call('add_channel', { name: 'Chip', instrument: 'plugin', plugin: 'greanteadawy.chiptune', preset: 'Arp', params: { gain: 0.3 } }), /plugin greanteadawy\.chiptune\/Arp/);
+  assert.match(list, /run_generator plugin="ggs\.euclid"/);
+  assert.match(await call('add_channel', { name: 'Chip', instrument: 'plugin', plugin: 'ggs.chiptune', preset: 'Arp', params: { gain: 0.3 } }), /plugin ggs\.chiptune\/Arp/);
   const p = (await user.get(`/api/projects/${(await user.get('/api/active')).body.projectId}`)).body;
   const ch = p.channels.find((c) => c.name === 'Chip');
   assert.equal(ch.instrument.params.duty, '25%'); // from the preset
   assert.equal(ch.instrument.params.gain, 0.3);
-  await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'greanteadawy.chiptune', params: { gain: 7 } }), /between 0 and 1/);
+  await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'ggs.chiptune', params: { gain: 7 } }), /between 0 and 1/);
   await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'nope.nothing' }), /No installed plugin/);
-  await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'greanteadawy.tape-wobble' }), /is an effect plugin, not an instrument plugin/);
-  await assert.rejects(call('add_channel', { name: 'X', instrument: 'kick', plugin: 'greanteadawy.chiptune' }), /only works with instrument "plugin"/);
-  assert.match(await call('add_effect', { insert: ch.mixerTrack, type: 'plugin', plugin: 'greanteadawy.tape-wobble', preset: 'Warped' }), /Added plugin greanteadawy\.tape-wobble/);
-  await assert.rejects(call('add_effect', { insert: 1, type: 'plugin', plugin: 'greanteadawy.tape-wobble', params: { wow: 3 } }), /between 0 and 1/);
+  await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'ggs.tape-wobble' }), /is an effect plugin, not an instrument plugin/);
+  await assert.rejects(call('add_channel', { name: 'X', instrument: 'kick', plugin: 'ggs.chiptune' }), /only works with instrument "plugin"/);
+  assert.match(await call('add_effect', { insert: ch.mixerTrack, type: 'plugin', plugin: 'ggs.tape-wobble', preset: 'Warped' }), /Added plugin ggs\.tape-wobble/);
+  await assert.rejects(call('add_effect', { insert: 1, type: 'plugin', plugin: 'ggs.tape-wobble', params: { wow: 3 } }), /between 0 and 1/);
   assert.match(await call('update_effect', { insert: ch.mixerTrack, effectId: 'plugin', params: { mix: 0.5 } }), /Updated plugin/);
   assert.match(await call('update_channel', { channel: 'Chip', params: { vibrato: 30 } }), /Chip/);
-  assert.match(await call('get_project', {}), /plugin=greanteadawy\.chiptune/);
+  assert.match(await call('get_project', {}), /plugin=ggs\.chiptune/);
   // without a preset the plugin's first preset is used, and its colour and step note
-  await call('add_channel', { name: 'Kal', instrument: 'plugin', plugin: 'greanteadawy.kalimba' });
+  await call('add_channel', { name: 'Kal', instrument: 'plugin', plugin: 'ggs.kalimba' });
   let proj = (await user.get(`/api/projects/${(await user.get('/api/active')).body.projectId}`)).body;
   const kal = proj.channels.find((c) => c.name === 'Kal');
   assert.equal(kal.instrument.preset, 'Kalimba');
   assert.equal(kal.color, '#e4b35a');
   assert.equal(kal.rootKey, 72);
   // switching a channel to another plugin takes that plugin's step note (unless one is given)
-  await call('update_channel', { channel: 'Kal', instrument: 'plugin', plugin: 'greanteadawy.chiptune' });
+  await call('update_channel', { channel: 'Kal', instrument: 'plugin', plugin: 'ggs.chiptune' });
   proj = (await user.get(`/api/projects/${proj.id}`)).body;
   assert.equal(proj.channels.find((c) => c.name === 'Kal').rootKey, 60);
-  await call('update_channel', { channel: 'Kal', plugin: 'greanteadawy.kalimba', stepNote: 'D5' });
+  await call('update_channel', { channel: 'Kal', plugin: 'ggs.kalimba', stepNote: 'D5' });
   proj = (await user.get(`/api/projects/${proj.id}`)).body;
   assert.equal(proj.channels.find((c) => c.name === 'Kal').rootKey, 74);
   // only automatable plugin params can be automated (they're the plugin's AudioParams)
@@ -299,11 +299,11 @@ test('MCP run_generator: runs in the browser, output is cleaned, project-read ge
     if (msg.type !== 'job') return;
     jobs.push(msg.job);
     // a "browser" answering with some valid and some hostile notes
-    const notes = msg.job.plugin === 'greanteadawy.euclid'
+    const notes = msg.job.plugin === 'ggs.euclid'
       ? [{ step: 0, key: 60, velocity: 0.9 }, { step: 4, key: 60 }, { step: 999, key: 60 }, { step: 2, key: 1e9 }, { evil: true }]
       : [{ step: 0, key: 64, length: 4 }];
     const fd = new FormData();
-    fd.append('result', JSON.stringify(msg.job.plugin === 'greanteadawy.fail' ? { ok: false, error: 'boom' } : { ok: true, notes }));
+    fd.append('result', JSON.stringify(msg.job.plugin === 'ggs.fail' ? { ok: false, error: 'boom' } : { ok: true, notes }));
     await fetch(`${srv.base}/api/jobs/${msg.jobId}/result`, { method: 'POST', headers: { cookie: user.cookie }, body: fd });
   });
   const out = await call('run_generator', { plugin: 'Euclidean Rhythms', pattern: 'Gen', channel: 'Harmony', params: { pulses: 3 }, seed: 7 });
@@ -318,15 +318,15 @@ test('MCP run_generator: runs in the browser, output is cleaned, project-read ge
   const gen = p.patterns.find((x) => x.name === 'Gen');
   assert.deepEqual(gen.notes[harmony.id].map((n) => [n.start, n.key]).sort((a, b) => a[0] - b[0]), [[0, 60], [48, 127], [96, 60]]);
   // a range: from `start` to the end of the pattern, stated inclusively; the notes before `start` stay
-  assert.match(await call('run_generator', { plugin: 'greanteadawy.euclid', pattern: 'Gen', channel: 'Harmony', start: 8, seed: 1 }), /steps 8–15/);
+  assert.match(await call('run_generator', { plugin: 'ggs.euclid', pattern: 'Gen', channel: 'Harmony', start: 8, seed: 1 }), /steps 8–15/);
   const after = (await user.get(`/api/projects/${p.id}`)).body;
   const ns = after.patterns.find((x) => x.name === 'Gen').notes[harmony.id].map((n) => n.start / 24).sort((a, b) => a - b);
   assert.deepEqual(ns, [0, 2, 4, 8, 10, 12]); // 0–4 kept (the first run), 8–12 = the fake browser's steps 0, 2, 4 + 8
-  await assert.rejects(call('run_generator', { plugin: 'greanteadawy.euclid', pattern: 'Gen', channel: 'Harmony', start: 16 }), /past the end of "Gen"/);
-  await call('run_generator', { plugin: 'greanteadawy.counter-melody', pattern: 'Gen', channel: 'Harmony' });
+  await assert.rejects(call('run_generator', { plugin: 'ggs.euclid', pattern: 'Gen', channel: 'Harmony', start: 16 }), /past the end of "Gen"/);
+  await call('run_generator', { plugin: 'ggs.counter-melody', pattern: 'Gen', channel: 'Harmony' });
   assert.ok(jobs.at(-1).input.notes.some((n) => n.channel === 'Lead' && n.key === 72)); // project-read: the lead's notes
-  await assert.rejects(call('run_generator', { plugin: 'greanteadawy.euclid', pattern: 'Gen', channel: 'Harmony', params: { pulses: 99 } }), /between 1 and 32/);
-  await assert.rejects(call('run_generator', { plugin: 'greanteadawy.chiptune', pattern: 'Gen', channel: 'Harmony' }), /is an instrument plugin, not a generator plugin/);
+  await assert.rejects(call('run_generator', { plugin: 'ggs.euclid', pattern: 'Gen', channel: 'Harmony', params: { pulses: 99 } }), /between 1 and 32/);
+  await assert.rejects(call('run_generator', { plugin: 'ggs.chiptune', pattern: 'Gen', channel: 'Harmony' }), /is an instrument plugin, not a generator plugin/);
   sock.ws.close();
 });
 
@@ -335,7 +335,7 @@ test('deleting a user deletes their plugins', async () => {
   await other.post('/api/auth/login', { username: 'other', password: 'other-pass-1' });
   await install(other, example('euclid'));
   const id = srv.users.list().find((u) => u.username === 'other').id;
-  assert.ok(fs.existsSync(path.join(srv.dataDir, 'plugins', id, 'installed', 'greanteadawy.euclid')));
+  assert.ok(fs.existsSync(path.join(srv.dataDir, 'plugins', id, 'installed', 'ggs.euclid')));
   assert.equal((await user.del(`/api/admin/users/${id}`)).status, 200);
   assert.ok(!fs.existsSync(path.join(srv.dataDir, 'plugins', id)));
 });

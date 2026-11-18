@@ -1,4 +1,4 @@
-# GreanTeaDawy plugins
+# GGS plugins
 
 Example plugins and the place your own can live while you work on them. The full guide — manifest, DSP and generator
 APIs, permissions, packaging, the sandbox — is [docs/plugins.md](../docs/plugins.md).
@@ -19,4 +19,4 @@ npm run plugin:pack -- plugins/my-plugin   # validate + pack your own folder
 Install a zip in the studio: **Settings → Plugins → Install plugin…**, review what it asks for, confirm you trust the
 author. Only install plugins from people you trust — see [Security](../docs/plugins.md#security).
 
-All examples are MIT-licensed like the rest of GreanTeaDawy: copy them as a starting point.
+All examples are MIT-licensed like the rest of GGS: copy them as a starting point.

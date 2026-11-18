@@ -1,9 +1,9 @@
 {
-  "id": "greanteadawy.kalimba",
+  "id": "ggs.kalimba",
   "name": "Kalimba",
   "version": "1.0.0",
   "type": "instrument",
-  "author": "GreanTeaDawy examples",
+  "author": "GGS examples",
   "description": "A sample-based thumb piano (no code): four multisampled tines, played back by the studio's own sample engine. A template for packing your own sampled instruments.",
   "license": "MIT",
   "apiVersion": 1,

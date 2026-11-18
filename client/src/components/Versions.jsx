@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { diffProjects } from '@greanteadawy/core';
+import { diffProjects } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { api } from '../state/api.js';
 import { Window } from './ui/Window.jsx';

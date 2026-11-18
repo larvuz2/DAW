@@ -36,7 +36,7 @@ test.afterAll(async () => {
 /** Select the Lead channel and open its settings window; returns the channel id. */
 async function openEditor() {
   const id = await page.evaluate(() => {
-    const { store } = window.greanteadawy;
+    const { store } = window.ggs;
     const st = store.getState();
     const ch = st.project.channels.find((c) => c.name === 'Lead');
     store.setState({ selectedChannelId: ch.id, browserOpen: false });
@@ -48,7 +48,7 @@ async function openEditor() {
   return id;
 }
 
-const params = () => page.evaluate((cid) => window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument.params, lead);
+const params = () => page.evaluate((cid) => window.ggs.store.getState().project.channels.find((c) => c.id === cid).instrument.params, lead);
 const slots = () => page.locator('.gsp-row').evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll(':scope > .gsp-slot')].map((s) => s.dataset.slot)));
 const menu = async (item) => {
   await page.locator('.sp-menu-btn').first().click();
@@ -135,7 +135,7 @@ test('it edits the patch: the signal flow, knobs, value boxes, sources dropped o
   await page.locator('.sp-flow-src[data-source=oscB]').focus();
   await page.keyboard.press('Space');
   await expect.poll(async () => (await params()).oscBDest).not.toBe(before.oscBDest ?? 'f1');
-  expect(await page.evaluate(() => window.greanteadawy.store.getState().playing)).toBe(false);
+  expect(await page.evaluate(() => window.ggs.store.getState().playing)).toBe(false);
   // a knob shows its value while touched, and changes
   const res = page.locator('[data-module=filter1]').getByRole('slider', { name: 'Resonance', exact: true });
   await res.focus();
@@ -158,7 +158,7 @@ test('it edits the patch: the signal flow, knobs, value boxes, sources dropped o
 });
 
 test('drawn LFO steps follow the pointer, and the warp and FM menus are reachable by name', async () => {
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Shape: 'steps', lfo1Steps: 8 } } } }]), lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Shape: 'steps', lfo1Steps: 8 } } } }]), lead);
   const steps = page.locator('[data-module=lfos] .ggs-steps');
   await expect(steps).toBeVisible();
   const b = await steps.boundingBox();
@@ -169,7 +169,7 @@ test('drawn LFO steps follow the pointer, and the warp and FM menus are reachabl
   await expect.poll(async () => (await params()).lfo1S6).toBeLessThan(-0.9);
   await page.keyboard.press('Control+z');
   await page.keyboard.press('Control+z');
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Shape: 'sine' } } } }]), lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Shape: 'sine' } } } }]), lead);
   // the warp mode under the Warp knob is a menu of its own, with a name
   await page.getByLabel('Oscillator A warp mode').selectOption('bend');
   await expect.poll(async () => (await params()).oscAWarp).toBe('bend');
@@ -243,11 +243,11 @@ test('built-in layouts, the scope listening to the channel and the play button',
   expect(await layoutProblems()).toEqual([]);
   // no header in this layout: the menu floats in a corner
   await expect(page.locator('.sp-menu-btn.floating')).toBeVisible();
-  await expect.poll(() => page.evaluate((cid) => !!window.greanteadawy.engine()?.strips.get(cid)?.scope, lead)).toBe(true);
+  await expect.poll(() => page.evaluate((cid) => !!window.ggs.engine()?.strips.get(cid)?.scope, lead)).toBe(true);
   // hold a note from the play button (in the Synth layout's header)
   await menu('Synth');
   await expect(page.locator('[data-slot=header]')).toBeVisible();
-  await expect.poll(() => page.evaluate((cid) => !!window.greanteadawy.engine()?.strips.get(cid)?.scope, lead)).toBe(false);
+  await expect.poll(() => page.evaluate((cid) => !!window.ggs.engine()?.strips.get(cid)?.scope, lead)).toBe(false);
   const play = page.locator('.sp-play');
   await play.hover();
   await page.mouse.down();

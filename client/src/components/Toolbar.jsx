@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { TEMPLATES, PPQ, STEP, ticksPerBar, SPATIAL_EXPORTS, SPATIAL_EXPORT_IDS } from '@greanteadawy/core';
+import { TEMPLATES, PPQ, STEP, ticksPerBar, SPATIAL_EXPORTS, SPATIAL_EXPORT_IDS } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { api } from '../state/api.js';
 import { Icon } from './ui/Icon.jsx';
@@ -168,7 +168,7 @@ export function Toolbar() {
     <div className="toolbar" role="toolbar">
       <div className="tb-group">
         <button className="tbtn logo" onClick={fileMenu} title="Menu">
-          <span className="logo-mark">◆</span><span className="logo-text">GreanTeaDawy</span><Icon name="chevronDown" size={12} />
+          <span className="logo-mark">◆</span><span className="logo-text">GGS</span><Icon name="chevronDown" size={12} />
         </button>
         <button className="tbtn" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={st.undo}><Icon name="undo" /></button>
         <button className="tbtn" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={st.redo}><Icon name="redo" /></button>

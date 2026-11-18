@@ -4,7 +4,7 @@
 // music stopping for the visuals when the studio stops or the bridge goes off.
 import { test, expect } from '@playwright/test';
 import dgram from 'node:dgram';
-import { decodeOsc } from '@greanteadawy/core';
+import { decodeOsc } from '@ggs/core';
 import { ADMIN, OSC_PORT, connectMcp } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
@@ -51,10 +51,10 @@ test.beforeAll(async ({ browser, baseURL }) => {
   await claude.call('set_spatial', { enabled: true, monitor: 'stereo' });
   await claude.call('place_object', { insert: 'Lead Synth', position: 'front' });
   await claude.call('move_object', { insert: 'Lead Synth', path: 'circle', startBar: 1, bars: 4, turns: 1 });
-  await expect.poll(() => store(() => window.greanteadawy.store.getState().project.automations.length)).toBe(4);
+  await expect.poll(() => store(() => window.ggs.store.getState().project.automations.length)).toBe(4);
 });
 test.afterAll(async () => {
-  await store(() => window.greanteadawy.store.getState().stop()).catch(() => {});
+  await store(() => window.ggs.store.getState().stop()).catch(() => {});
   await claude?.close();
   await page?.close();
   udp?.close();
@@ -66,7 +66,7 @@ test('Send to visuals: switched on from the File menu, remembered, and it says w
   await expect(item).toHaveAttribute('aria-checked', 'false');
   await item.click();
   await expect(page.locator('.toast').filter({ hasText: `OSC to 127.0.0.1:${OSC_PORT}` })).toBeVisible();
-  expect(await store(() => JSON.parse(localStorage.getItem('greanteadawy.ui.v1')).avBridge)).toBe(true);
+  expect(await store(() => JSON.parse(localStorage.getItem('ggs.ui.v1')).avBridge)).toBe(true);
   // frames start at once, stopped: the playhead at bar 1, the map, the intro marker
   await expect.poll(() => got.some((m) => m.addr === '/gtd/map'), { timeout: 5000 }).toBe(true);
   const map = JSON.parse(got.find((m) => m.addr === '/gtd/map').args[0]);
@@ -75,7 +75,7 @@ test('Send to visuals: switched on from the File menu, remembered, and it says w
   expect(map.markers.map((m) => m.name)).toEqual(['Intro', 'Drop']);
   expect(got.find((m) => m.addr === '/gtd/transport/playing').args[0]).toBe(0);
   expect(got.find((m) => m.addr === '/gtd/marker').args[0]).toBe('Intro');
-  await expect.poll(() => store(() => window.greanteadawy.store.getState().avStatus?.state)).toBe('osc');
+  await expect.poll(() => store(() => window.ggs.store.getState().avStatus?.state)).toBe('osc');
   // the menu shows the port now
   await page.locator('.tbtn.logo').click();
   await expect(page.getByRole('menuitemcheckbox', { name: new RegExp(`Send to visuals \\(OSC → 127\\.0\\.0\\.1:${OSC_PORT}\\)`) })).toHaveAttribute('aria-checked', 'true');
@@ -87,7 +87,7 @@ test('a song plays: transport at ~60 Hz, notes when they sound, the drop, the vi
   const from = got.length;
   playFrom = from;
   const t0 = Date.now();
-  await store(() => window.greanteadawy.store.getState().play({ mode: 'song' }));
+  await store(() => window.ggs.store.getState().play({ mode: 'song' }));
   // bar 3 is 4 s in at 120 bpm
   await expect.poll(() => got.slice(from).some((m) => m.addr === '/gtd/marker' && m.args[0] === 'Drop'), { timeout: 12000 }).toBe(true);
   await page.waitForTimeout(500);
@@ -165,10 +165,10 @@ test('phase 2: controls as they stand, the automated delay, and the GGS pad\'s l
   const seconds = (frames.at(-1).t - frames[0].t) / 1000;
   expect(of('/gtd/bus/0/param/volume').length).toBeLessThan(seconds * 3 + 3);
   // the synth editor opened and closed on the pad doesn't switch the bridge's reports off
-  const padId = await store(() => window.greanteadawy.store.getState().project.channels.find((c) => c.name === 'Pad').id);
-  await page.evaluate((id) => window.greanteadawy.store.getState().openChannelSettings(id), padId);
+  const padId = await store(() => window.ggs.store.getState().project.channels.find((c) => c.name === 'Pad').id);
+  await page.evaluate((id) => window.ggs.store.getState().openChannelSettings(id), padId);
   await page.waitForTimeout(400);
-  await store(() => window.greanteadawy.store.getState().closeWindow('channelSettings'));
+  await store(() => window.ggs.store.getState().closeWindow('channelSettings'));
   await page.waitForTimeout(300);
   const after = got.length;
   await expect.poll(() => got.slice(after).filter((m) => m.addr === '/gtd/ggs/pad/src/env1').length, { timeout: 4000 }).toBeGreaterThan(5);
@@ -196,9 +196,9 @@ test('phase 3: the lead circles the room in room units, and its bent note sends 
 
 test('stop: the visuals hear it at once; switching off sends the last frame and then nothing', async () => {
   const from = got.length;
-  await store(() => window.greanteadawy.store.getState().stop());
+  await store(() => window.ggs.store.getState().stop());
   await expect.poll(() => got.slice(from).some((m) => m.addr === '/gtd/transport/playing' && m.args[0] === 0), { timeout: 2000 }).toBe(true);
-  await store(() => window.greanteadawy.store.getState().setAvBridge(false));
+  await store(() => window.ggs.store.getState().setAvBridge(false));
   await page.waitForTimeout(400);
   const n = got.length;
   await page.waitForTimeout(600);

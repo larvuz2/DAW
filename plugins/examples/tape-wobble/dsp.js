@@ -1,4 +1,4 @@
-// Tape Wobble — example effect plugin for GreanTeaDawy (runs in the browser's audio worklet).
+// Tape Wobble — example effect plugin for GGS (runs in the browser's audio worklet).
 // create() is called once per effect slot; process() gets [left, right] input and output blocks plus the current params.
 gtd.registerEffect({
   create({ sampleRate }) {

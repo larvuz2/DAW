@@ -1,4 +1,4 @@
-// The audio → visual bible: everything GreanTeaDawy can send to a visual engine (TouchDesigner, Blender, Unreal),
+// The audio → visual bible: everything GGS can send to a visual engine (TouchDesigner, Blender, Unreal),
 // written for the people who build that side. The prose is here; every table is generated from the live catalogs
 // (instruments, effects, GGS Synth params, modulation sources and targets, op types, MCP tools), so the document
 // stays true when the code changes. Run: npm run docs:av  (E2E_CHROMIUM=/path/to/chromium to use an installed browser)
@@ -88,7 +88,7 @@ const telemetryRows = [
 // ---- the document ------------------------------------------------------------------------------------------------
 
 const today = new Date().toISOString().slice(0, 10);
-const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>GreanTeaDawy — Biblia audio → visual</title>
+const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>GGS — Biblia audio → visual</title>
 <style>
   @page { size: A4; margin: 18mm 15mm 18mm 15mm; }
   :root { --ink: #161a22; --muted: #5a6273; --line: #d9dde6; --accent: #4f5bd5; --accent-soft: #eef0ff; --code: #f5f6f9; }
@@ -136,7 +136,7 @@ const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>
 
 <section class="cover">
   <div class="top">
-    <div class="kicker">GreanTeaDawy · ${version} · ${today}</div>
+    <div class="kicker">GGS · ${version} · ${today}</div>
     <h1>Biblia audio → visual</h1>
     <div class="sub">Todo lo que la estación de audio puede enviar a una interfaz visual — TouchDesigner, Blender, Unreal Engine — para crear experiencias audio‑reactivas: qué variables existen, en qué rango se mueven, cada cuánto cambian y por dónde salen: el puente audio → visual (OSC a 60 cuadros por segundo), el WebSocket y los archivos.</div>
     <div class="stats">
@@ -445,7 +445,7 @@ ${table(['Dirección', 'Tipos', 'Contenido'], [
 
 <h2 class="page">Apéndice A — El proyecto en JSON</h2>
 ${code(`
-{ "format": "greanteadawy-project", "version": 1, "id", "name", "rev", "createdAt", "updatedAt",
+{ "format": "ggs-project", "version": 1, "id", "name", "rev", "createdAt", "updatedAt",
   "bpm", "timeSig": [4, 4], "swing", "key", "scale", "tuning": { "system", "root", "a4", … } | null,
   "channels":  [{ "id", "name", "color", "volume", "pan", "pitch", "mute", "solo", "mixerTrack", "chokeGroup",
                   "rootKey", "filterCutoff", "filterRes", "nudge", "swingMix",
@@ -506,7 +506,7 @@ try {
   await page.pdf({
     path: out, format: 'A4', printBackground: true, preferCSSPageSize: true, displayHeaderFooter: true,
     headerTemplate: '<div></div>',
-    footerTemplate: `<div style="width:100%;font:7.5pt Arial,sans-serif;color:#8a90a0;padding:0 15mm;display:flex;justify-content:space-between"><span>GreanTeaDawy ${version} — Biblia audio → visual</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
+    footerTemplate: `<div style="width:100%;font:7.5pt Arial,sans-serif;color:#8a90a0;padding:0 15mm;display:flex;justify-content:space-between"><span>GGS ${version} — Biblia audio → visual</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
   });
   if (process.env.AV_HTML) fs.writeFileSync(process.env.AV_HTML, html);
   console.log(`wrote ${path.relative(root, out)}`);

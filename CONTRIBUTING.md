@@ -1,13 +1,13 @@
-# Contributing to GreanTeaDawy
+# Contributing to GGS
 
-Thanks for helping. GreanTeaDawy is a small project with one maintainer and little spare time, so reviews can take a
+Thanks for helping. GGS is a small project with one maintainer and little spare time, so reviews can take a
 while. Forks are welcome too.
 
 ## Ways to help
 
-- **Report a bug** with the [bug report form](https://github.com/vidux/GreanTeaDawy/issues/new?template=bug_report.yml).
+- **Report a bug** with the [bug report form](https://github.com/larvuz2/DAW/issues/new?template=bug_report.yml).
   A project file (◆ menu → *Export project file (.json)*) or a short audio clip makes sound problems much easier to fix.
-- **Suggest a feature** with the [feature request form](https://github.com/vidux/GreanTeaDawy/issues/new?template=feature_request.yml).
+- **Suggest a feature** with the [feature request form](https://github.com/larvuz2/DAW/issues/new?template=feature_request.yml).
   Producers' workflows are especially valuable: say what you were making and where the studio got in the way.
 - **Improve the docs** in [`docs/`](docs): a wrong step, a missing screenshot, an unclear explanation.
 - **Write a plugin** (instrument, effect or note generator): see [docs/plugins.md](docs/plugins.md) and the examples
@@ -17,7 +17,7 @@ while. Forks are welcome too.
   approach before you spend time on it.
 
 **Security problems** go to a private
-[security advisory](https://github.com/vidux/GreanTeaDawy/security/advisories/new), never a public issue.
+[security advisory](https://github.com/larvuz2/DAW/security/advisories/new), never a public issue.
 
 ## Setting up
 
@@ -72,7 +72,7 @@ the checks locally before you push.
 
 ## Working with Claude Code
 
-Much of GreanTeaDawy was written with Claude, and AI-assisted contributions are welcome. [CLAUDE.md](CLAUDE.md) gives
+Much of GGS was written with Claude, and AI-assisted contributions are welcome. [CLAUDE.md](CLAUDE.md) gives
 Claude Code the project's conventions, `.claude/skills/` has recipes for common changes (instrument, effect, MCP tool,
 op, plugin, export format, release), and the `qa-reviewer` agent reviews a change before you commit. You are still
 responsible for the pull request: read the diff, run the checks yourself, and be ready to explain it.

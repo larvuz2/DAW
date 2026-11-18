@@ -1,6 +1,6 @@
 # Audio → visual test fixture
 
-A 16-bar song made for building and testing a visual setup against GreanTeaDawy, and a capture of what the studio's
+A 16-bar song made for building and testing a visual setup against GGS, and a capture of what the studio's
 audio → visual bridge really sent while it played (see `docs/av-bridge.md` for every address).
 
 | File | What |

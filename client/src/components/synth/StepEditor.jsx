@@ -1,7 +1,7 @@
 // An LFO shape you draw: up to sixteen bars, dragged with the pointer (drag across them to draw a line of steps).
 // The curve on top is what the LFO will do with the current smoothing — the engine's own formula.
 import { useRef } from 'react';
-import { stepShape } from '@greanteadawy/synth-dsp';
+import { stepShape } from '@ggs/synth-dsp';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 

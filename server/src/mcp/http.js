@@ -33,7 +33,7 @@ export function createMcpRouter({ users, auth, backendFor, legacyToken = '', isL
       user = a?.user || null;
     }
     if (!user) {
-      if (!users.count()) return rpcError(res, 401, 'No account exists yet. Open the GreanTeaDawy studio in a browser and create the admin account first.');
+      if (!users.count()) return rpcError(res, 401, 'No account exists yet. Open the GGS studio in a browser and create the admin account first.');
       if (!users.settings.mcpWithoutToken || legacyToken || !isLocal(req)) {
         return rpcError(res, 401, 'This server requires an API token for MCP (token-less access only works from this computer when enabled in Settings → Server). Create a token in the studio (Settings → API & MCP) and send it as "Authorization: Bearer <token>" or append ?token=<token> to the URL.', { 'WWW-Authenticate': 'Bearer' });
       }

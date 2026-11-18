@@ -1,17 +1,17 @@
-# GreanTeaDawy with Docker Compose.
+# GGS with Docker Compose.
 #   cp .env.example .env    # optional: set PUBLIC_URL, ALLOWED_HOSTS, TRUST_PROXY, SETUP_CODE, ... (see docs/docker.md)
 #   docker compose up -d --build
-#   docker compose logs greanteadawy     # first run: shows the admin setup code
+#   docker compose logs ggs     # first run: shows the admin setup code
 # Studio: http://localhost:3001   MCP: http://localhost:3001/mcp (with your API token from Settings → API & MCP)
 #
 # HTTPS for other machines: `docker compose --profile proxy up -d` adds Caddy (deploy/Caddyfile) in front — set
 # DOMAIN, PUBLIC_URL, ALLOWED_HOSTS and TRUST_PROXY=1 in .env first.
-name: greanteadawy
+name: ggs
 
 services:
-  greanteadawy:
+  ggs:
     build: .
-    image: greanteadawy:latest
+    image: ggs:latest
     restart: unless-stopped
     ports:
       # localhost only: nothing else on the network can reach it except through the proxy profile
@@ -33,7 +33,7 @@ services:
       FFMPEG_MAX_JOBS: ${FFMPEG_MAX_JOBS:-2}
       PLUGINS_ENABLED: ${PLUGINS_ENABLED:-true}
     volumes:
-      - greanteadawy-data:/data
+      - ggs-data:/data
     # hardening: read-only image, no privilege escalation, no Linux capabilities, bounded resources
     read_only: true
     tmpfs:
@@ -57,7 +57,7 @@ services:
     profiles: ["proxy"]
     restart: unless-stopped
     depends_on:
-      - greanteadawy
+      - ggs
     ports:
       - "80:80"
       - "443:443"
@@ -69,6 +69,6 @@ services:
       - caddy-config:/config
 
 volumes:
-  greanteadawy-data:
+  ggs-data:
   caddy-data:
   caddy-config:

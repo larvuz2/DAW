@@ -4,7 +4,7 @@ import {
   chordProgressionNotes, bassFromChords, bassLineFromChords, VOICINGS, melodyFromString, melodyLength, quantizeNotes, humanizeNotes, legatoNotes, rollNotes,
   toStepString, isStepLike, COLORS, maxPatternLength, MAX_PATTERN_BARS, stepsPerBeat, describeExpression, hasExpression,
   parseNoteText, formatNoteText, CHORD_SYMBOLS, BASS_RULES, progressionByName, euclidString
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { voicedChords } from './harmony.js';
 import { curveArg, withExpression } from './expression.js';
 import {

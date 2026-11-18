@@ -1,6 +1,6 @@
 # Making music with Claude (MCP)
 
-GreanTeaDawy includes a [Model Context Protocol](https://modelcontextprotocol.io) server. Once connected, Claude can
+GGS includes a [Model Context Protocol](https://modelcontextprotocol.io) server. Once connected, Claude can
 create projects, design sounds, program drums, write chords, basslines and melodies, give them a groove, add fills
 and transitions, use your samples, arrange the song, automate, mix, render and *measure* the mix and single sounds,
 export stems, save versions and press play — while you watch every edit appear in the studio.
@@ -12,8 +12,8 @@ export stems, save versions and press play — while you watch every edit appear
 | | Streamable HTTP (`/mcp`) | stdio bridge (`server/src/mcp/stdio.js`) |
 |---|---|---|
 | Best for | Claude Code, any HTTP-capable MCP client, remote servers | Claude Desktop and other stdio-only clients |
-| How it reaches the studio | Directly | Forwards to the running web server over REST (`GREANTEADAWY_URL`) |
-| Auth | `Authorization: Bearer gtd_…` or `?token=gtd_…` | `GREANTEADAWY_TOKEN=gtd_…` |
+| How it reaches the studio | Directly | Forwards to the running web server over REST (`GGS_URL`) |
+| Auth | `Authorization: Bearer gtd_…` or `?token=gtd_…` | `GGS_TOKEN=gtd_…` |
 | Live in the browser | Yes | Yes (when the web server runs; otherwise it edits the files directly, without live updates or rendering) |
 
 The studio's **Settings → API & MCP** shows ready-to-copy commands with your server's URL and token.
@@ -21,7 +21,7 @@ The studio's **Settings → API & MCP** shows ready-to-copy commands with your s
 ### Claude Code
 
 ```bash
-claude mcp add --transport http greanteadawy http://localhost:3001/mcp \
+claude mcp add --transport http ggs http://localhost:3001/mcp \
   --header "Authorization: Bearer gtd_xxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
@@ -30,12 +30,12 @@ claude mcp add --transport http greanteadawy http://localhost:3001/mcp \
 ```json
 {
   "mcpServers": {
-    "greanteadawy": {
+    "ggs": {
       "command": "node",
-      "args": ["/absolute/path/to/greanteadawy/server/src/mcp/stdio.js"],
+      "args": ["/absolute/path/to/ggs/server/src/mcp/stdio.js"],
       "env": {
-        "GREANTEADAWY_URL": "http://127.0.0.1:3001",
-        "GREANTEADAWY_TOKEN": "gtd_xxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        "GGS_URL": "http://127.0.0.1:3001",
+        "GGS_TOKEN": "gtd_xxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
       }
     }
   }
@@ -349,4 +349,4 @@ reply lists every project that changed.
 | 401 "Invalid API token" | The token was regenerated or deleted — update your client config. |
 | "No studio is open in a browser" | Open the studio signed in as the same account as the token. |
 | Render times out | Very long songs on slow machines: render a pattern, or keep the tab in the foreground. |
-| Edits don't appear live with stdio | Set `GREANTEADAWY_URL` to the running server and `GREANTEADAWY_TOKEN` to your token. |
+| Edits don't appear live with stdio | Set `GGS_URL` to the running server and `GGS_TOKEN` to your token. |

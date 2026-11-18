@@ -1,6 +1,6 @@
 ---
 name: export-formats
-description: Add or change an audio export format in GreanTeaDawy (ffmpeg conversions on the server), keeping the safe-spawn rules, Settings → Audio export, the File menu and Claude's list_export_formats/export_audio in sync.
+description: Add or change an audio export format in GGS (ffmpeg conversions on the server), keeping the safe-spawn rules, Settings → Audio export, the File menu and Claude's list_export_formats/export_audio in sync.
 ---
 
 # Export formats (ffmpeg)

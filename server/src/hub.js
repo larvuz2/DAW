@@ -2,7 +2,7 @@
 // relays transport commands (play/stop) and "open project" requests from Claude, and runs "jobs"
 // that need the browser's audio engine (offline mixdown render, analysis of non-WAV samples).
 import { WebSocketServer } from 'ws';
-import { uid } from '@greanteadawy/core';
+import { uid } from '@ggs/core';
 import { httpError } from './errors.js';
 import { activeProjectId } from './backend.js';
 import { MAX_FRAME_BYTES, MIN_FRAME_MS, claimAv } from './av.js';
@@ -345,7 +345,7 @@ export class Hub {
     const candidates = [...this.clients].filter((c) => c.userId === userId && c.ws.readyState === 1)
       .sort((a, b) => (b.projectId === projectId) - (a.projectId === projectId) || b.lastSeen - a.lastSeen);
     if (!candidates.length) {
-      return Promise.reject(httpError(409, 'No studio is open in a browser for this account. Open GreanTeaDawy in a browser (and click once to enable audio), then try again.'));
+      return Promise.reject(httpError(409, 'No studio is open in a browser for this account. Open GGS in a browser (and click once to enable audio), then try again.'));
     }
     const jobId = uid('job');
     return new Promise((resolve, reject) => {

@@ -1,5 +1,5 @@
 // GGS Synth on the main thread: loading the worklet, the per-channel rig (effects + macro sources) and the voices.
-import { ggsDefaults, releaseTail, FX_KEYS, hash32, MACRO_COUNT, STUDIO_FX, SYNTH_ENGINES } from '@greanteadawy/synth-dsp';
+import { ggsDefaults, releaseTail, FX_KEYS, hash32, MACRO_COUNT, STUDIO_FX, SYNTH_ENGINES } from '@ggs/synth-dsp';
 import { scheduleCurve } from '../dsp.js';
 import { workletUrl } from './module.js';
 

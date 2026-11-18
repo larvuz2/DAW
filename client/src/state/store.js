@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { applyOps, prepareOps, uid, STEP, patternLength, EXPRESSION_DIMS, EXPRESSION_RANGE, simplifyCurve } from '@greanteadawy/core';
+import { applyOps, prepareOps, uid, STEP, patternLength, EXPRESSION_DIMS, EXPRESSION_RANGE, simplifyCurve } from '@ggs/core';
 import { api, setUnauthorizedHandler } from './api.js';
 import { sync } from './sync.js';
 import { ensureEngine, getEngine, onEngineReady } from '../audio/index.js';
@@ -15,11 +15,13 @@ const HISTORY_LIMIT = 150;
 const COALESCE_MS = 900;
 const REMOTE_BURST_MS = 1500;
 export const COMPACT_WIDTH = 760; // below this the studio uses full-screen tabs (see App.jsx)
-const LS_KEY = 'greanteadawy.ui.v1';
+const LS_KEY = 'ggs.ui.v1';
+// (where the same preferences were kept before the studio was renamed: read once, so nobody's layout is lost)
+const LS_KEY_BEFORE = ['grean', 'tea', 'dawy'].join('') + '.ui.v1';
 
 function loadUiPrefs() {
   try {
-    return JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    return JSON.parse(localStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY_BEFORE) || '{}');
   } catch {
     return {};
   }

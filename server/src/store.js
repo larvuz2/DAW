@@ -4,7 +4,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { applyOps, prepareOps, normalizeProject, createProjectFromTemplate, describeOps, uid } from '@greanteadawy/core';
+import { applyOps, prepareOps, normalizeProject, createProjectFromTemplate, describeOps, uid } from '@ggs/core';
 import { httpError } from './errors.js';
 import { writeFileAtomic } from './fsutil.js';
 

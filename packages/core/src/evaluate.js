@@ -6,7 +6,7 @@ import { INSTRUMENTS } from './instruments.js';
 import { SCALES, scalePitchClasses, noteName } from './music.js';
 import { patternLength, songLength } from './model.js';
 import { EXPRESSION_DIMS } from './expression.js';
-import { modulationRoutes } from '@greanteadawy/synth-dsp';
+import { modulationRoutes } from '@ggs/synth-dsp';
 
 const PC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const pct = (x) => `${Math.round(x * 100)}%`;

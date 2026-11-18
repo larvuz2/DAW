@@ -1,8 +1,8 @@
 // Renders GGS Synth notes and analyses them off the main thread (analyze_synth_patch): a few seconds of a heavy patch
 // would otherwise hold up every other request while it renders.
 import { parentPort, workerData } from 'node:worker_threads';
-import { renderPatch } from '@greanteadawy/synth-dsp';
-import { analyzeAudio, envelopeTimes } from '@greanteadawy/core';
+import { renderPatch } from '@ggs/synth-dsp';
+import { analyzeAudio, envelopeTimes } from '@ggs/core';
 
 try {
   const { params, notes, seconds, sampleRate, bpm, macros } = workerData;

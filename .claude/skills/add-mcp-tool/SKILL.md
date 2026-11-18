@@ -1,6 +1,6 @@
 ---
 name: add-mcp-tool
-description: Add or change a GreanTeaDawy MCP tool (the API Claude uses to make music) with proper schema, validation, ids in replies, tests and regenerated docs.
+description: Add or change a GGS MCP tool (the API Claude uses to make music) with proper schema, validation, ids in replies, tests and regenerated docs.
 ---
 
 # Add an MCP tool
@@ -69,4 +69,4 @@ tool('humanize_groove', {
 2. Update the guide (`server/src/mcp/guide.js`) or prompts (`prompts.js`) if the workflow changes.
 3. `npm run docs:mcp` (regenerates `docs/MCP.md`), `npm run lint && npm test`.
 4. Update the tool count where it's quoted (README, docs/README, docs/claude-mcp.md, CLAUDE.md) and the user skills in
-   `skills/` that describe the workflow (e.g. `greanteadawy-beatmaking`), then `npm run skills:pack`.
+   `skills/` that describe the workflow (e.g. `ggs-beatmaking`), then `npm run skills:pack`.

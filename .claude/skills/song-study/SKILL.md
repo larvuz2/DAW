@@ -1,6 +1,6 @@
 ---
 name: song-study
-description: Study a song the user uploads (MP3/WAV/…) — "understand this song", "analyze this audio", "take it to the studio as a preset" — by running tools/song-analyzer here (stems, tempo, key, chords, structure, grooves, sounds, mix), interpreting the result, and taking it into GreanTeaDawy as a template ("New from template → Study: …") plus a private bundle (transcription project, stems, one-shots, report).
+description: Study a song the user uploads (MP3/WAV/…) — "understand this song", "analyze this audio", "take it to the studio as a preset" — by running tools/song-analyzer here (stems, tempo, key, chords, structure, grooves, sounds, mix), interpreting the result, and taking it into GGS as a template ("New from template → Study: …") plus a private bundle (transcription project, stems, one-shots, report).
 ---
 
 # Song study

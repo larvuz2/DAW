@@ -2,12 +2,12 @@
 // one of the synth's flat params (packages/synth-dsp/src/params.js) and every change is a channel/update op, so it
 // is undoable, synced live and heard on notes that are already sounding.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { sanitizeParams } from '@greanteadawy/core';
+import { sanitizeParams } from '@ggs/core';
 import {
   GGS_PARAMS, GGS_PRESET_INFO, OSC_IDS, MOD_SLOTS, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO, MOD_TARGET_INFO, FILTER_TYPES, FILTER_INFO,
   MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, CHAOS_INFO, chaosPreview, macroLabel, macroUsed, modSourceLabel, modTargetLabel,
   ggsParamDef, ggsDefaults, wavetablePreview, wavetableSpectrum, modulationRoutes, modTargetSpec, describeRoute, paramsToPatch, patchToParams, paramsToSection, sectionToParams, syncBeats
-} from '@greanteadawy/synth-dsp';
+} from '@ggs/synth-dsp';
 import { useStore } from '../state/store.js';
 import { getEngine, onEngineReady } from '../audio/index.js';
 import { Knob } from './ui/Knob.jsx';

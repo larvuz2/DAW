@@ -1,12 +1,12 @@
 ---
-name: greanteadawy-arranging
-description: Turn loops into a full song in GreanTeaDawy — section structure, energy curve, variations, fills, transitions, automation and band-instrument parts. Use when the user asks to arrange, structure, extend, add an intro/verse/hook/drop/bridge/outro, or make a beat "go somewhere".
+name: ggs-arranging
+description: Turn loops into a full song in GGS — section structure, energy curve, variations, fills, transitions, automation and band-instrument parts. Use when the user asks to arrange, structure, extend, add an intro/verse/hook/drop/bridge/outro, or make a beat "go somewhere".
 ---
 
-# Arranging in GreanTeaDawy
+# Arranging in GGS
 
 A loop becomes a song through **contrast**: what enters, what leaves and what changes between sections. In
-GreanTeaDawy patterns are the building blocks and the playlist is the timeline.
+GGS patterns are the building blocks and the playlist is the timeline.
 
 ## Workflow
 

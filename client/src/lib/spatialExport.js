@@ -5,7 +5,7 @@
 import {
   SPATIAL_EXPORTS, SPEAKER_LAYOUTS, MAX_SPATIAL_OBJECTS, PPQ, spatialObjects, objectBlocks, songLength, patternLength,
   encodeWav, buildAdmXml, admChna, bextChunk, analyzeAudio, createTruePeakMeter
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { renderProject } from '../audio/render.js';
 import { getEngine } from '../audio/index.js';
 import { api } from '../state/api.js';
@@ -80,7 +80,7 @@ export async function exportSpatial(job, { jobId, sync } = {}) {
     const bytes = encodeWav(channels, SAMPLE_RATE, {
       bitDepth: 24, channelMask: 0,
       chunks: [
-        { id: 'bext', data: bextChunk({ description: `${project.name} — GreanTeaDawy spatial mix (bed + ${objects.length} objects)` }) },
+        { id: 'bext', data: bextChunk({ description: `${project.name} — GGS spatial mix (bed + ${objects.length} objects)` }) },
         { id: 'chna', data: admChna(objects.length) },
         { id: 'axml', data: enc.encode(xml) }
       ]

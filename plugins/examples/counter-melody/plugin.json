@@ -1,9 +1,9 @@
 {
-  "id": "greanteadawy.counter-melody",
+  "id": "ggs.counter-melody",
   "name": "Counter Melody",
   "version": "1.0.0",
   "type": "generator",
-  "author": "GreanTeaDawy examples",
+  "author": "GGS examples",
   "description": "Reads the melody of another channel in the pattern and writes a harmony line under it in the project's scale — thirds, sixths or alternating — leaving out a share of the notes for space.",
   "license": "MIT",
   "apiVersion": 1,

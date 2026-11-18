@@ -10,7 +10,7 @@
 │ UI windows                 │   REST /api      │ SampleLibrary (metadata,      │
 └────────────────────────────┘◄────────────────►│      analysis worker)         │
                                                 │ Users / Sessions / Auth       │
-          @greanteadawy/core (shared) ──────────│ MCP tools ─► backend          │
+          @ggs/core (shared) ──────────│ MCP tools ─► backend          │
                                                 └──────────────┬────────────────┘
                                                                ▼
                                      DATA_DIR: projects/*.json, versions/, samples/, exports/<user>/,

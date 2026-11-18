@@ -4,7 +4,7 @@ import {
   tensionCurve, suggestNext, substitutions, findProgressions, progressionTags, identifyProgression, chordsFromNotes, scaleSpelling, voiceLead,
   chordProgressionNotes, arpeggiate, followsTuning, stackedChord, noteName,
   TUNING_SYSTEMS, normalizeTuning, tuningTable, describeTuning, chordPurity, isStandardTuning, A4_MIN, A4_MAX, EDO_MIN, EDO_MAX
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { ensureEngine } from '../audio/index.js';
 import { Window } from './ui/Window.jsx';

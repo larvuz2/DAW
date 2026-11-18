@@ -4,7 +4,7 @@
 //   speakers  offline 5.1/7.1/7.1.4: the bed (master) feeds L/R, each object is spread over the speakers by
 //             energy-preserving gains (+ its LFE send); objects skip the master bus, as in an Atmos renderer
 //   objects   offline stems: bed on channels 1–2, every object on its own channel (mono) for ADM / object stems
-import { SPEAKER_LAYOUTS, speakerGains, normalizeInsertSpatial } from '@greanteadawy/core';
+import { SPEAKER_LAYOUTS, speakerGains, normalizeInsertSpatial } from '@ggs/core';
 import { FLAT_Q } from './dsp.js';
 
 const LFE_HZ = 120;

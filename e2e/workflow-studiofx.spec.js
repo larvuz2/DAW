@@ -9,7 +9,7 @@ test.describe.configure({ mode: 'serial' });
 let page;
 let claude;
 const errors = [];
-const project = () => page.evaluate(() => window.greanteadawy.store.getState().project);
+const project = () => page.evaluate(() => window.ggs.store.getState().project);
 const STUDIO = ['maximizer', 'ott', 'transient', 'trancegate', 'algoverb', 'shimmer', 'resonator', 'flanger', 'tremolo', 'ringmod', 'freqshift', 'lofi', 'disperser', 'utility'];
 /** "…, peak -5.8 dBFS, true peak -5.8 dBTP, …" → { lufs, peak, truePeak }. */
 function levels(report) {
@@ -42,7 +42,7 @@ test.afterAll(async () => {
 });
 
 test('the mixer lists the effects by purpose; one added from the menu has its controls, and undo takes it away', async () => {
-  await page.evaluate(() => window.greanteadawy.store.getState().openWindow('mixer'));
+  await page.evaluate(() => window.ggs.store.getState().openWindow('mixer'));
   const mixer = page.locator('.window.mixer');
   await expect(mixer).toBeVisible();
   await mixer.locator('.strip').nth(1).click();
@@ -132,7 +132,7 @@ test('Analog, Additive and Modal: in the Browser, with their presets and setting
   for (const name of ['Ana', 'Glass', 'Bars']) expect(Math.abs(await cents(name, 'C#4') + 13.7), `${name}: C#4 in just intonation`).toBeLessThan(4);
   await claude.call('set_tuning', { system: 'equal' });
   // channel settings: the instrument's own groups of knobs, and a preset from its list
-  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.selectChannel(st.project.channels.find((c) => c.name === 'Ana').id); st.openWindow('channelSettings'); });
+  await page.evaluate(() => { const st = window.ggs.store.getState(); st.selectChannel(st.project.channels.find((c) => c.name === 'Ana').id); st.openWindow('channelSettings'); });
   const settings = page.locator('[data-window="channelSettings"]');
   await expect(settings).toBeVisible();
   for (const text of ['Oscillators', 'Filter', 'Sync', 'Cutoff', 'Resonance']) await expect(settings).toContainText(text);
@@ -142,7 +142,7 @@ test('Analog, Additive and Modal: in the Browser, with their presets and setting
   // (the preset has vibrato, and a pitch tracker reads a swept sync tone to within a quarter of a semitone)
   expect(Math.abs(await cents('Ana', 'A3'))).toBeLessThan(30);
   // a note played from the piano keys of the channel sounds without errors (live voices, not a render)
-  await page.evaluate(async () => { const e = window.greanteadawy.engine(); const st = window.greanteadawy.store.getState(); for (const name of ['Ana', 'Glass', 'Bars']) e.preview(st.project.channels.find((c) => c.name === name).id, 57, 0.8, 0.3); });
+  await page.evaluate(async () => { const e = window.ggs.engine(); const st = window.ggs.store.getState(); for (const name of ['Ana', 'Glass', 'Bars']) e.preview(st.project.channels.find((c) => c.name === name).id, 57, 0.8, 0.3); });
   await page.waitForTimeout(700);
   // Claude changes a setting; an unknown one is refused with the valid ones
   expect(await claude.call('update_channel', { channel: 'Bars', params: { structure: 'bell', decay: 6 } })).toMatch(/Bars/);
@@ -166,7 +166,7 @@ test('GGS Synth: the unison law, the stack and the drive rate are in the editor 
   const report = await claude.call('analyze_sound', { channel: 'Super', note: 'A3', lengthSteps: 12, seconds: 1.5 });
   expect(Math.abs(Number(/([+-]?\d+(?:\.\d+)?) cents/.exec(report)[1]))).toBeLessThan(25);
   // the editor shows them
-  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.selectChannel(st.project.channels.find((c) => c.name === 'Super').id); st.openWindow('channelSettings'); });
+  await page.evaluate(() => { const st = window.ggs.store.getState(); st.selectChannel(st.project.channels.find((c) => c.name === 'Super').id); st.openWindow('channelSettings'); });
   const editor = page.locator('[data-window="channelSettings"]');
   // on the synth page: the law and the stack beside the unison picture, the spread over the table as "Pos sprd",
   // the drive's rate in the FX rack
@@ -176,11 +176,11 @@ test('GGS Synth: the unison law, the stack and the drive rate are in the editor 
   await expect(oscA.getByRole('slider', { name: 'Pos sprd', exact: true })).toHaveAttribute('aria-valuenow', '0.25');
   await expect(editor.locator('[data-fx=drive] select').nth(1)).toHaveValue('8x');
   // and in the classic tabs
-  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'classic'));
+  await page.evaluate(() => window.ggs.store.getState().setPref('synthView', 'classic'));
   await expect(editor).toContainText('Uni law');
   await expect(editor).toContainText('Stack');
   await expect(editor).toContainText('Uni table');
-  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'page'));
+  await page.evaluate(() => window.ggs.store.getState().setPref('synthView', 'page'));
 });
 
 test('found by the review: the first note played by hand sounds, and an effect switched back on has let go of its tail', async ({ browser, baseURL }) => {
@@ -200,7 +200,7 @@ test('found by the review: the first note played by hand sounds, and an effect s
     await fresh.goto('/');
     await expect(fresh).toHaveTitle(/First note/);
     const heard = await fresh.evaluate(async () => {
-      const { store } = window.greanteadawy;
+      const { store } = window.ggs;
       const eng = await store.getState().unlockAudio();
       const buf = new Float32Array(2048);
       /** The loudest sample at the master output over `ms`. */

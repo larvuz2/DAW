@@ -10,7 +10,7 @@
 import dgram from 'node:dgram';
 import dns from 'node:dns';
 import net from 'node:net';
-import { avFrameToOsc, encodeOsc } from '@greanteadawy/core';
+import { avFrameToOsc, encodeOsc } from '@ggs/core';
 
 export const DEFAULT_AV_OSC = '127.0.0.1:7000';
 export const OWNER_QUIET_MS = 1000;

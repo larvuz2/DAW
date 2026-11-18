@@ -84,7 +84,7 @@ test('Claude asks for the export formats and exports the band as FLAC (ffmpeg on
 test('physical models render in background workers; every band instrument plays live', async () => {
   await expect.poll(() => workerScripts.some((u) => /modelWorker/.test(u)), { timeout: 15000 }).toBe(true);
   const voices = await page.evaluate(async () => {
-    const { store } = window.greanteadawy;
+    const { store } = window.ggs;
     const eng = await store.getState().unlockAudio();
     const out = {};
     for (const ch of store.getState().project.channels) {

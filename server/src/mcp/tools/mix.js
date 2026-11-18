@@ -1,5 +1,5 @@
 // Mixer, effects and render_mix (mixdown + analysis in the user's browser).
-import { EFFECTS, EFFECT_TYPES, EFFECT_GROUPS, uid, findPattern, findChannel, ticksPerBar, songLength, sanitizeParams, sanitizePluginValues, compareRenders, describeMasking, didYouMean } from '@greanteadawy/core';
+import { EFFECTS, EFFECT_TYPES, EFFECT_GROUPS, uid, findPattern, findChannel, ticksPerBar, songLength, sanitizeParams, sanitizePluginValues, compareRenders, describeMasking, didYouMean } from '@ggs/core';
 import { z, ok, projectIdArg, annotations as A, findEffect } from '../util.js';
 import { requirePlugin, pluginValues } from './plugins.js';
 

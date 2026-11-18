@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { pluginParamValues } from '@greanteadawy/core';
+import { pluginParamValues } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Select } from './ui/Controls.jsx';

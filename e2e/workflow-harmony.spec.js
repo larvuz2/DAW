@@ -9,7 +9,7 @@ test.describe.configure({ mode: 'serial' });
 let page;
 let claude;
 const errors = [];
-const project = () => page.evaluate(() => window.greanteadawy.store.getState().project);
+const project = () => page.evaluate(() => window.ggs.store.getState().project);
 const notesOf = async (channel, pattern = 'Verse') => {
   const p = await project();
   return p.patterns.find((x) => x.name === pattern).notes[p.channels.find((c) => c.name === channel).id] || [];
@@ -188,7 +188,7 @@ test('found by the review: one audition at a time, power chords in five voices, 
   // every note the window asks the engine for is counted
   await page.locator('.harmony-pad-main').first().click(); // (a click makes the engine)
   await page.evaluate(() => {
-    const engine = window.greanteadawy.engine();
+    const engine = window.ggs.engine();
     window.__previews = [];
     const preview = engine.preview.bind(engine);
     engine.preview = (...args) => { window.__previews.push(performance.now()); return preview(...args); };
@@ -219,10 +219,10 @@ test('found by the review: one audition at a time, power chords in five voices, 
   // power chords, read from a pattern and voiced for five voices: no error, and they are written
   await claude.call('create_pattern', { name: 'Riff', bars: 2 });
   await claude.call('add_notes', { pattern: 'Riff', channel: 'Keys', text: '1.1 A2+E3 1/1; 2.1 G2+D3 1/1' });
-  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.selectPattern(st.project.patterns.find((x) => x.name === 'Riff').id); });
+  await page.evaluate(() => { const st = window.ggs.store.getState(); st.selectPattern(st.project.patterns.find((x) => x.name === 'Riff').id); });
   await page.locator('.toolbar button[aria-label="Harmony"]').click();
   await win.getByRole('tab', { name: 'Chords' }).click();
-  const keysId = await page.evaluate(() => window.greanteadawy.store.getState().project.channels.find((c) => c.name === 'Keys').id);
+  const keysId = await page.evaluate(() => window.ggs.store.getState().project.channels.find((c) => c.name === 'Keys').id);
   await win.locator('select[title="The channel that plays and receives the chords"]').selectOption(keysId);
   await win.locator('.btn', { hasText: 'Read from pattern' }).click();
   await expect(win.locator('.harmony-chip b')).toHaveText(['A5', 'G5']);
@@ -237,10 +237,10 @@ test('found by the review: one audition at a time, power chords in five voices, 
   for (const n of await notesOf('Keys', 'Riff')) expect([9, 4, 7, 2]).toContain(n.key % 12);
 
   // 3/4: "1 bar each" is three beats
-  await page.evaluate(() => window.greanteadawy.store.getState().dispatch([{ type: 'project/update', patch: { timeSig: [3, 4] } }]));
+  await page.evaluate(() => window.ggs.store.getState().dispatch([{ type: 'project/update', patch: { timeSig: [3, 4] } }]));
   await win.getByRole('button', { name: /^Write to / }).click();
   await expect.poll(async () => [...new Set((await notesOf('Keys', 'Riff')).map((n) => n.start))].sort((a, b) => a - b)).toEqual([0, 288]);
-  await page.evaluate(() => window.greanteadawy.store.getState().dispatch([{ type: 'project/update', patch: { timeSig: [4, 4] } }]));
+  await page.evaluate(() => window.ggs.store.getState().dispatch([{ type: 'project/update', patch: { timeSig: [4, 4] } }]));
 });
 
 test('no uncaught errors in the browser', async () => {

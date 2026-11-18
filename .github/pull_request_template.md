@@ -19,4 +19,4 @@
 - [ ] User-visible changes noted in `CHANGELOG.md`
 - [ ] No new dependency, or it is needed and MIT-compatible (say why above)
 
-By submitting this pull request I agree that my contribution is licensed under the [MIT licence](https://github.com/vidux/GreanTeaDawy/blob/main/LICENSE).
+By submitting this pull request I agree that my contribution is licensed under the [MIT licence](https://github.com/larvuz2/DAW/blob/main/LICENSE).

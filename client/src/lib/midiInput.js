@@ -1,6 +1,6 @@
 // Web MIDI input: play (and record) the selected channel from a hardware MIDI keyboard — including MPE controllers,
 // whose per-note pitch bend, pressure and slide reach each note on its own (see core/mpe.js for what is decoded).
-import { createMpeDecoder } from '@greanteadawy/core';
+import { createMpeDecoder } from '@ggs/core';
 import { useStore } from '../state/store.js';
 
 let access = null;

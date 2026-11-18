@@ -5,7 +5,7 @@
 //   export-stems    render every channel on its own and upload each as a WAV (MCP export_stems, File menu)
 //   spatial         binaural / 5.1 / 7.1 / 7.1.4 / object stems / ADM BWF renders of the 3D mix (lib/spatialExport.js)
 //   generator       run a generator plugin in the sandboxed iframe and return its notes (MCP run_generator)
-import { analyzeAudio, envelopeTimes, encodeWav, ticksPerBar, PPQ, STEP, songNotesInRange, songLength, songTail, INSTRUMENTS, audioFingerprint, maskingReport, nullTest, toPcm16 } from '@greanteadawy/core';
+import { analyzeAudio, envelopeTimes, encodeWav, ticksPerBar, PPQ, STEP, songNotesInRange, songLength, songTail, INSTRUMENTS, audioFingerprint, maskingReport, nullTest, toPcm16 } from '@ggs/core';
 import { renderProject } from '../audio/render.js';
 import { preparePlugins } from '../audio/plugins.js';
 import { prepareGgs } from '../audio/ggs-synth/index.js';

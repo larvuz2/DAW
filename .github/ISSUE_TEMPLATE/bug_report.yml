@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for taking the time to report this. **Security problems** (data visible to another account, a way
         around sign-in or the plugin sandbox, …) must not go here — please use the private
-        [security advisory form](https://github.com/vidux/GreanTeaDawy/security/advisories/new) instead.
+        [security advisory form](https://github.com/larvuz2/DAW/security/advisories/new) instead.
 
   - type: textarea
     id: what-happened
@@ -60,7 +60,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: GreanTeaDawy version
+      label: GGS version
       description: Shown in the About dialog (the ⓘ button at the top right of the studio), or `version` in package.json.
       placeholder: "0.7.1"
     validations:

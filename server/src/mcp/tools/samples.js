@@ -1,5 +1,5 @@
 // The user's sample library: metadata (bitrate, sample rate...), analysis and placement.
-import { PPQ, STEP, ticksPerBar, uid, MAX_TRACKS, EDIT_OPS, SCALES, parsePitchClass } from '@greanteadawy/core';
+import { PPQ, STEP, ticksPerBar, uid, MAX_TRACKS, EDIT_OPS, SCALES, parsePitchClass } from '@ggs/core';
 import { z, ok, projectIdArg, annotations as A, pickTrack } from '../util.js';
 import { describeUsage, cleanName, nameKey } from '../../samples.js';
 

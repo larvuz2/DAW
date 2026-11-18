@@ -28,11 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config --quiet
-      - run: docker build -t greanteadawy:ci .
+      - run: docker build -t ggs:ci .
       # start it hardened like docker-compose.yml and wait for the health check
       - run: |
           docker run -d --name gtd -p 127.0.0.1:3001:3001 --read-only --tmpfs /tmp --cap-drop ALL \
-            --security-opt no-new-privileges -e PUBLIC_URL=http://localhost:3001 greanteadawy:ci
+            --security-opt no-new-privileges -e PUBLIC_URL=http://localhost:3001 ggs:ci
           for i in $(seq 1 30); do
             [ "$(docker inspect -f '{{.State.Health.Status}}' gtd)" = healthy ] && break
             sleep 2

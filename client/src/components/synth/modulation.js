@@ -1,6 +1,6 @@
 // What the synth editor needs to show modulation: a colour per family of sources, the rings of a knob (one per
 // route to its target) and where a source or a target stands right now, read from what the voices report.
-import { MOD_SOURCES, MOD_TARGETS, BIPOLAR_SOURCES, modTargetSpec, routeValue, targetValue } from '@greanteadawy/synth-dsp';
+import { MOD_SOURCES, MOD_TARGETS, BIPOLAR_SOURCES, modTargetSpec, routeValue, targetValue } from '@ggs/synth-dsp';
 
 export const FAMILY_COLOR = { env: '#9ad94f', lfo: '#5ab8f0', chaos: '#ef7fb0', macro: '#c86be0', note: '#f0d24a' };
 export const sourceFamily = (s) => (s.startsWith('env') ? 'env' : s.startsWith('lfo') ? 'lfo' : s.startsWith('chaos') ? 'chaos' : s.startsWith('macro') ? 'macro' : 'note');

@@ -5,7 +5,7 @@ import {
   PPQ, ticksPerBar, patternLength, songLength, patternNotesInRange, songNotesInRange,
   songAudioInRange, songAudioCovering, songAutomationInRange, automationValueAt, swingTicks,
   EFFECTS, getChannel, isSpatialObject, SPATIAL_PARAMS, spatialFromNorm, instrumentDefaults, tuningCents
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { playNote, Voice } from './instruments.js';
 import { OFFLINE_START } from './studiofx.js';
 import { isEngine } from './engines.js';

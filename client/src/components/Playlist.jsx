@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef, useState } from 'react';
-import { ticksPerBar, patternLength, songLength, uid, STEP, PPQ } from '@greanteadawy/core';
+import { ticksPerBar, patternLength, songLength, uid, STEP, PPQ } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Icon } from './ui/Icon.jsx';

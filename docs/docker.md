@@ -1,4 +1,4 @@
-# Running GreanTeaDawy with Docker
+# Running GGS with Docker
 
 The image contains the server, the built studio and **ffmpeg** (so MP3, AAC, Ogg, Opus, FLAC, Apple Lossless and AIFF
 exports work out of the box). It runs as the unprivileged `node` user, keeps all data in one volume (`/data`) and
@@ -7,10 +7,10 @@ has a health check.
 ## Quick start (this computer)
 
 ```bash
-git clone <your copy of the repository> greanteadawy && cd greanteadawy
+git clone <your copy of the repository> ggs && cd ggs
 cp .env.example .env              # optional — every setting has a default
 docker compose up -d --build
-docker compose logs greanteadawy  # first run: note the "Setup code"
+docker compose logs ggs  # first run: note the "Setup code"
 ```
 
 Open <http://localhost:3001>, create the admin account and enter the **setup code** from the log (inside Docker the
@@ -76,17 +76,22 @@ features on non-HTTPS origins other than localhost.
 
 ## Data, backups, upgrades
 
-Everything (accounts, projects, versions, samples, exports, installed plugins) is in the `greanteadawy-data` volume.
+Everything (accounts, projects, versions, samples, exports, installed plugins) is in the `ggs-data` volume.
+
+> **Upgrading a deployment made before the rename to GGS (0.22.0)?** Its data is in a volume with the old name, and a
+> plain `docker compose up` would start on a new, empty `ggs-data`. Nothing is deleted — the old volume is still there
+> (`docker volume ls`). Copy it across once, before the first start:
+> `docker run --rm -v <old volume>:/from:ro -v ggs_ggs-data:/to alpine sh -c "cp -a /from/. /to/"`.
 
 ```bash
 # backup (stops writes for a consistent copy)
-docker compose stop greanteadawy
-docker run --rm -v greanteadawy_greanteadawy-data:/data:ro -v "$PWD":/backup alpine tar czf /backup/gtd-backup.tgz -C /data .
-docker compose start greanteadawy
+docker compose stop ggs
+docker run --rm -v ggs_ggs-data:/data:ro -v "$PWD":/backup alpine tar czf /backup/gtd-backup.tgz -C /data .
+docker compose start ggs
 
 # restore into an empty volume
 docker compose down
-docker run --rm -v greanteadawy_greanteadawy-data:/data -v "$PWD":/backup alpine sh -c "tar xzf /backup/gtd-backup.tgz -C /data && chown -R 1000:1000 /data"
+docker run --rm -v ggs_ggs-data:/data -v "$PWD":/backup alpine sh -c "tar xzf /backup/gtd-backup.tgz -C /data && chown -R 1000:1000 /data"
 docker compose up -d
 
 # upgrade
@@ -98,9 +103,9 @@ A bind mount works too (`- ./data:/data`), but the folder must be writable by ui
 **Forgot the admin password?** The reset tool refuses to run while the server uses the data, so stop it first:
 
 ```bash
-docker compose stop greanteadawy
-docker compose run --rm --no-deps greanteadawy node server/src/cli/reset-password.js <username>   # prompts
-docker compose start greanteadawy
+docker compose stop ggs
+docker compose run --rm --no-deps ggs node server/src/cli/reset-password.js <username>   # prompts
+docker compose start ggs
 ```
 
 ## Hardening in the compose file
@@ -115,14 +120,14 @@ docker compose start greanteadawy
 ## Without Compose
 
 ```bash
-docker build -t greanteadawy .
-docker volume create greanteadawy-data
-docker run -d --name greanteadawy --restart unless-stopped \
-  -p 127.0.0.1:3001:3001 -v greanteadawy-data:/data \
+docker build -t ggs .
+docker volume create ggs-data
+docker run -d --name ggs --restart unless-stopped \
+  -p 127.0.0.1:3001:3001 -v ggs-data:/data \
   -e PUBLIC_URL=http://localhost:3001 -e ALLOWED_HOSTS=localhost,127.0.0.1 \
   --read-only --tmpfs /tmp:size=256m --cap-drop ALL --security-opt no-new-privileges \
-  greanteadawy
-docker logs greanteadawy      # setup code
+  ggs
+docker logs ggs      # setup code
 ```
 
 ## Troubleshooting
@@ -131,8 +136,8 @@ docker logs greanteadawy      # setup code
 |---------|-----|
 | `Invalid Host: …` (403) | add that name to `ALLOWED_HOSTS` |
 | "Cross-origin request blocked" | set `PUBLIC_URL` to the exact URL in the browser's address bar |
-| Setup asks for a code | it's in `docker compose logs greanteadawy` (or set `SETUP_CODE`) |
+| Setup asks for a code | it's in `docker compose logs ggs` (or set `SETUP_CODE`) |
 | `EACCES … /data` in the log | a bind-mounted folder isn't owned by uid 1000 (`chown -R 1000:1000`) |
 | Claude's download links point to the wrong place | set `PUBLIC_URL` |
 | Settings → Audio export says ffmpeg is missing | you set `FFMPEG_PATH`; remove it (the image's ffmpeg is on the PATH) |
-| Container `unhealthy` | `docker compose logs greanteadawy`; the health check needs the server listening on 3001 inside the container |
+| Container `unhealthy` | `docker compose logs ggs`; the health check needs the server listening on 3001 inside the container |

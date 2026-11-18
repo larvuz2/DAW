@@ -1,5 +1,5 @@
 import { memo, useRef, useState } from 'react';
-import { INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, STEP, patternLength, uid, COLORS } from '@greanteadawy/core';
+import { INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, STEP, patternLength, uid, COLORS } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Knob } from './ui/Knob.jsx';

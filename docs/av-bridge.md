@@ -1,6 +1,6 @@
 # Audio → visual bridge
 
-GreanTeaDawy can send what it plays to a visual app — TouchDesigner, Blender, Unreal, Max, a web page — about 60 times
+GGS can send what it plays to a visual app — TouchDesigner, Blender, Unreal, Max, a web page — about 60 times
 a second: the transport, every note at the moment it sounds, levels, bands, a spectrum, onsets, the section of the
 song, automation values and eight free **visual lanes** (phase 1), plus where every control of the mix stands and the
 GGS Synth's live modulation — envelopes, LFOs, chaos, macros, and what they do to the filter, the wavetable, the pitch —

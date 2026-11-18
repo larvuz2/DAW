@@ -1,9 +1,9 @@
 ---
-name: greanteadawy-sound-design
-description: Design original synth sounds with GreanTeaDawy's GGS Synth and make parts expressive with per-note pitch, pressure and slide curves — patches from scratch or from presets, modulation routing, macros, and measuring the result with analyze_synth_patch. Use when the user asks for a custom or original sound (pad, lead, bass, pluck, keys, arp, texture), for a synth patch, for expressive / MPE-style / bending / vibrato / swelling notes, or to make a synth line sound human in GreanTeaDawy.
+name: ggs-sound-design
+description: Design original synth sounds with the GGS Synth and make parts expressive with per-note pitch, pressure and slide curves — patches from scratch or from presets, modulation routing, macros, and measuring the result with analyze_synth_patch. Use when the user asks for a custom or original sound (pad, lead, bass, pluck, keys, arp, texture), for a synth patch, for expressive / MPE-style / bending / vibrato / swelling notes, or to make a synth line sound human in GGS.
 ---
 
-# Sound design & expressive performance in GreanTeaDawy
+# Sound design & expressive performance in GGS
 
 Two tools make a part sound made, not generated: a patch designed for the part (the **GGS Synth**) and a performance
 written into the notes (**per-note expression**). You can't hear — `analyze_synth_patch` measures a patch on the

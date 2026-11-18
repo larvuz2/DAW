@@ -3,7 +3,7 @@
 // All canvas or SVG; a canvas follows its box's size and redraws when an input changes — and, given a `live`
 // getter, on every animation frame in which what it shows has moved.
 import { useEffect, useMemo, useRef } from 'react';
-import { wavetablePreview, getWavetable, unisonCents, stackSemis, UNISON_LAWS, UNISON_STACKS, BIPOLAR_SOURCES, chaosPreview } from '@greanteadawy/synth-dsp';
+import { wavetablePreview, getWavetable, unisonCents, stackSemis, UNISON_LAWS, UNISON_STACKS, BIPOLAR_SOURCES, chaosPreview } from '@ggs/synth-dsp';
 import { onFrame } from '../ui/frames.js';
 import { liveSource } from './modulation.js';
 

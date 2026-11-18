@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, TEMPLATES } from '@greanteadawy/core';
+import { INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, TEMPLATES } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { api } from '../state/api.js';
 import { Icon } from './ui/Icon.jsx';

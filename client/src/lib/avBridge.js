@@ -10,7 +10,7 @@
 import {
   AV_FPS, PPQ, avMap, channelSlugs, automationValuesAt, markerIndexAt, levelsOf, spectrumFeatures, createOnsetDetector, ticksPerBar, usedInserts,
   effectiveValuesAt, ggsTelemetry, targetValuesAt, MACRO_PARAMS, GGS_SOURCES, objectPositionsAt, expressionAt
-} from '@greanteadawy/core';
+} from '@ggs/core';
 
 const MAP_EVERY = 2 * AV_FPS; // the map again every 2 s, for a visual app that starts after the studio
 const LATENCY_EVERY = AV_FPS; // the output latency once a second

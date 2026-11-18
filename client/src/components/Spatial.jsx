@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { SPEAKER_LAYOUTS, SPATIAL_EXPORTS, SPATIAL_EXPORT_IDS, POSITION_PRESETS, normalizeInsertSpatial, isSpatialObject } from '@greanteadawy/core';
+import { SPEAKER_LAYOUTS, SPATIAL_EXPORTS, SPATIAL_EXPORT_IDS, POSITION_PRESETS, normalizeInsertSpatial, isSpatialObject } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Knob } from './ui/Knob.jsx';

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a GreanTeaDawy plugin folder and zip it for Settings -> Plugins -> Install plugin...
+"""Validate a GGS plugin folder and zip it for Settings -> Plugins -> Install plugin...
 
     python3 pack_plugin.py path/to/my-plugin [--out dist/]
 

@@ -2,7 +2,7 @@
 // timbre and caching.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeAudio, instrumentDefaults } from '@greanteadawy/core';
+import { analyzeAudio, instrumentDefaults } from '@ggs/core';
 import { renderModel, modelOf, modelNote, layerOf, LAYERS, cachePut, cacheGet, noteCacheKey, pinNotes } from '../src/audio/models.js';
 
 const SR = 44100;

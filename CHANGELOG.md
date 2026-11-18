@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.22.0 — The studio is called GGS
+
+- **One name everywhere**: the app (title, toolbar, About), the server and its log, the MCP server (`ggs`, resources
+  `ggs://guide` and `ggs://project/active`), the packages (`@ggs/core`, `@ggs/synth-dsp`, `@ggs/chord-grid`), the
+  example plugins (`ggs.chiptune`…), the skills for Claude Desktop (`ggs-beatmaking`…), the Docker image and the
+  docs. The project GGS is built on is credited in **About**, and its copyright line stays in `LICENSE`, as the MIT
+  licence requires; a test keeps it to those two places.
+- **Nothing you have is lost**: window layout and preferences saved under the earlier name are read once; the stdio
+  bridge takes `GGS_URL` / `GGS_TOKEN` and still reads the earlier variables; project files, API tokens (`gtd_…`),
+  sessions, the chord grid's cards and the OSC addresses of the audio → visual bridge (`/gtd/…`) are unchanged — they
+  are stored data and a contract with the visual side, not names anyone reads. Plugins installed from the examples
+  keep working under the ids they were installed with.
+- **After pulling**: run `npm install` again (the packages changed their names). A Docker deployment made before the
+  rename keeps its data in the old volume — `docs/docker.md` has the one command that copies it across. An MCP entry
+  you named yourself in Claude keeps working: only the name the server reports changed.
+
 ## 0.21.0 — Post-classical ambient jazz: a style study, a template, a piece
 
 - **A style study** (`docs/styles/post-classical-ambient-jazz.md`): what GoGo Penguin, Ólafur Arnalds, Hania Rani,
@@ -823,10 +839,10 @@ rings on the knobs.
 
 ## 0.6.1 — About dialog
 
-- **About** (ⓘ at the top right of the toolbar, or ◆ → *About GreanTeaDawy…*): a dialog box with the app name and
+- **About** (ⓘ at the top right of the toolbar, or ◆ → *About GGS…*): a dialog box with the app name and
   version, the server's version (with a hint to reload when the open tab runs an older build), the built-in sounds and
   the licence. The version comes from `client/package.json` at build time.
-- Wording: the studio, README, docs and skills no longer describe GreanTeaDawy in terms of another DAW; only the MCP
+- Wording: the studio, README, docs and skills no longer describe GGS in terms of another DAW; only the MCP
   introduction Claude reads keeps that comparison. The subtractive synth is labelled *Subtractive Synth* (the
   instrument kind is still `synth`, so projects and Claude's calls are unchanged).
 - Dialogs: one at a time — a dialog opened over another answers the first with "cancel" instead of leaving it
@@ -968,9 +984,9 @@ presets; `list_instruments category=…` for Claude)
   `/sandbox/generator.html`; WebSocket hint `plugins-changed`; browser job kind `generator`.
 
 **Skills**
-- `skills/`: music-production skills for Claude Desktop / claude.ai / Claude Code users — `greanteadawy-beatmaking`
-  (workflow + genre recipes and sound palette), `greanteadawy-arranging`, `greanteadawy-mixing` (mixing by the
-  numbers with `render_mix`, report → fix table), `greanteadawy-spatial-mix` and `greanteadawy-plugin-author` (plugin
+- `skills/`: music-production skills for Claude Desktop / claude.ai / Claude Code users — `ggs-beatmaking`
+  (workflow + genre recipes and sound palette), `ggs-arranging`, `ggs-mixing` (mixing by the
+  numbers with `render_mix`, report → fix table), `ggs-spatial-mix` and `ggs-plugin-author` (plugin
   templates and a Python packer that ports the studio's install checks). `npm run skills:pack` checks them and writes
   uploadable zips to `skills/dist/`.
 - Developer skills in `.claude/skills/`: `spatial-audio`, `plugin-system` (the security invariants), `write-plugin`,

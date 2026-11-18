@@ -1,7 +1,7 @@
 // Every modulation source as a chip that shows what it is doing right now, and that can be dragged onto a knob to
 // modulate it. Click a chip to see its routes in the matrix.
 import { useEffect, useRef } from 'react';
-import { MOD_SOURCE_INFO, BIPOLAR_SOURCES, modSourceLabel } from '@greanteadawy/synth-dsp';
+import { MOD_SOURCE_INFO, BIPOLAR_SOURCES, modSourceLabel } from '@ggs/synth-dsp';
 import { onFrame } from '../ui/frames.js';
 import { SOURCE_MIME } from '../ui/Knob.jsx';
 import { SOURCE_GROUPS, sourceFamily, sourceShort, sourceColor, liveSource } from './modulation.js';

@@ -1,7 +1,7 @@
 // The frequency response of a filter, measured from the real filter model (filterResponse runs the same code the
 // voices do), and a handle on it: drag left/right for the cutoff, up/down for the resonance.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { filterResponse } from '@greanteadawy/synth-dsp';
+import { filterResponse } from '@ggs/synth-dsp';
 import { formatValue } from '../ui/Knob.jsx';
 import { pixelRatio, SCALE_EVENT } from './displays.jsx';
 

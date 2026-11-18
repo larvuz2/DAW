@@ -3,14 +3,14 @@
 import { Worker } from 'node:worker_threads';
 import {
   INSTRUMENTS, findChannel, uid, noteName, parseNote, sanitizeParams, flattenCurve, EXPRESSION_DIMS, describeAnalysis
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import {
   GGS_PARAMS, GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, OSC_IDS, WARP_MODES, FM_SOURCES, SOURCE_DESTS, FILTER_TYPES, FILTER_ROUTES,
   SUB_WAVES, NOISE_TYPES, LFO_SHAPES, LFO_SYNC, LFO_TRIGGERS, DRIVE_TYPES, DRIVE_RATES, MAX_UNISON, UNISON_LAWS, UNISON_STACKS, DELAY_SYNC, QUALITIES, MOD_SOURCES, MOD_TARGETS, MOD_SOURCE_INFO,
   MOD_TARGET_INFO, MOD_SLOTS, WAVETABLE_IDS, describeWavetables, describeSynth, paramsToPatch, patchToParams, sectionToParams, modulationRoutes,
   routesToParams, checkRoute, summarizePatch, ggsDefaults, releaseTail, FILTER_INFO, filterResponse, migrateParams,
   MACRO_COUNT, CHAOS_COUNT, CHAOS_TYPES, CHAOS_INFO, CHAOS_PATHS, chaosPreview, macroLabel, macroUsed, LFO_STEPS
-} from '@greanteadawy/synth-dsp';
+} from '@ggs/synth-dsp';
 import { z, ok, projectIdArg, annotations as A, uniqueName, normVelocity } from '../util.js';
 import { curveArg, buildExpression } from './expression.js';
 

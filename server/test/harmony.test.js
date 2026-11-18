@@ -2,7 +2,7 @@
 // grooves, Euclidean rhythms, and the tuning of the project.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readChord } from '@greanteadawy/core';
+import { readChord } from '@ggs/core';
 import { startServer, agent, mcpClient, callTool } from './helpers.js';
 
 let srv;

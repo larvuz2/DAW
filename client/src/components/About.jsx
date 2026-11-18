@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, EFFECTS, EFFECT_TYPES } from '@greanteadawy/core';
+import { INSTRUMENTS, INSTRUMENT_KINDS, INSTRUMENT_CATEGORIES, EFFECTS, EFFECT_TYPES } from '@ggs/core';
 import { api } from '../state/api.js';
 import { APP_NAME, APP_VERSION } from '../lib/version.js';
 
@@ -11,7 +11,7 @@ const COLLECTIONS = INSTRUMENT_CATEGORIES.filter(([cat]) => BUILT_IN.some((k) =>
 
 /**
  * The About dialog's content (shown by the modal of kind "about"): the app's name and version, the server's version
- * (a different one means this tab still runs an older build) and what's built in.
+ * (a different one means this tab still runs an older build), what's built in, and the project it is built on.
  */
 export function AboutBody() {
   const [server, setServer] = useState({ state: 'loading' });
@@ -45,8 +45,9 @@ export function AboutBody() {
         <dd>MIT (open source)</dd>
       </dl>
       {outdated && <p className="about-warn" role="status">The server runs version {server.version}: reload the page to load the matching studio.</p>}
-      <p className="about-note">GreanTeaDawy is an independent experimental project. It is not affiliated with or endorsed by Music Software company.</p>
-      <p className="about-repo">Source code: <a href="https://github.com/vidux/GreanTeaDawy" target="_blank" rel="noopener noreferrer">github.com/vidux/GreanTeaDawy</a> — if you like it, please give it a star!</p>
+      <p className="about-note">GGS is an independent experimental project. It is not affiliated with or endorsed by any music software company.</p>
+      {/* the one place the studio names where it comes from: the name it carries everywhere else is its own */}
+      <p className="about-repo" data-testid="about-origin">Built on <a href="https://github.com/vidux/GreanTeaDawy" target="_blank" rel="noopener noreferrer">GreanTeaDawy</a> by Gayan Viduranga and contributors, an open-source browser DAW (MIT licence).</p>
     </div>
   );
 }

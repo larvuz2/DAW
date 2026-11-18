@@ -1,7 +1,7 @@
 // Spatial (Atmos-style) mixing in a real browser: Claude places 3D objects, the studio monitors binaurally, and the
 // exports (binaural, 5.1, 7.1.4, object stems, ADM BWF) put the sound where the objects are.
 import { test, expect } from '@playwright/test';
-import { decodeWav, SPEAKER_LAYOUTS } from '@greanteadawy/core';
+import { decodeWav, SPEAKER_LAYOUTS } from '@ggs/core';
 import { ADMIN, connectMcp } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
@@ -121,7 +121,7 @@ test('the Spatial window shows the objects and dragging one moves it', async () 
   const win = page.locator('.window.spatial');
   await expect(win).toBeVisible();
   await expect(win.locator('.toggle', { hasText: '3D ON' })).toBeVisible();
-  const state = () => page.evaluate(() => window.greanteadawy.store.getState().project);
+  const state = () => page.evaluate(() => window.ggs.store.getState().project);
   const p = await state();
   const guitar = p.mixer.findIndex((m) => m.name === 'Guitar');
   const dot = win.getByTestId(`obj-${guitar}`);
@@ -140,7 +140,7 @@ test('the Spatial window shows the objects and dragging one moves it', async () 
 
 test('binaural monitoring plays live through HRTF panners', async () => {
   const r = await page.evaluate(async () => {
-    const { store } = window.greanteadawy;
+    const { store } = window.ggs;
     const eng = await store.getState().unlockAudio();
     const p = store.getState().project;
     const ch = p.channels.find((c) => c.name === 'Strings');

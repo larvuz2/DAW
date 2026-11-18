@@ -3,7 +3,7 @@
 // what the method says not to trust is said in the caveats.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PPQ, normalizeProject, createProjectFromBlueprint, specFromBlueprint, playableChord, TEMPLATES } from '@greanteadawy/core';
+import { PPQ, normalizeProject, createProjectFromBlueprint, specFromBlueprint, playableChord, TEMPLATES } from '@ggs/core';
 import { blueprintFromAnalysis, studyProject, studyCard, parseKey, caveatsOf, sectionsOf } from '../../tools/song-analyzer/to-daw.mjs';
 
 const BAR = PPQ * 4;

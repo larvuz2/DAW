@@ -10,12 +10,12 @@ let page;
 let claude;
 let win;
 const errors = [];
-const project = () => page.evaluate(() => window.greanteadawy.store.getState().project);
+const project = () => page.evaluate(() => window.ggs.store.getState().project);
 const notesOf = async (channel = 'Keys', pattern = 'Verse') => {
   const p = await project();
   return p.patterns.find((x) => x.name === pattern).notes[p.channels.find((c) => c.name === channel).id] || [];
 };
-const sounding = () => page.evaluate(() => [...(window.greanteadawy.engine()?.voices || [])].filter((v) => !v.done).length);
+const sounding = () => page.evaluate(() => [...(window.ggs.engine()?.voices || [])].filter((v) => !v.done).length);
 const cell = (name) => win.getByRole('gridcell', { name: new RegExp(`^${name.replace(/[/#()+]/g, '\\$&')}(,|$)`) });
 const cards = () => win.locator('.cgrid-card b');
 const pcs = (notes) => [...new Set(notes.map((n) => n.key % 12))].sort((a, b) => a - b);
@@ -37,7 +37,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   await claude.call('add_channel', { name: 'Kick', instrument: 'kick' });
   await claude.call('create_pattern', { name: 'Verse', bars: 4 });
   await page.evaluate(() => {
-    const s = window.greanteadawy.store;
+    const s = window.ggs.store;
     const p = s.getState().project;
     s.setState({ selectedPatternId: p.patterns.find((x) => x.name === 'Verse').id });
     s.getState().openWindow('harmony');
@@ -168,9 +168,9 @@ test('Write to pattern: the track becomes notes on the channel, in one undo step
   expect(pcs(at(768 + 10))).toEqual([0, 2, 4, 7, 11]);
   expect(pcs(at(1152 + 10))).toEqual([0, 4, 5, 9]);
   expect(at(1152 + 200)).toHaveLength(0); // FM7 is half a bar
-  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await page.evaluate(() => window.ggs.store.getState().undo());
   expect(await notesOf()).toHaveLength(0);
-  await page.evaluate(() => window.greanteadawy.store.getState().redo());
+  await page.evaluate(() => window.ggs.store.getState().redo());
   expect(await notesOf()).toHaveLength(notes.length);
 });
 
@@ -186,9 +186,9 @@ test('Play loops the track on the audio clock, alone or with the song', async ()
   // with the song: the transport starts with the loop, and stopping it stops both
   await win.getByRole('button', { name: 'With the song' }).click();
   await win.getByRole('button', { name: 'Play', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().playing)).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.ggs.store.getState().playing)).toBe(true);
   await expect(win.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
-  await page.evaluate(() => window.greanteadawy.store.getState().stop());
+  await page.evaluate(() => window.ggs.store.getState().stop());
   await expect(win.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   await win.getByRole('button', { name: 'With the song' }).click();
 });
@@ -202,7 +202,7 @@ test('the grid follows the song\'s key, and comes back after a reload', async ()
   await page.waitForTimeout(700); // (the grid is saved a moment after its last change)
   await page.reload();
   await expect(page.locator('.toolbar')).toBeVisible();
-  await page.evaluate(() => window.greanteadawy.store.getState().openWindow('harmony'));
+  await page.evaluate(() => window.ggs.store.getState().openWindow('harmony'));
   await expect(cards()).toHaveText(['Dm9', /^G13b9/, /^CM9/, /^FM7/], { timeout: 15000 });
   await expect(win.getByRole('radio', { name: 'Follow' })).toHaveAttribute('aria-checked', 'true');
   // a scale the grid does not have: it says which one it shows instead (the cards follow, as in any key change)
@@ -215,7 +215,7 @@ test('the grid follows the song\'s key, and comes back after a reload', async ()
 });
 
 test('found by the review: keys on a card stay the track\'s, a short loop writes only itself, the song keeps its place', async () => {
-  const playing = () => page.evaluate(() => window.greanteadawy.store.getState().playing);
+  const playing = () => page.evaluate(() => window.ggs.store.getState().playing);
   // Space held on a card plays the card — every repeat of the key is swallowed, the song does not start
   await win.locator('.cgrid-card').nth(0).focus();
   await page.keyboard.down(' ');
@@ -253,11 +253,11 @@ test('found by the review: keys on a card stay the track\'s, a short loop writes
   await win.getByRole('button', { name: 'With the song' }).click();
   await win.getByRole('button', { name: 'Play', exact: true }).click();
   await expect.poll(playing).toBe(true);
-  const tick = () => page.evaluate(() => { const e = window.greanteadawy.engine(); return e.transport.positionAt(e.ctx.currentTime); });
+  const tick = () => page.evaluate(() => { const e = window.ggs.engine(); return e.transport.positionAt(e.ctx.currentTime); });
   await expect.poll(tick).toBeGreaterThan(300);
   const before = await tick();
   await claude.call('update_project', { bpm: 126 });
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().project.bpm)).toBe(126);
+  await expect.poll(() => page.evaluate(() => window.ggs.store.getState().project.bpm)).toBe(126);
   await page.waitForTimeout(300);
   expect(await playing()).toBe(true);
   expect(await tick()).toBeGreaterThan(before);
@@ -265,7 +265,7 @@ test('found by the review: keys on a card stay the track\'s, a short loop writes
   // …and Stop stays a button that works when the last card goes while the loop plays
   await win.getByRole('button', { name: 'Clear' }).click();
   await expect(win.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-  await page.evaluate(() => window.greanteadawy.store.getState().stop());
+  await page.evaluate(() => window.ggs.store.getState().stop());
   await win.getByRole('button', { name: 'Undo track change' }).click();
   await expect(cards()).toHaveCount(8);
   await win.getByRole('button', { name: 'With the song' }).click();

@@ -5,7 +5,7 @@
 // the project (files, playback, the browser, other projects) is refused. Nothing in a tool has to know: the
 // session travels with the call through AsyncLocalStorage, so two calls at the same time cannot see each other's.
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { prepareOps, applyOps } from '@greanteadawy/core';
+import { prepareOps, applyOps } from '@ggs/core';
 
 const current = new AsyncLocalStorage();
 

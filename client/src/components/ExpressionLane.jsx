@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   EXPRESSION_RANGE, EXPRESSION_LABELS, curveValueAt, flattenCurve, sanitizeCurve, simplifyCurve, makeCurve, noteName, ticksToSeconds
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { capturePointer } from '../lib/hooks.js';
 import { gesture } from '../lib/actions.js';

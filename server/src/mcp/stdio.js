@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// GreanTeaDawy MCP server over stdio (for Claude Desktop / Claude Code).
+// GGS MCP server over stdio (for Claude Desktop / Claude Code).
 //
-// If the GreanTeaDawy web server is running (GREANTEADAWY_URL, default http://127.0.0.1:3001),
+// If the GGS web server is running (GGS_URL, default http://127.0.0.1:3001),
 // tool calls are forwarded to it so edits appear live in the browser. Authenticate with your
-// personal API token (GREANTEADAWY_TOKEN, from Studio → Settings → API & MCP); without a token the
+// personal API token (GGS_TOKEN, from Studio → Settings → API & MCP); without a token the
 // server must allow "MCP without token".
 // If the web server isn't running, it falls back to editing the project files on disk directly.
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -14,7 +14,7 @@ import { SampleLibrary } from '../samples.js';
 import { UserStore } from '../auth/users.js';
 import { loadConfig, loadDotEnv } from '../config.js';
 
-const log = (...a) => console.error('[greanteadawy-mcp]', ...a); // stdout is reserved for MCP messages
+const log = (...a) => console.error('[ggs-mcp]', ...a); // stdout is reserved for MCP messages
 
 async function serverReachable(url) {
   try {
@@ -64,16 +64,18 @@ function createAutoBackend(url, token, localFactory) {
 async function main() {
   loadDotEnv();
   const config = loadConfig();
-  const url = process.env.GREANTEADAWY_URL || `http://127.0.0.1:${config.port}`;
-  const token = process.env.GREANTEADAWY_TOKEN || '';
+  // (GGS_URL / GGS_TOKEN; a configuration written before the rename keeps working under its old names)
+  const before = (name) => process.env[`${['GREAN', 'TEA', 'DAWY'].join('')}_${name}`];
+  const url = process.env.GGS_URL || before('URL') || `http://127.0.0.1:${config.port}`;
+  const token = process.env.GGS_TOKEN || before('TOKEN') || '';
   const backend = createAutoBackend(url, token, async () => {
     log(`web server not reachable at ${url}; editing files in ${config.dataDir} directly`);
     const users = await new UserStore(config.dataDir).init();
     const user = token ? users.findByToken(token) : users.settings.mcpWithoutToken ? users.mcpDefaultUser() : null;
     if (!user) {
       throw new Error(token
-        ? 'GREANTEADAWY_TOKEN is not valid for this data directory.'
-        : users.count() ? 'Set GREANTEADAWY_TOKEN (Studio → Settings → API & MCP): this server requires a token.' : 'No account exists yet: start the web server and create one first.');
+        ? 'GGS_TOKEN is not valid for this data directory.'
+        : users.count() ? 'Set GGS_TOKEN (Studio → Settings → API & MCP): this server requires a token.' : 'No account exists yet: start the web server and create one first.');
     }
     const store = await new ProjectStore(config.dataDir, { saveDelay: 0, cache: false }).init();
     const samples = await new SampleLibrary(config.dataDir).init();

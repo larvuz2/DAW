@@ -1,6 +1,6 @@
 // Mixer effects built from native Web Audio nodes (the studio's DSP effects — limiter, reverb… — are in studiofx.js).
 // Each factory returns { input, output, update(params), automation: { key: AudioParam | AudioParam[] }, dispose(), sync? }
-import { divisionBeats, EFFECTS } from '@greanteadawy/core';
+import { divisionBeats, EFFECTS } from '@ggs/core';
 import { pluginEffectNode } from './plugins.js';
 import { studioFxNode } from './studiofx.js';
 import { shaperCurve, dbToGain, setParam, FLAT_Q, compressorAutoMakeupDb } from './dsp.js';

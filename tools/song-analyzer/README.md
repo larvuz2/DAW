@@ -1,13 +1,13 @@
 # song-analyzer
 
-Analyses a full song (any format ffmpeg reads) and takes what is worth keeping into GreanTeaDawy. How it is used —
+Analyses a full song (any format ffmpeg reads) and takes what is worth keeping into GGS. How it is used —
 by Claude, in a session, when you upload a song — is in [`docs/song-studies.md`](../../docs/song-studies.md) and the
 `song-study` skill; the method, tool choices, validation scores and decision rules are in
 [`docs/song-analysis-method.pdf`](../../docs/song-analysis-method.pdf).
 
 Ported from the GGS Composer repository (`tools/song-analyzer` there). Differences here: loudness, true peak, stereo
 and band balance come from the studio's own meter (`measure.mjs`, the one `render_mix` uses) instead of the `ggs`
-binary; the result goes into GreanTeaDawy (`to-daw.mjs`) instead of a GGS Composer project; `--downbeat-shift` was
+binary; the result goes into GGS (`to-daw.mjs`) instead of a GGS Composer project; `--downbeat-shift` was
 added; the validation script (which needs GGS Composer projects) stayed behind.
 
 ```

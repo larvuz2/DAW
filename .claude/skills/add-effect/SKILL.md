@@ -1,6 +1,6 @@
 ---
 name: add-effect
-description: Add a new mixer effect (or new params for an existing one) to GreanTeaDawy, including automation support and MCP exposure.
+description: Add a new mixer effect (or new params for an existing one) to GGS, including automation support and MCP exposure.
 ---
 
 # Add a mixer effect

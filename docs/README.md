@@ -1,4 +1,4 @@
-# GreanTeaDawy documentation
+# GGS documentation
 
 | Guide | For |
 |-------|-----|

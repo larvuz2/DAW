@@ -1,6 +1,6 @@
 // WebSocket live sync with the server. Ops are applied optimistically on the client,
 // sent to the server, and broadcast to other clients. Claude's MCP edits arrive here too.
-import { uid, applyOps } from '@greanteadawy/core';
+import { uid, applyOps } from '@ggs/core';
 import { api } from './api.js';
 import { runJob } from '../lib/jobs.js';
 

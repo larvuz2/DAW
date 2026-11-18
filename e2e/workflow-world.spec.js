@@ -103,7 +103,7 @@ test('every new instrument plays live from the keyboard', async () => {
   const kinds = [...new Set(Object.values(COLLECTIONS).flat().map(([, kind]) => kind))];
   for (const kind of kinds) await claude.call('add_channel', { name: kind, instrument: kind });
   const voices = await page.evaluate(async () => {
-    const { store } = window.greanteadawy;
+    const { store } = window.ggs;
     const eng = await store.getState().unlockAudio();
     const out = {};
     for (const ch of store.getState().project.channels) {
@@ -124,13 +124,13 @@ test('the Browser and the + Channel menu offer the new collections', async () =>
   await page.locator('.br-item', { hasText: 'Shakuhachi' }).locator('.br-add').click();
   await expect(page.locator('.ch-row')).toHaveCount(before + 1);
   // + Channel: collection → instrument → preset
-  await page.evaluate(() => window.greanteadawy.store.getState().openWindow('channelRack'));
+  await page.evaluate(() => window.ggs.store.getState().openWindow('channelRack'));
   await page.locator('[data-window="channelRack"] .add-channel').click();
   await page.locator('.context-menu .cm-item', { hasText: 'Indian' }).hover();
   await page.locator('.cm-sub .cm-item', { hasText: 'Tabla' }).hover();
   await menuItem(page, 'Dhin');
   await expect(page.locator('.ch-row')).toHaveCount(before + 2);
-  const last = await page.evaluate(() => window.greanteadawy.store.getState().project.channels.at(-1));
+  const last = await page.evaluate(() => window.ggs.store.getState().project.channels.at(-1));
   expect(last.instrument).toMatchObject({ kind: 'tabla', preset: 'Dhin', params: { stroke: 'dhin' } });
 });
 
@@ -144,7 +144,7 @@ test('velocity-0 notes are skipped without disturbing the transport', async () =
   await claude.call('write_drums', { pattern: 'Beat', tracks: { Kick: 'x---x---x---x---' } });
   for (const channel of ['Roll', 'Clap']) await claude.call('add_notes', { pattern: 'Beat', channel, notes: [{ note: 'C4', start: 8, length: 1, velocity: 0 }] });
   const kicks = await page.evaluate(async () => {
-    const { store, engine } = window.greanteadawy;
+    const { store, engine } = window.ggs;
     await store.getState().unlockAudio();
     const eng = engine();
     const kick = store.getState().project.channels.find((c) => c.name === 'Kick').id;

@@ -2,7 +2,7 @@
 // export_spatial (browser job with files and server-written positions).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { objectPositionAt } from '@greanteadawy/core';
+import { objectPositionAt } from '@ggs/core';
 import { startServer, agent, mcpClient, callTool, openSocket, makeWav } from './helpers.js';
 
 let srv;

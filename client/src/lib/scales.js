@@ -1,5 +1,5 @@
 // The scale dictionary as menu options: one group per family (modes, harmonic minor family, pentatonics…).
-import { scaleGroups } from '@greanteadawy/core';
+import { scaleGroups } from '@ggs/core';
 
 let options = null;
 /** For a grouped <Select>: [{ value: id, label, group: family }]. */

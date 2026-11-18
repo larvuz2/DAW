@@ -1,7 +1,7 @@
 // The preset library as a browser: categories, a search box that also looks at descriptions, macro names and tags,
 // and arrow keys that load as they move — so you can audition with one hand on a keyboard.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, ggsDefaults, FILTER_INFO, OSC_IDS, modulationRoutes } from '@greanteadawy/synth-dsp';
+import { GGS_PRESETS, GGS_PRESET_INFO, GGS_PRESET_CATEGORIES, ggsDefaults, FILTER_INFO, OSC_IDS, modulationRoutes } from '@ggs/synth-dsp';
 
 const DEFAULTS = ggsDefaults();
 const CATEGORY_LABEL = Object.fromEntries(GGS_PRESET_CATEGORIES);

@@ -1,13 +1,13 @@
 ---
-name: greanteadawy-beatmaking
-description: Produce a beat or song from an idea in GreanTeaDawy through its MCP tools — pick sounds, program drums, write chords, bass and melody, add groove, arrange, mix by the numbers and play it. Use when the user asks Claude to make, start or finish a track, beat, loop or instrumental in GreanTeaDawy.
+name: ggs-beatmaking
+description: Produce a beat or song from an idea in GGS through its MCP tools — pick sounds, program drums, write chords, bass and melody, add groove, arrange, mix by the numbers and play it. Use when the user asks Claude to make, start or finish a track, beat, loop or instrumental in GGS.
 ---
 
-# Making a beat in GreanTeaDawy
+# Making a beat in GGS
 
-GreanTeaDawy is a pattern-based browser DAW that you drive with its MCP tools; every change appears live in the
+GGS is a pattern-based browser DAW that you drive with its MCP tools; every change appears live in the
 user's open studio. This skill is the producer's workflow on top of the tools. The server's own guide
-(`greanteadawy://guide` resource) has the notation details — read it once per session if you haven't.
+(`ggs://guide` resource) has the notation details — read it once per session if you haven't.
 
 ## Before you start
 
@@ -62,9 +62,9 @@ user's open studio. This skill is the producer's workflow on top of the tools. T
 8. **Feel** — `apply_groove preset=<genre>` (swing, nudges, accents, humanizing; `ghostNotes` for boom bap/R&B).
 9. **Tune the low end** — `analyze_sound` on the kick and the 808/bass: fundamentals at least 2 semitones apart, 808
    in key; fix with the kick's `tune` param or `update_channel pitch`.
-10. **Arrange** — see the `greanteadawy-arranging` skill: `arrange_song` sections with energy changes, `add_fill`
+10. **Arrange** — see the `ggs-arranging` skill: `arrange_song` sections with energy changes, `add_fill`
     at section ends, `add_transition` into hooks/drops.
-11. **Mix** — see `greanteadawy-mixing`: levels by numbers, high-passes, sidechain `pump source=Kick`, shared
+11. **Mix** — see `ggs-mixing`: levels by numbers, high-passes, sidechain `pump source=Kick`, shared
     reverb/delay buses, then `render_mix target=<genre target>` until the report is clean.
 12. **Deliver** — `save_version`, `play` (song mode), and describe what you made: tempo/key, sections, sounds, what
     to listen for. Offer `export_audio` (check `list_export_formats`) or `export_stems`.

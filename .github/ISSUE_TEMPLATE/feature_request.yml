@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Describe the problem first and the solution second — there is often more than one way to solve it. Not sure
-        it's a good fit? Start a [discussion](https://github.com/vidux/GreanTeaDawy/discussions) instead.
+        it's a good fit? Start a [discussion](https://github.com/larvuz2/DAW/discussions) instead.
 
   - type: textarea
     id: problem

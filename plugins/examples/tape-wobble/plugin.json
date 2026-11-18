@@ -1,9 +1,9 @@
 {
-  "id": "greanteadawy.tape-wobble",
+  "id": "ggs.tape-wobble",
   "name": "Tape Wobble",
   "version": "1.0.0",
   "type": "effect",
-  "author": "GreanTeaDawy examples",
+  "author": "GGS examples",
   "description": "Worn cassette: slow wow and fast flutter pitch drift, tape saturation and a darkening tone control. Great on lo-fi keys and pads; automate wow for a 'warped' moment.",
   "license": "MIT",
   "apiVersion": 1,

@@ -1,7 +1,7 @@
 // Physical-model notes for the audio engine: rendered ahead of time in background workers ("prewarming" every note a
 // project uses), so neither the realtime scheduler nor an offline render waits ~100 ms for a low piano note. A note
 // that still isn't ready when it plays is rendered on the spot (see noteBuffer).
-import { getInstrumentDef, instrumentDefaults } from '@greanteadawy/core';
+import { getInstrumentDef, instrumentDefaults } from '@ggs/core';
 import { modelOf, noteCacheKey, cacheGet, cachePut, layerOf, renderModel, pinNotes, isCached, LAYERS } from './models.js';
 
 const MAX_PREWARM = 400; // distinct notes per project — the cache holds ~24M samples anyway

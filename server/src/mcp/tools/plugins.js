@@ -4,7 +4,7 @@
 import {
   findPattern, findChannel, ticksPerBar, STEP, scaleNotes, INSTRUMENTS, sanitizePluginValues, pluginParamValues,
   cleanGeneratedNotes, patternLength, uid
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { z, ok, projectIdArg, annotations as A, assertFitsPattern } from '../util.js';
 import { progressNotifier } from './mix.js';
 

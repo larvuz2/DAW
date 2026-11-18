@@ -1,6 +1,6 @@
 ---
 name: add-instrument
-description: Add a new synthesized instrument (or new presets) to GreanTeaDawy's channel rack so it appears in the UI, plays in realtime and offline renders, and is usable by Claude via MCP.
+description: Add a new synthesized instrument (or new presets) to GGS's channel rack so it appears in the UI, plays in realtime and offline renders, and is usable by Claude via MCP.
 ---
 
 # Add an instrument

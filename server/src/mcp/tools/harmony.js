@@ -7,7 +7,7 @@ import {
   voiceLead, arpeggiate, ARP_MODES, drumPattern, DRUM_STYLES, DRUM_STYLE_INFO,
   TUNING_SYSTEMS, TUNING_IDS, normalizeTuning, mergeTuning, tuningTable, describeTuning, chordPurity, isStandardTuning, A4_MIN, A4_MAX, EDO_MIN, EDO_MAX,
   requireScale, SCALE_INFO, INSTRUMENTS, scalePitchClasses
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import {
   z, ok, projectIdArg, annotations as A, resolveChords, growPatternOp, assertFitsPattern, normVelocity, uniqueName, durationArg, durationTicks, DURATION_WORDS, steps
 } from '../util.js';

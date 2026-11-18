@@ -1,11 +1,11 @@
 // "Backend" = the interface MCP tools use to read/modify one user's studio.
 //  - createLocalBackend: in-process (HTTP MCP endpoint, or stdio fallback when the web server isn't running)
-//  - createRemoteBackend: talks to a running GreanTeaDawy server over HTTP (stdio MCP -> live browser sync)
+//  - createRemoteBackend: talks to a running GGS server over HTTP (stdio MCP -> live browser sync)
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
-import { projectToMidi } from '@greanteadawy/core';
+import { projectToMidi } from '@ggs/core';
 import { describeSample } from './samples.js';
 import { httpError } from './errors.js';
 import { writeFileAtomic } from './fsutil.js';
@@ -131,7 +131,7 @@ export function createLocalBackend({ store, samples, users, hub = null, user, pu
     },
     /** Run render/analysis in the user's browser (see Hub.requestJob). */
     requestJob: async (job, opts = {}) => {
-      if (!hub) throw httpError(409, 'Rendering and analysis need the GreanTeaDawy web server running with the studio open in a browser.');
+      if (!hub) throw httpError(409, 'Rendering and analysis need the GGS web server running with the studio open in a browser.');
       return hub.requestJob(uidOf, job, opts);
     },
     async exportMidi(id, opts = {}) {
@@ -183,7 +183,7 @@ export function createRemoteBackend(baseUrl, { token = '' } = {}) {
     try { data = text ? JSON.parse(text) : null; } catch { data = { error: text }; }
     if (!res.ok) {
       const msg = res.status === 401
-        ? `${data?.error || 'Unauthorized'} — set GREANTEADAWY_TOKEN to your personal API token (Studio → Settings → API & MCP)`
+        ? `${data?.error || 'Unauthorized'} — set GGS_TOKEN to your personal API token (Studio → Settings → API & MCP)`
         : data?.error || `HTTP ${res.status}`;
       throw httpError(res.status, msg);
     }

@@ -22,7 +22,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
   // these tests drive the classic tabs of the synth editor (the synth page has its own spec)
-  await page.evaluate(() => window.greanteadawy.store.getState().setPref('synthView', 'classic'));
+  await page.evaluate(() => window.ggs.store.getState().setPref('synthView', 'classic'));
   claude = await connectMcp(baseURL);
 });
 test.afterAll(async () => {
@@ -36,7 +36,7 @@ test.afterAll(async () => {
  */
 function renderAndProbe(probe, { from = 0.25, to = 0.7, mode = 'pattern' } = {}) {
   return page.evaluate(async ({ probe, from, to, mode }) => {
-    const { store, render } = window.greanteadawy;
+    const { store, render } = window.ggs;
     const project = store.getState().project;
     const r = await render(project, { mode, patternId: project.patterns[0].id, loops: 1, tail: 0.3, encode: false, sampleRate: 44100 });
     const x = r.buffer.getChannelData(0);
@@ -69,11 +69,11 @@ function renderAndProbe(probe, { from = 0.25, to = 0.7, mode = 'pattern' } = {})
 
 const hz = (key) => 440 * Math.pow(2, (key - 69) / 12);
 /** Edit the open project the way the UI does (ops through the store: optimistic, synced, undoable). */
-const dispatch = (ops) => page.evaluate((o) => window.greanteadawy.store.getState().dispatch(o), ops);
+const dispatch = (ops) => page.evaluate((o) => window.ggs.store.getState().dispatch(o), ops);
 /** Claude's edits reach the tab over the WebSocket a moment after the tool answers: wait for them before rendering. */
 const inTab = (fn, arg) => expect.poll(() => page.evaluate(fn, arg)).toBe(true);
 const ids = () => page.evaluate(() => {
-  const p = window.greanteadawy.store.getState().project;
+  const p = window.ggs.store.getState().project;
   return { pattern: p.patterns[0].id, channels: Object.fromEntries(p.channels.map((c) => [c.name, c.id])) };
 });
 
@@ -87,7 +87,7 @@ test('a GGS channel loads its worklet and plays live, each note with its own exp
   await expect(page).toHaveTitle(/E2E GGS/);
   expect(await claude.call('add_channel', { name: 'Lead', instrument: 'ggs', preset: 'Touch Lead' })).toMatch(/ggs\/Touch Lead/);
   const live = await page.evaluate(async () => {
-    const { store } = window.greanteadawy;
+    const { store } = window.ggs;
     const eng = await store.getState().unlockAudio();
     const ch = store.getState().project.channels.find((c) => c.name === 'Lead');
     let v = null;
@@ -151,7 +151,7 @@ test('offline render: pressure and slide reach only their own note (through the 
 test('offline renders repeat: two renders of unison, noise and random LFOs are the same audio', async () => {
   await claude.call('update_channel', { channel: 'Lead', preset: 'Spectral Motion', params: { noiseLevel: 0.2, lfo3Shape: 'sh' } });
   const r = await page.evaluate(async () => {
-    const { store, render } = window.greanteadawy;
+    const { store, render } = window.ggs;
     const project = store.getState().project;
     const once = async () => (await render(project, { mode: 'pattern', patternId: project.patterns[0].id, loops: 1, tail: 0.5, encode: false, sampleRate: 44100 })).buffer;
     const a = await once();
@@ -178,7 +178,7 @@ test('offline renders repeat: two renders of unison, noise and random LFOs are t
 
 test('a macro can be automated: the clip moves every voice of the channel', async () => {
   await claude.call('update_channel', { channel: 'Lead', preset: 'Init', params: { oscAPos: 0, oscARand: 0, mod1Src: 'macro1', mod1Dst: 'pitch', mod1Amt: 0.5 } });
-  await inTab(() => window.greanteadawy.store.getState().project.channels.find((c) => c.name === 'Lead').instrument.params.mod1Src === 'macro1');
+  await inTab(() => window.ggs.store.getState().project.channels.find((c) => c.name === 'Lead').instrument.params.mod1Src === 'macro1');
   const { pattern, channels } = await ids();
   await dispatch([
     { type: 'notes/set', patternId: pattern, channelId: channels.Lead, notes: [{ id: 'm1', key: 57, start: 0, length: 192, velocity: 0.8 }] },
@@ -190,7 +190,7 @@ test('a macro can be automated: the clip moves every voice of the channel', asyn
   // macro 1 held at 1 for the whole bar: +12 semitones through the matrix
   const added = await claude.call('add_automation', { name: 'Macro up', target: { type: 'channel', channel: 'Lead', param: 'macro1' }, startBar: 1, bars: 1, points: [{ bar: 0, value: 1 }, { bar: 1, value: 1 }] }).catch((e) => e.message);
   expect(added).toMatch(/\[auto_/);
-  await inTab(() => window.greanteadawy.store.getState().project.automations.some((a) => a.name === 'Macro up'));
+  await inTab(() => window.ggs.store.getState().project.automations.some((a) => a.name === 'Macro up'));
   const moved = await renderAndProbe(probe, { mode: 'song' });
   expect(moved.levels.A4).toBeGreaterThan(moved.levels.A3 + 25);
   await claude.call('remove_automation', { automation: 'Macro up' });
@@ -209,7 +209,7 @@ test('every instrument follows a pitch curve (the classic synth bends per note t
 // ---------------------------------------------------------------------------------------------- the editors
 
 const noteState = (id) => page.evaluate((noteId) => {
-  const p = window.greanteadawy.store.getState().project;
+  const p = window.ggs.store.getState().project;
   for (const pt of p.patterns) for (const list of Object.values(pt.notes)) { const n = list.find((x) => x.id === noteId); if (n) return n; }
   return null;
 }, id);
@@ -219,7 +219,7 @@ test('piano roll: shape one note of a chord in the expression lane (shape, freeh
   const { pattern, channels } = await ids();
   await dispatch([{ type: 'notes/set', patternId: pattern, channelId: channels.Lead, notes: [60, 64, 67].map((key, i) => ({ id: `ui${i}`, key, start: 0, length: 192, velocity: 0.8 })) }]);
   await page.evaluate((cid) => {
-    const { store } = window.greanteadawy;
+    const { store } = window.ggs;
     store.setState({ selectedChannelId: cid, pianoRollChannelId: cid });
     for (const w of ['playlist', 'channelRack', 'channelSettings', 'mixer']) store.getState().closeWindow(w);
     store.getState().openWindow('pianoRoll', { x: 8, y: 8, w: 1100, h: 620 });
@@ -273,14 +273,14 @@ test('piano roll: shape one note of a chord in the expression lane (shape, freeh
   // undo steps back through the edits (focus the grid: Ctrl+Z belongs to the project)
   await page.locator('.pr-lane-bar button', { hasText: 'Clear' }).click();
   await expect.poll(async () => (await noteState('ui1')).releaseVelocity).toBeUndefined();
-  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await page.evaluate(() => window.ggs.store.getState().undo());
   await expect.poll(async () => (await noteState('ui1')).releaseVelocity).toBeGreaterThan(0.7);
   // a copy of the note keeps its performance (Ctrl+D duplicates the selection)
   await grid.focus();
   await page.keyboard.press('Control+d');
   await expect(page.locator('.pr-note')).toHaveCount(4);
   const copy = await page.evaluate(() => {
-    const p = window.greanteadawy.store.getState().project;
+    const p = window.ggs.store.getState().project;
     return Object.values(p.patterns[0].notes).flat().find((n) => n.key === 64 && n.start > 0);
   });
   expect(copy.expression.pitch.at(-1).v).toBe(2);
@@ -290,13 +290,13 @@ test('piano roll: shape one note of a chord in the expression lane (shape, freeh
 test('synth editor: preset browser, wavetable grid, draggable filter and envelopes, matrix in words, every parameter', async () => {
   const { channels } = await ids();
   await page.evaluate(() => {
-    const st = window.greanteadawy.store.getState();
+    const st = window.ggs.store.getState();
     st.closeWindow('pianoRoll');
     st.openWindow('channelSettings', { x: 8, y: 8, w: 1060, h: 880 });
   });
   const ggs = page.locator('.ggs');
   await expect(ggs).toBeVisible();
-  const instrument = () => page.evaluate((cid) => window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
+  const instrument = () => page.evaluate((cid) => window.ggs.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
   const param = async (key) => (await instrument()).params[key];
   const tab = (name) => ggs.locator('.ggs-tabs button', { hasText: name }).click();
 
@@ -379,7 +379,7 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   await expect.poll(() => param('f1Cutoff')).toBeGreaterThan(600);
   expect(await param('f1Cutoff')).toBeLessThan(670);
   expect(await param('f1Res')).toBeCloseTo(resBefore + 0.222, 1);
-  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await page.evaluate(() => window.ggs.store.getState().undo());
   await expect.poll(() => param('f1Cutoff')).toBe(cutoffBefore);
   expect(await param('f1Res')).toBe(resBefore);
   await graph.focus();
@@ -416,7 +416,7 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   expect(await param('env1A')).toBe(a0); // the stages to the left did not move
   // the node is where the pointer left it: the envelope is drawn from the same numbers
   const s1 = await param('env1S');
-  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await page.evaluate(() => window.ggs.store.getState().undo());
   await expect.poll(() => param('env1S')).toBe(s0); // the whole drag was one step
   expect(await param('env1D')).toBe(d0);
   expect(s1).toBeLessThan(s0);
@@ -479,35 +479,35 @@ test('synth editor: preset browser, wavetable grid, draggable filter and envelop
   await tab('Effects');
   await expect(ggs.locator('fieldset', { hasText: 'Reverb' })).toBeVisible();
   // back to a preset whose tail the next step listens to
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
   // the touch pad plays a note whose pressure and slide follow the pointer
   const pad = ggs.locator('.ggs-pad');
   await pad.scrollIntoViewIfNeeded();
   const b = await pad.boundingBox();
   await page.mouse.move(b.x + 30, b.y + b.height - 10);
   await page.mouse.down();
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size)).toBe(1);
   await page.mouse.move(b.x + b.width - 30, b.y + 10, { steps: 5 });
   await page.waitForTimeout(250);
-  const level = await page.evaluate(() => Math.max(...window.greanteadawy.engine().getLevels()));
+  const level = await page.evaluate(() => Math.max(...window.ggs.engine().getLevels()));
   expect(level).toBeGreaterThan(0.005);
   await page.mouse.up();
   // Glass Horizon rings out for seconds: the voice is released, then gone
-  await expect.poll(() => page.evaluate(() => [...window.greanteadawy.engine().voices].every((v) => v.noteEnd !== null))).toBe(true);
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 15000 }).toBe(0);
+  await expect.poll(() => page.evaluate(() => [...window.ggs.engine().voices].every((v) => v.noteEnd !== null))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size), { timeout: 15000 }).toBe(0);
 });
 
 test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for the depth, live dots, chaos, eight macros', async () => {
   const { channels } = await ids();
   const ggs = page.locator('.ggs');
-  const instrument = () => page.evaluate((cid) => window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
+  const instrument = () => page.evaluate((cid) => window.ggs.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
   const routesNow = async () => {
     const p = (await instrument()).params;
     return [...Array(64)].map((_, i) => i + 1).filter((i) => p[`mod${i}Src`] !== 'none' && p[`mod${i}Dst`] !== 'none' && p[`mod${i}Amt`]).map((i) => ({ slot: i, source: p[`mod${i}Src`], target: p[`mod${i}Dst`], amount: p[`mod${i}Amt`] }));
   };
   const find = async (source, target) => (await routesNow()).find((r) => r.source === source && r.target === target);
   const tab = (name) => ggs.locator('.ggs-tabs button', { hasText: name }).click();
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Init' } } }]), channels.Lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Init' } } }]), channels.Lead);
   await expect.poll(async () => (await routesNow()).length).toBe(0);
 
   // ---- eight macros; the ones a patch does not use are dimmed and say so
@@ -551,7 +551,7 @@ test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for t
   await expect.poll(async () => (await find('lfo1', 'f1Cutoff')).amount).toBe(1); // it stops at the end
   await drag(250, true); // through zero and out the other side: the route does not vanish on the way
   await expect.poll(async () => (await find('lfo1', 'f1Cutoff'))?.amount).toBeLessThan(-0.4);
-  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await page.evaluate(() => window.ggs.store.getState().undo());
   // moves of one control in a row are one undo step, as for every knob: back to the depth it was dropped with
   await expect.poll(async () => (await find('lfo1', 'f1Cutoff')).amount).toBe(0.25);
   await drag(-160, true);
@@ -589,13 +589,13 @@ test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for t
   await ggs.locator('.ggs-head .knob', { hasText: 'F1 res' }).click({ button: 'right' });
   await expect(menu.locator('.cm-header')).toHaveText('Macro 5 · F1 res');
   await menu.locator('.cm-item', { hasText: 'Automate in the playlist' }).click();
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().project.automations.map((a) => `${a.name}|${a.target.param}`))).toEqual(['Lead Macro 5 · F1 res|macro5']);
+  await expect.poll(() => page.evaluate(() => window.ggs.store.getState().project.automations.map((a) => `${a.name}|${a.target.param}`))).toEqual(['Lead Macro 5 · F1 res|macro5']);
   await expect(page.locator('.window', { hasText: 'Lead · Macro 5 · F1 res' }).first()).toBeVisible();
-  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.dispatch(st.project.automations.map((a) => ({ type: 'automation/remove', id: a.id }))); st.closeWindow('automation'); });
+  await page.evaluate(() => { const st = window.ggs.store.getState(); st.dispatch(st.project.automations.map((a) => ({ type: 'automation/remove', id: a.id }))); st.closeWindow('automation'); });
 
   // ---- live: hold a note and the dot on the modulated knob follows the chaos, the chips show their sources
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { chaos1Type: 'rossler', chaos1Rate: 8 } } } }]), channels.Lead);
-  const live = () => page.evaluate((cid) => { const v = window.greanteadawy.engine().ggsLive(cid); return v ? Array.from(v) : null; }, channels.Lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { chaos1Type: 'rossler', chaos1Rate: 8 } } } }]), channels.Lead);
+  const live = () => page.evaluate((cid) => { const v = window.ggs.engine().ggsLive(cid); return v ? Array.from(v) : null; }, channels.Lead);
   expect(await live()).toBeNull();
   const dot = cutoff.locator('.knob-live');
   await expect(dot).toBeHidden();
@@ -654,7 +654,7 @@ test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for t
   expect(drawn.lfo1S2).toBeLessThan(drawn.lfo1S1);
   expect(drawn.lfo1S3).toBeLessThan(drawn.lfo1S2);
   expect(drawn.lfo1S5).toBeCloseTo(-0.14, 2); // the bars the stroke did not reach keep their height
-  await page.evaluate(() => window.greanteadawy.store.getState().undo());
+  await page.evaluate(() => window.ggs.store.getState().undo());
   await expect.poll(async () => (await params()).lfo1S4).toBeCloseTo(0.14, 2); // the stroke was one step back
   await lfo.locator('.ggs-steps-tools button', { hasText: 'Invert' }).click();
   await expect.poll(async () => (await params()).lfo1S1).toBe(-1);
@@ -662,7 +662,7 @@ test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for t
   await page.keyboard.press('ArrowUp');
   await expect.poll(async () => (await params()).lfo1S1).toBe(-0.95);
   // more steps: the count knob adds bars
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Steps: 16, lfo1Smooth: 0.5 } } } }]), channels.Lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: { lfo1Steps: 16, lfo1Smooth: 0.5 } } } }]), channels.Lead);
   await expect(bars).toHaveCount(16);
   await expect(lfo.locator('.knob-label', { hasText: 'Smooth' })).toHaveCount(1);
   await lfo.locator('select').first().selectOption('sine');
@@ -679,22 +679,22 @@ test('modulation on the knobs: rings, a source dropped on a knob, Alt-drag for t
   await expect(rows).toHaveCount(2);
   await ggs.locator('.ggs-matrix-quick button', { hasText: 'Analog drift' }).click();
   await expect.poll(async () => (await find('chaos2', 'pitchFine'))?.amount).toBe(0.06);
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
 });
 
 test('the editor by hand: one route per Alt-drag, bends that reach every value, only the left button edits', async () => {
   const { channels } = await ids();
   const ggs = page.locator('.ggs');
-  const instrument = () => page.evaluate((cid) => window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
+  const instrument = () => page.evaluate((cid) => window.ggs.store.getState().project.channels.find((c) => c.id === cid).instrument, channels.Lead);
   const param = async (key) => (await instrument()).params[key];
-  const set = (params) => page.evaluate(([cid, p]) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: p } } }]), [channels.Lead, params]);
-  const undo = () => page.evaluate(() => window.greanteadawy.store.getState().undo());
+  const set = (params) => page.evaluate(([cid, p]) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { params: p } } }]), [channels.Lead, params]);
+  const undo = () => page.evaluate(() => window.ggs.store.getState().undo());
   const tab = (name) => ggs.locator('.ggs-tabs button', { hasText: name }).click();
   const routes = async () => {
     const p = (await instrument()).params;
     return Object.fromEntries([...Array(64)].map((_, i) => i + 1).filter((i) => p[`mod${i}Dst`] === 'f1Cutoff' && p[`mod${i}Amt`]).map((i) => [p[`mod${i}Src`], p[`mod${i}Amt`]]));
   };
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Velvet Pad' } } }]), channels.Lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Velvet Pad' } } }]), channels.Lead);
 
   // ---- several routes on one knob: an Alt-drag moves the one it says, all the way, as one undo step
   await tab('Filters');
@@ -742,7 +742,7 @@ test('the editor by hand: one route per Alt-drag, bends that reach every value, 
   }
   await page.keyboard.press('Escape'); // (a context menu, if the right click opened one)
   expect([await param('f1Cutoff'), await param('f1Res')]).toEqual([1234.5678, 0.123456]);
-  const steps = () => page.evaluate(() => window.greanteadawy.store.getState().past.length);
+  const steps = () => page.evaluate(() => window.ggs.store.getState().past.length);
   const undoable = await steps();
   await page.mouse.move(xOf(1234.5678), g.y + g.height / 2);
   await page.mouse.down();
@@ -845,7 +845,7 @@ test('the editor by hand: one route per Alt-drag, bends that reach every value, 
   await expect(cell).not.toBeFocused();
   expect(await param('f1Res')).toBeCloseTo(0.21, 6);
   await table.locator('input[type=search]').fill('');
-  await page.evaluate((cid) => window.greanteadawy.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
+  await page.evaluate((cid) => window.ggs.store.getState().dispatch([{ type: 'channel/update', id: cid, patch: { instrument: { preset: 'Glass Horizon' } } }]), channels.Lead);
 });
 
 test('chaos renders the same every time, and macro 8 automates', async () => {
@@ -854,10 +854,10 @@ test('chaos renders the same every time, and macro 8 automates', async () => {
   await claude.call('set_synth_chaos', { channel: 'Lead', chaos: 1, type: 'lorenz', rate: 6 });
   await claude.call('set_synth_modulation', { channel: 'Lead', mode: 'replace', routes: [{ source: 'chaos1', target: 'pitch', amount: 0.25 }] });
   // (Claude's edits reach the tab a moment after the calls return: render what was asked for, not what was there)
-  const patch = () => page.evaluate((cid) => { const i = window.greanteadawy.store.getState().project.channels.find((c) => c.id === cid).instrument; return [i.preset, i.params.f1On, i.params.chaos1Type, i.params.mod1Src, i.params.mod1Dst]; }, channels.Lead);
+  const patch = () => page.evaluate((cid) => { const i = window.ggs.store.getState().project.channels.find((c) => c.id === cid).instrument; return [i.preset, i.params.f1On, i.params.chaos1Type, i.params.mod1Src, i.params.mod1Dst]; }, channels.Lead);
   await expect.poll(patch).toEqual(['Init', false, 'lorenz', 'chaos1', 'pitch']);
   const render = () => page.evaluate(async () => {
-    const { store, render } = window.greanteadawy;
+    const { store, render } = window.ggs;
     const project = store.getState().project;
     const r = await render(project, { mode: 'pattern', patternId: project.patterns[0].id, loops: 1, tail: 0.2, encode: false, sampleRate: 44100 });
     return Array.from(r.buffer.getChannelData(0).subarray(0, 44100));
@@ -877,11 +877,11 @@ test('chaos renders the same every time, and macro 8 automates', async () => {
   expect(differs).toBeGreaterThan(0.05);
   // macro 8 is an automation target like the first four: held at 1 it lifts the pitch an octave
   expect(await claude.call('add_automation', { name: 'Eight', target: { type: 'channel', channel: 'Lead', param: 'macro8' }, startBar: 1, bars: 1, points: [{ bar: 0, value: 1 }, { bar: 1, value: 1 }] })).toMatch(/Added automation "Eight"/);
-  await inTab(() => window.greanteadawy.store.getState().project.automations.some((a) => a.name === 'Eight'));
-  const key = await page.evaluate((cid) => { const p = window.greanteadawy.store.getState().project; return Object.values(p.patterns[0].notes[cid])[0].key; }, channels.Lead);
+  await inTab(() => window.ggs.store.getState().project.automations.some((a) => a.name === 'Eight'));
+  const key = await page.evaluate((cid) => { const p = window.ggs.store.getState().project; return Object.values(p.patterns[0].notes[cid])[0].key; }, channels.Lead);
   const up = await renderAndProbe({ base: hz(key), octave: hz(key + 12) }, { mode: 'song', from: 0.05, to: 0.3 });
   expect(up.levels.octave).toBeGreaterThan(up.levels.base + 20);
-  await page.evaluate(() => { const st = window.greanteadawy.store.getState(); st.dispatch(st.project.automations.map((x) => ({ type: 'automation/remove', id: x.id }))); });
+  await page.evaluate(() => { const st = window.ggs.store.getState(); st.dispatch(st.project.automations.map((x) => ({ type: 'automation/remove', id: x.id }))); });
 });
 
 test('tempo-locked modulation follows the song: every Play and the export put a note at the same place', async () => {
@@ -892,7 +892,7 @@ test('tempo-locked modulation follows the song: every Play and the export put a 
   expect(await claude.call('set_synth_chaos', { channel: 'Seq', chaos: 1, type: 'turing', sync: '1/16', steps: 8, character: 0.2, path: 'same' })).toMatch(/turing/i);
   await claude.call('set_synth_modulation', { channel: 'Seq', mode: 'replace', routes: [{ source: 'chaos1', target: 'f1Cutoff', amount: 0.4 }] });
   const { pattern, channels } = await ids();
-  const patternName = await page.evaluate(() => window.greanteadawy.store.getState().project.patterns[0].name);
+  const patternName = await page.evaluate(() => window.ggs.store.getState().project.patterns[0].name);
   await claude.call('add_notes', { pattern: patternName, channel: 'Seq', notes: [{ note: 'C3', start: 0, length: 3 }, { note: 'E3', start: 5, length: 3 }, { note: 'G3', start: 10, length: 4 }] });
   // what each voice is told when it is made: its key and where the song stands when it starts
   await page.evaluate(() => {
@@ -908,9 +908,9 @@ test('tempo-locked modulation follows the song: every Play and the export put a 
   });
   const voices = (offline) => page.evaluate((off) => window.__voices.filter((v) => v.offline === off), offline);
   const playFor = async (ms) => {
-    await page.evaluate(() => { window.__voices.length = 0; return window.greanteadawy.store.getState().play({ mode: 'pattern' }); });
+    await page.evaluate(() => { window.__voices.length = 0; return window.ggs.store.getState().play({ mode: 'pattern' }); });
     await expect.poll(async () => (await voices(false)).length, { timeout: 15000 }).toBeGreaterThanOrEqual(ms > 2500 ? 5 : 3);
-    await page.evaluate(() => window.greanteadawy.store.getState().stop());
+    await page.evaluate(() => window.ggs.store.getState().stop());
     return voices(false);
   };
   // sixteenth 0, 5 and 10 of the bar are beats 0, 1.25 and 2.5 — on the first pass and on the next (a bar is 2 s)
@@ -925,7 +925,7 @@ test('tempo-locked modulation follows the song: every Play and the export put a 
   expect(second[0].start).toBeGreaterThan(first[0].start + 1);
   // the export: the same notes at the same places
   await page.evaluate(async (patternId) => {
-    const { store, render } = window.greanteadawy;
+    const { store, render } = window.ggs;
     window.__voices.length = 0;
     await render(store.getState().project, { mode: 'pattern', patternId, loops: 1, tail: 0.2, encode: false, sampleRate: 44100 });
   }, pattern);
@@ -934,7 +934,7 @@ test('tempo-locked modulation follows the song: every Play and the export put a 
   for (const v of rendered) expect(v.beat, `key ${v.key} in the render`).toBeCloseTo(place[v.key], 6);
   // and two exports are the same audio, with the pattern audibly at work
   const render = () => page.evaluate(async (patternId) => {
-    const { store, render: run } = window.greanteadawy;
+    const { store, render: run } = window.ggs;
     const r = await run(store.getState().project, { mode: 'pattern', patternId, loops: 1, tail: 0.2, encode: false, sampleRate: 44100 });
     return Array.from(r.buffer.getChannelData(0).subarray(0, 88200));
   }, pattern);
@@ -950,7 +950,7 @@ test('tempo-locked modulation follows the song: every Play and the export put a 
 
   // with the transport stopped, notes played by hand share a clock that starts with the first one after a silence
   const hand = await page.evaluate(async (cid) => {
-    const eng = window.greanteadawy.engine();
+    const eng = window.ggs.engine();
     window.__voices.length = 0;
     const one = eng.noteOn(cid, 60, 0.8);
     await new Promise((r) => setTimeout(r, 400));
@@ -963,9 +963,9 @@ test('tempo-locked modulation follows the song: every Play and the export put a 
   expect(hand[0]).toBe(0);
   expect(hand[1]).toBeGreaterThan(0.6); // 0.4 s at 120 bpm = 0.8 beats, give or take the timer
   expect(hand[1]).toBeLessThan(1.4);
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 8000 }).toBe(0);
-  expect(await page.evaluate((cid) => { const eng = window.greanteadawy.engine(); window.__voices.length = 0; eng.noteOff(eng.noteOn(cid, 60, 0.8)); return window.__voices[0].beat; }, channels.Seq)).toBe(0);
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 8000 }).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size), { timeout: 8000 }).toBe(0);
+  expect(await page.evaluate((cid) => { const eng = window.ggs.engine(); window.__voices.length = 0; eng.noteOff(eng.noteOn(cid, 60, 0.8)); return window.__voices[0].beat; }, channels.Seq)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size), { timeout: 8000 }).toBe(0);
   await page.evaluate(() => { window.AudioWorkletNode = Object.getPrototypeOf(window.AudioWorkletNode); delete window.__voices; });
 });
 
@@ -975,12 +975,12 @@ test('the editor follows the channel it shows, and a swapped instrument leaves n
   // both channels modulate their filter and macro 1 does something: both have dots to show
   for (const channel of ['Seq', 'Two']) await claude.call('set_synth_modulation', { channel, mode: 'replace', routes: [{ source: 'lfo1', target: 'f1Cutoff', amount: 0.3 }, { source: 'macro1', target: 'f1Res', amount: 0.4 }] });
   const two = (await ids()).channels.Two;
-  const show = (cid) => page.evaluate((c) => { const st = window.greanteadawy.store.getState(); st.openWindow('channelSettings'); st.openChannelSettings(c); }, cid);
+  const show = (cid) => page.evaluate((c) => { const st = window.ggs.store.getState(); st.openWindow('channelSettings'); st.openChannelSettings(c); }, cid);
   const ggs = page.locator('.ggs');
   const cutoffDot = ggs.locator('.ggs-filter').first().locator('.knob').first().locator('.knob-live');
   const macroDot = ggs.locator('.ggs-head .knob-live').first(); // macro 1
-  const hold = (cid, key) => page.evaluate(([c, k]) => { const eng = window.greanteadawy.engine(); (window.__held ||= []).push(eng.noteOn(c, k, 0.8)); }, [cid, key]);
-  const letGo = () => page.evaluate(() => { const eng = window.greanteadawy.engine(); for (const v of window.__held || []) if (v) eng.noteOff(v); window.__held = []; });
+  const hold = (cid, key) => page.evaluate(([c, k]) => { const eng = window.ggs.engine(); (window.__held ||= []).push(eng.noteOn(c, k, 0.8)); }, [cid, key]);
+  const letGo = () => page.evaluate(() => { const eng = window.ggs.engine(); for (const v of window.__held || []) if (v) eng.noteOff(v); window.__held = []; });
   await show(channels.Seq);
   await expect(ggs).toBeVisible();
   await ggs.locator('.ggs-tabs button', { hasText: 'Filters' }).click();
@@ -993,7 +993,7 @@ test('the editor follows the channel it shows, and a swapped instrument leaves n
   await show(two);
   await expect(page.locator('.window', { hasText: 'Two' }).first()).toBeVisible();
   await hold(two, 64);
-  await expect.poll(() => page.evaluate((c) => !!window.greanteadawy.engine().ggsLive(c), two)).toBe(true);
+  await expect.poll(() => page.evaluate((c) => !!window.ggs.engine().ggsLive(c), two)).toBe(true);
   await expect(cutoffDot).toBeVisible();
   await expect(macroDot).toBeVisible();
   // a note on the channel that is no longer shown lights nothing here
@@ -1003,20 +1003,20 @@ test('the editor follows the channel it shows, and a swapped instrument leaves n
   await page.waitForTimeout(400);
   await expect(cutoffDot).toBeHidden();
   await letGo();
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 8000 }).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size), { timeout: 8000 }).toBe(0);
 
   // three notes held on a GGS channel whose instrument is changed under them: they end, nothing is left in the books
   for (const key of [50, 54, 57]) await hold(two, key);
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size)).toBe(3);
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size)).toBe(3);
   await dispatch([{ type: 'channel/update', id: two, patch: { instrument: { kind: 'synth' } } }]);
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 3000 }).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size), { timeout: 3000 }).toBe(0);
   await letGo();
   // …and the channel plays its new instrument
   await hold(two, 60);
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size)).toBe(1);
   await letGo();
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.engine().voices.size), { timeout: 8000 }).toBe(0);
-  await page.evaluate(() => window.greanteadawy.store.getState().closeWindow('channelSettings'));
+  await expect.poll(() => page.evaluate(() => window.ggs.engine().voices.size), { timeout: 8000 }).toBe(0);
+  await page.evaluate(() => window.ggs.store.getState().closeWindow('channelSettings'));
 });
 
 test('Claude designs a patch, performs it note by note and the browser renders the result', async () => {
@@ -1035,7 +1035,7 @@ test('Claude designs a patch, performs it note by note and the browser renders t
     }
   })).toMatch(/Osc A: tilt @ 0\.5[\s\S]*pressure→f1Cutoff \+0\.3/);
   // the new channel reaches the open studio live
-  await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().project.channels.map((c) => `${c.name}:${c.instrument.kind}`))).toEqual(['Glass Pad:ggs', 'Agent Lead:ggs']);
+  await expect.poll(() => page.evaluate(() => window.ggs.store.getState().project.channels.map((c) => `${c.name}:${c.instrument.kind}`))).toEqual(['Glass Pad:ggs', 'Agent Lead:ggs']);
   expect(await claude.call('analyze_synth_patch', { channel: 'Agent Lead', notes: ['D4'] })).toMatch(/Pitch: D4/);
   await claude.call('create_pattern', { name: 'Theme', bars: 2 });
   await claude.call('add_chords', { pattern: 'Theme', channel: 'Glass Pad', chords: ['Dm', 'Bb'], octave: 4 });
@@ -1052,7 +1052,7 @@ test('Claude designs a patch, performs it note by note and the browser renders t
   await claude.call('place_pattern', { pattern: 'Theme', startBar: 1, bars: 2 });
   // the performance is in the browser's project, live
   await expect.poll(() => page.evaluate(() => {
-    const p = window.greanteadawy.store.getState().project;
+    const p = window.ggs.store.getState().project;
     return Object.values(p.patterns.find((x) => x.name === 'Theme').notes).flat().filter((n) => n.expression).length;
   })).toBe(2);
   expect(await claude.call('evaluate_composition')).toMatch(/0 issue\(s\)/);
@@ -1067,7 +1067,7 @@ test('Claude designs a patch, performs it note by note and the browser renders t
 
 test('MPE input: each note of a chord gets its own bend, pressure and slide — live, and recorded as curves', async () => {
   const r = await page.evaluate(async () => {
-    const { store, midi, engine } = window.greanteadawy;
+    const { store, midi, engine } = window.ggs;
     const st = store.getState();
     await st.unlockAudio();
     const lead = st.project.channels.find((c) => c.name === 'Agent Lead');

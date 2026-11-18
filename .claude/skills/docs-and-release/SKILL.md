@@ -1,6 +1,6 @@
 ---
 name: docs-and-release
-description: Keep GreanTeaDawy's documentation, generated MCP reference and README screenshots up to date, and prepare a release (version bump, checks, Docker build).
+description: Keep GGS's documentation, generated MCP reference and README screenshots up to date, and prepare a release (version bump, checks, Docker build).
 ---
 
 # Docs & release
@@ -43,6 +43,6 @@ image before committing (Read the PNGs).
    (root, `packages/core`, `server`, `client` and `package-lock.json`). The MCP server's `VERSION` and the About
    dialog read their `package.json`, and a server test fails if the workspaces disagree. Then the tool counts in
    `README.md`, `docs/README.md`, `docs/claude-mcp.md` and `CLAUDE.md` (the count `npm run docs:mcp` prints).
-4. `docker build -t greanteadawy .` and smoke-test: `docker run -p 3001:3001 -v greanteadawy-data:/data greanteadawy`,
+4. `docker build -t ggs .` and smoke-test: `docker run -p 3001:3001 -v ggs-data:/data ggs`,
    open the studio, note the setup code from the log.
 5. Commit with a summary of user-visible changes; tag `vX.Y.Z`.

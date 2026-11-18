@@ -5,7 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { validateManifest, PLUGIN_ID_RE, pluginProcessorName } from '@greanteadawy/core';
+import { validateManifest, PLUGIN_ID_RE, pluginProcessorName } from '@ggs/core';
 import { readZip, ZipError } from './zip.js';
 import { httpError } from './errors.js';
 import { writeFileAtomic } from './fsutil.js';
@@ -47,9 +47,9 @@ export function checkPluginCode(code) {
 export function workletModule(manifest, code, sha256 = '') {
   const automatable = manifest.params.filter((p) => p.type === 'number' && p.automatable)
     .map((p) => ({ name: p.key, defaultValue: p.default, minValue: p.min, maxValue: p.max }));
-  return `// GreanTeaDawy plugin harness (generated) — ${manifest.id} ${manifest.version}
+  return `// GGS plugin harness (generated) — ${manifest.id} ${manifest.version}
 if (typeof AudioWorkletGlobalScope === 'undefined' || typeof registerProcessor !== 'function') {
-  throw new Error('GreanTeaDawy plugin code only runs inside the audio worklet');
+  throw new Error('GGS plugin code only runs inside the audio worklet');
 }
 // the plugin's code, outside the harness block (it can't see the harness internals) with the processor
 // registration API hidden; it gets only \`gtd\` (registerInstrument / registerEffect)

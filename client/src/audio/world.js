@@ -7,7 +7,7 @@
 //            (models.js), played like the guitar by modelVoice
 //   drums    tabla (bols), taiko, gong / bell
 //   beatbox  mouth sounds: plosive bursts, fricative hiss and vowel formants
-import { midiToFreq } from '@greanteadawy/core';
+import { midiToFreq } from '@ggs/core';
 import { noiseSource, shaperCurve, adsr, percEnv, timbre, FLAT_Q } from './dsp.js';
 import { modelOf } from './models.js';
 import { osc, biquad, gainNode, sharedLfo, modelVoice } from './band.js';

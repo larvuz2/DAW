@@ -8,7 +8,7 @@ import {
   effectiveValuesAt, ggsTelemetry, GGS_SOURCES, GGS_TARGETS, effectSlugs, createChannel, normalizeParam, denormalizeParam, EFFECTS,
   targetValuesAt, AV_PHASE2_BUDGET, objectPositionsAt, expressionAt, objectPositionAt
 } from '../src/index.js';
-import { MOD_SOURCES, MOD_TARGETS } from '@greanteadawy/synth-dsp';
+import { MOD_SOURCES, MOD_TARGETS } from '@ggs/synth-dsp';
 
 const BAR = PPQ * 4;
 const near = (a, b, eps = 1e-3) => Math.abs(a - b) <= eps;

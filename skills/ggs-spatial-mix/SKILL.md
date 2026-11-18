@@ -1,9 +1,9 @@
 ---
-name: greanteadawy-spatial-mix
-description: Make an immersive Dolby Atmos-style 3D mix of a GreanTeaDawy song — place mixer inserts as objects around and above the listener, animate them, monitor binaurally and export binaural, 5.1, 7.1, 7.1.4, object stems or ADM BWF. Use when the user asks for Atmos, spatial, 3D, immersive, surround, binaural or headphone 3D versions.
+name: ggs-spatial-mix
+description: Make an immersive Dolby Atmos-style 3D mix of a GGS song — place mixer inserts as objects around and above the listener, animate them, monitor binaurally and export binaural, 5.1, 7.1, 7.1.4, object stems or ADM BWF. Use when the user asks for Atmos, spatial, 3D, immersive, surround, binaural or headphone 3D versions.
 ---
 
-# Spatial (Atmos-style) mixing in GreanTeaDawy
+# Spatial (Atmos-style) mixing in GGS
 
 The normal stereo mix is the **bed**; mixer inserts you make **objects** get a position in the room. Coordinates
 (ADM/Atmos Cartesian): **x** −1 left … 1 right, **y** −1 back … 1 front, **z** 0 ear height … 1 ceiling; the listener
@@ -12,7 +12,7 @@ channels in it). Up to 30 objects.
 
 ## Workflow
 
-1. Get a good **stereo** mix first (`greanteadawy-mixing`): spatial placement doesn't fix balance. `save_version
+1. Get a good **stereo** mix first (`ggs-mixing`): spatial placement doesn't fix balance. `save_version
    name="stereo master"`.
 2. `set_spatial enabled=true monitor=binaural` — the user hears 3D on headphones while you work.
 3. Decide the scene and tell the user in one sentence ("drums and bass in front, keys wide, strings overhead, the

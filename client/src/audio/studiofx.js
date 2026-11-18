@@ -1,8 +1,8 @@
 // The studio's DSP effects as mixer inserts: an AudioWorklet node per effect (the classes live in
 // packages/synth-dsp/src/effects and are bundled with the GGS worklet). Until the worklet is loaded in a context the
 // effect passes its input through; offline renders wait for the load before they build their graph.
-import { PPQ } from '@greanteadawy/core';
-import { STUDIO_FX } from '@greanteadawy/synth-dsp';
+import { PPQ } from '@ggs/core';
+import { STUDIO_FX } from '@ggs/synth-dsp';
 import { setParam } from './dsp.js';
 import { loadGgsModule, ggsReady } from './ggs-synth/index.js';
 
@@ -68,7 +68,7 @@ export function studioFxNode(ctx, engine, type, effect = null) {
         parameterData: Object.fromEntries(defs.filter((d) => d.type === 'number' && d.automatable).map((d) => [d.key, current[d.key]]))
       });
     } catch (err) {
-      console.warn(`GreanTeaDawy: the ${type} effect could not be started`, err);
+      console.warn(`GGS: the ${type} effect could not be started`, err);
       return;
     }
     for (const d of defs) if (d.type === 'number' && d.automatable) automation[d.key] = node.parameters.get(d.key);

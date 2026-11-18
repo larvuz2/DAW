@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   STEP, PPQ, ticksPerBar, patternLength, uid, noteName, chordNotes, STAMP_CHORDS, scalePitchClasses,
   quantizeNotes, legatoNotes, humanizeNotes, INSTRUMENTS, expressionFields, hasExpression, flattenCurve, ticksToSeconds, EXPRESSION_LABELS
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Icon } from './ui/Icon.jsx';

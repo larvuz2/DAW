@@ -1,5 +1,5 @@
 import { validPluginId, sanitizeStoredPluginParams } from './plugins.js';
-import { GGS_PARAMS, GGS_PRESETS, migrateParams as migrateGgsParams, SYNTH_ENGINES } from '@greanteadawy/synth-dsp';
+import { GGS_PARAMS, GGS_PRESETS, migrateParams as migrateGgsParams, SYNTH_ENGINES } from '@ggs/synth-dsp';
 import { didYouMean, brief } from './suggest.js';
 
 // Instrument catalog. Every channel in the Channel Rack has an instrument:

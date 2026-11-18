@@ -2,7 +2,7 @@
 // which argument, what was sent, what is valid there, and the nearest valid value or name. Unknown arguments are
 // reported too — the library drops them silently, and a mistyped "lenght" would quietly become the default length.
 import { z } from 'zod';
-import { didYouMean, nearestNumber, brief } from '@greanteadawy/core';
+import { didYouMean, nearestNumber, brief } from '@ggs/core';
 
 const MAX_PROBLEMS = 8;
 

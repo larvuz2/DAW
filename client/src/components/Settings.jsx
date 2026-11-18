@@ -4,7 +4,7 @@ import { api } from '../state/api.js';
 import { Window } from './ui/Window.jsx';
 import { Icon } from './ui/Icon.jsx';
 import { SNAP_OPTIONS, pickFile } from '../lib/actions.js';
-import { PLUGIN_PERMISSIONS } from '@greanteadawy/core';
+import { PLUGIN_PERMISSIONS } from '@ggs/core';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleString() : 'never');
 const toastError = (e) => useStore.getState().toast(e.message, 'error');
@@ -110,11 +110,11 @@ function ApiTab() {
 
   const tok = fresh || '<YOUR_TOKEN>';
   const desktop = JSON.stringify({
-    mcpServers: { greanteadawy: { command: 'node', args: ['/path/to/greanteadawy/server/src/mcp/stdio.js'], env: { GREANTEADAWY_URL: origin, ...(info || fresh ? { GREANTEADAWY_TOKEN: tok } : {}) } } }
+    mcpServers: { ggs: { command: 'node', args: ['/path/to/ggs/server/src/mcp/stdio.js'], env: { GGS_URL: origin, ...(info || fresh ? { GGS_TOKEN: tok } : {}) } } }
   }, null, 2);
   const codeCmd = info || fresh
-    ? `claude mcp add --transport http greanteadawy ${origin}/mcp --header "Authorization: Bearer ${tok}"`
-    : `claude mcp add --transport http greanteadawy ${origin}/mcp`;
+    ? `claude mcp add --transport http ggs ${origin}/mcp --header "Authorization: Bearer ${tok}"`
+    : `claude mcp add --transport http ggs ${origin}/mcp`;
 
   return (
     <div className="settings-section">
@@ -344,7 +344,7 @@ function InstallReview({ info, onDone, onCancel }) {
         <div>
           <b>Only install plugins from people you trust.</b>
           <small>
-            A plugin is someone else's code. GreanTeaDawy runs it in a sandbox — no network, no access to your account,
+            A plugin is someone else's code. GGS runs it in a sandbox — no network, no access to your account,
             projects, files or other plugins' data — and checks everything it produces, but a malicious or buggy plugin can
             still make very loud or harmful sound, use a lot of CPU or behave differently from its description.
           </small>

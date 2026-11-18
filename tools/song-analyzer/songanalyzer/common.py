@@ -107,7 +107,7 @@ def stage(timings: dict, name: str):
 
 # ---- the studio's meter ------------------------------------------------------------------------
 
-METER = "GreanTeaDawy meter (packages/core/src/analysis.js: BS.1770-4 / EBU R128 loudness, 4x true peak, LRA)"
+METER = "GGS meter (packages/core/src/analysis.js: BS.1770-4 / EBU R128 loudness, 4x true peak, LRA)"
 
 
 def measure_call(wav: Path, timeout: int = 600) -> dict:

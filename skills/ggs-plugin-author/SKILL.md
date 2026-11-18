@@ -1,9 +1,9 @@
 ---
-name: greanteadawy-plugin-author
-description: Write a GreanTeaDawy plugin — a DSP instrument, a sampled instrument, an audio effect or a note generator — from the user's idea, validate it and pack it as an installable .zip. Use when the user wants a custom synth, effect, sample instrument, arpeggiator/rhythm/melody generator or "my own plugin" for GreanTeaDawy.
+name: ggs-plugin-author
+description: Write a GGS plugin — a DSP instrument, a sampled instrument, an audio effect or a note generator — from the user's idea, validate it and pack it as an installable .zip. Use when the user wants a custom synth, effect, sample instrument, arpeggiator/rhythm/melody generator or "my own plugin" for GGS.
 ---
 
-# Writing GreanTeaDawy plugins
+# Writing GGS plugins
 
 A plugin is a `.zip` with a `plugin.json` manifest and, depending on its type, **one** JavaScript file and/or audio
 samples. The user installs it in the studio (Settings → Plugins → Install plugin…) after reviewing what it asks for.
@@ -33,10 +33,10 @@ they should read the code you give them).
      use `input.scaleNotes` for pitches.
 4. **Validate & pack**: `python3 scripts/pack_plugin.py <folder>` (in this skill's folder) checks the manifest, the
    permissions, the referenced files and the code rules, and writes `dist/<id>-<version>.zip`. Fix whatever it
-   reports. (In the GreanTeaDawy repository, `npm run plugin:pack -- <folder>` does the same with the server's own code.)
+   reports. (In the GGS repository, `npm run plugin:pack -- <folder>` does the same with the server's own code.)
 5. **Hand it over**: give the user the zip (and the source), say what it asks for (permissions) and how to use it:
    Browser → Sounds → Plugins (instruments), mixer insert → *+ Add effect…* → *Plugin: …* (effects), piano roll → **Gen**
-   (generators) — or ask Claude with the GreanTeaDawy connector: `list_plugins`, `add_channel instrument="plugin"`,
+   (generators) — or ask Claude with the GGS connector: `list_plugins`, `add_channel instrument="plugin"`,
    `add_effect type="plugin"`, `run_generator`.
 6. **Test with the user**: after they install it, `render_mix` with it in the song (no `INVALID RENDER`, sensible
    LUFS); for generators, `run_generator` with two seeds and read the notes back with `get_pattern`.

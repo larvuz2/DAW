@@ -1,5 +1,5 @@
 """File and signal measurements. Loudness, true peak, crest, band balance and stereo come from one
-standard-conformant source: GreanTeaDawy's own meter (ITU-R BS.1770-4 / EBU R128 integrated loudness with
+standard-conformant source: GGS's own meter (ITU-R BS.1770-4 / EBU R128 integrated loudness with
 gating, 4x-oversampled true peak, EBU loudness range) through measure.mjs — the meter render_mix uses, so the
 original and a rebuild in the studio compare like for like."""
 from __future__ import annotations

@@ -1,9 +1,9 @@
 ---
-name: greanteadawy-mixing
-description: Mix and master a song in GreanTeaDawy by the numbers — gain staging, EQ, sidechain, buses, master limiter — using render_mix reports against a delivery target, then export it in the right format. Use when the user asks to mix, master, balance, make louder, fix muddiness/harshness, or deliver a track from GreanTeaDawy.
+name: ggs-mixing
+description: Mix and master a song in GGS by the numbers — gain staging, EQ, sidechain, buses, master limiter — using render_mix reports against a delivery target, then export it in the right format. Use when the user asks to mix, master, balance, make louder, fix muddiness/harshness, or deliver a track from GGS.
 ---
 
-# Mixing & mastering in GreanTeaDawy
+# Mixing & mastering in GGS
 
 You can't hear, but `render_mix` measures the mix in the user's browser like a mastering engineer's meters (BS.1770
 LUFS, true peak, limiter gain reduction, spectrum, low-end note and width, loudness per section, per-channel stems).
@@ -83,7 +83,7 @@ on the insert or `update_channel volume`):
 - If the report says the limiter reduces more than ~6–8 dB, stop pushing: fix the balance, tame the loudest stem, or
   add parallel compression instead.
 - Check **loudness per section**: the hook should be 1–3 dB louder than verses; if not, it's an arrangement problem
-  (see `greanteadawy-arranging`), not a mix one.
+  (see `ggs-arranging`), not a mix one.
 
 ## 6. Deliver
 

@@ -18,7 +18,7 @@ export const SANDBOX_CSP = [
 ].join('; ');
 
 export const SANDBOX_HTML = `<!doctype html>
-<html><head><meta charset="utf-8"><title>GreanTeaDawy generator sandbox</title></head>
+<html><head><meta charset="utf-8"><title>GGS generator sandbox</title></head>
 <body><script src="/sandbox/generator.js"></script></body></html>
 `;
 

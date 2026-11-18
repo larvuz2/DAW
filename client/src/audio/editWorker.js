@@ -1,7 +1,7 @@
 // Background worker for the slow sample edits (pitch shift, time stretch, speed, pitch tracking and correction), so
 // the wave editor and Claude's edit_sample jobs never freeze the studio. Clips arrive as structured clones (copies)
 // and go back transferred.
-import { applyEdit, analyzeMelody, autotune } from '@greanteadawy/core';
+import { applyEdit, analyzeMelody, autotune } from '@ggs/core';
 
 self.onmessage = (e) => {
   const { id, kind, clip, args } = e.data;

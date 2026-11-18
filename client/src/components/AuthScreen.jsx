@@ -34,7 +34,7 @@ export function AuthScreen() {
       <div className="auth-wrap">
         <div className="auth-card">
           <Brand />
-          <p className="auth-error">Can't reach the GreanTeaDawy server ({auth.error}). Retrying…</p>
+          <p className="auth-error">Can't reach the GGS server ({auth.error}). Retrying…</p>
           <p className="muted">Make sure it is running: <code>npm start</code> or <code>npm run dev</code>.</p>
         </div>
       </div>
@@ -110,7 +110,7 @@ function Brand() {
     <div className="auth-brand">
       <span className="logo-mark">◆</span>
       <div>
-        <div className="auth-title">GreanTeaDawy</div>
+        <div className="auth-title">GGS</div>
         <div className="auth-sub">Make beats in your browser — with Claude as your co-producer</div>
       </div>
     </div>

@@ -3,7 +3,7 @@
 import {
   uid, ticksPerBar, STEP, findPattern, MAX_TRACKS, POSITION_PRESETS, polarToPosition, normalizeInsertSpatial,
   isSpatialObject, spatialToNorm, SPATIAL_EXPORTS, SPATIAL_EXPORT_IDS, MAX_SPATIAL_OBJECTS
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { z, ok, projectIdArg, annotations as A, pickTrack, barsOf } from '../util.js';
 import { progressNotifier } from './mix.js';
 

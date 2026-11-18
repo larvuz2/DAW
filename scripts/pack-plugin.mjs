@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Pack a GreanTeaDawy plugin folder into an installable .zip, validated by the server's own install check
+// Pack a GGS plugin folder into an installable .zip, validated by the server's own install check
 // (PluginStore.inspect: zip reader, manifest, code checks, audio samples, sizes).
-//   npm run plugin:pack -- plugins/examples/tape-wobble        → plugins/dist/greanteadawy.tape-wobble-1.0.0.zip
+//   npm run plugin:pack -- plugins/examples/tape-wobble        → plugins/dist/ggs.tape-wobble-1.0.0.zip
 //   npm run plugin:pack -- --examples                          → every folder in plugins/examples
 // Only what the plugin needs goes in: plugin.json, its main .js, its samples, and README.md / LICENSE(.txt|.md) /
 // icon.png when present.

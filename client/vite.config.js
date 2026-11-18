@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 // the app version shown in the About dialog (client/src/lib/version.js)
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
-const target = process.env.GREANTEADAWY_URL || 'http://127.0.0.1:3001';
+const target = process.env.GGS_URL || process.env[`${['GREAN', 'TEA', 'DAWY'].join('')}_URL`] || 'http://127.0.0.1:3001';
 
 export default defineConfig({
   plugins: [react()],

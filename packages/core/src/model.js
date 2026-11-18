@@ -8,11 +8,11 @@ import { INSTRUMENTS, makeInstrument } from './instruments.js';
 import { createEffect, EFFECTS } from './effects.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
 import { sanitizeExpression } from './expression.js';
-import { MACRO_COUNT } from '@greanteadawy/synth-dsp';
+import { MACRO_COUNT } from '@ggs/synth-dsp';
 import { didYouMean, brief } from './suggest.js';
 import { normalizeTuning } from './tuning.js';
 
-export const PROJECT_FORMAT = 'greanteadawy-project';
+export const PROJECT_FORMAT = 'ggs-project';
 export const PROJECT_VERSION = 1;
 
 export const MAX_NUDGE_MS = 50;

@@ -168,7 +168,7 @@ export async function createServer(config = loadConfig()) {
     app.use(express.static(config.clientDist, { index: false, maxAge: '1h' }));
     app.get(/^\/(?!api\/|mcp|ws).*/, (req, res) => res.sendFile(path.join(config.clientDist, 'index.html')));
   } else {
-    app.get('/', (req, res) => res.type('text/plain').send('GreanTeaDawy API is running. Build the client (npm run build) or run "npm run dev" and open http://localhost:5173'));
+    app.get('/', (req, res) => res.type('text/plain').send('GGS API is running. Build the client (npm run build) or run "npm run dev" and open http://localhost:5173'));
   }
 
   // last resort: JSON errors, never stack traces
@@ -191,14 +191,14 @@ async function main() {
   const { server, config, store, sessions, users, setupCode, hub } = ctx;
   const running = await runningServer(config.dataDir);
   if (running) {
-    console.error(`Another GreanTeaDawy server (pid ${running.pid}, port ${running.port}) is using ${config.dataDir}. Stop it or use another DATA_DIR.`);
+    console.error(`Another GGS server (pid ${running.pid}, port ${running.port}) is using ${config.dataDir}. Stop it or use another DATA_DIR.`);
     console.error(`(If no server is running, delete ${running.file}.)`);
     process.exit(1);
   }
   server.listen(config.port, config.host, () => {
     writeLock(config.dataDir, config.port, config.host);
     const url = config.publicUrl || `http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
-    console.log(`\n  GreanTeaDawy  ${url}`);
+    console.log(`\n  GGS  ${url}`);
     if (config.noLogin) console.log('  NO_LOGIN is on: there is no sign-in, everyone who reaches this server is the one local account. Keep it on this computer.');
     if (config.noLogin && (config.trustProxy || (config.publicUrl && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(config.publicUrl)))) console.log('  WARNING: NO_LOGIN with a proxy or a public URL: whoever can reach this server through it has full access.');
     if (config.allowAnyOrigin) console.log('  WARNING: ALLOW_ANY_ORIGIN is on — the browser Origin check is off. Use it only for testing on your own machine.');

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { EFFECTS, EFFECT_GROUPS, uid, isSpatialObject, normalizeInsertSpatial, pluginParamValues } from '@greanteadawy/core';
+import { EFFECTS, EFFECT_GROUPS, uid, isSpatialObject, normalizeInsertSpatial, pluginParamValues } from '@ggs/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Knob } from './ui/Knob.jsx';

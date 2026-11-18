@@ -1,8 +1,8 @@
 // The chord grid for Claude: the same palette the Harmony window's Grid tab shows (Tuple's engine,
 // packages/chord-grid) — every chord of the key, the borrowed ones, what could follow — and a way to write a
 // progression of them with its voicing, voice leading, tensions, strum and humanize.
-import { createChordGrid, gridScaleFor, gridScales, VOICINGS, LEADING, TENSIONS, SMART_KINDS, STRUM_CURVES, STRUM_MAX, TUPLE_SOURCE, notesInTicks } from '@greanteadawy/chord-grid';
-import { PPQ, STEP, ticksPerBar, uid, findChannel, findPattern, parsePitchClass, scaleSpelling, spelledNoteName, requireScale, SCALES, SCALE_INFO, didYouMean } from '@greanteadawy/core';
+import { createChordGrid, gridScaleFor, gridScales, VOICINGS, LEADING, TENSIONS, SMART_KINDS, STRUM_CURVES, STRUM_MAX, TUPLE_SOURCE, notesInTicks } from '@ggs/chord-grid';
+import { PPQ, STEP, ticksPerBar, uid, findChannel, findPattern, parsePitchClass, scaleSpelling, spelledNoteName, requireScale, SCALES, SCALE_INFO, didYouMean } from '@ggs/core';
 import { z, ok, projectIdArg, annotations as A, growPatternOp, assertFitsPattern, normVelocity } from '../util.js';
 
 const VOICING_IDS = VOICINGS.map((v) => v.id);

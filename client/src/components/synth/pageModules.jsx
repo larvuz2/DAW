@@ -3,7 +3,7 @@
 // numbers in small boxes. Every control is the editor's own (`ed.C`), so a knob here has its rings, its live dot and
 // its modulation menu, takes a dropped source and is undone like any other.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SOURCE_DESTS, CHAOS_COUNT, CHAOS_INFO, FILTER_INFO, MACRO_COUNT, MOD_SOURCE_INFO, macroUsed, paramsToSection, sectionToParams, syncBeats } from '@greanteadawy/synth-dsp';
+import { SOURCE_DESTS, CHAOS_COUNT, CHAOS_INFO, FILTER_INFO, MACRO_COUNT, MOD_SOURCE_INFO, macroUsed, paramsToSection, sectionToParams, syncBeats } from '@ggs/synth-dsp';
 import { useStore } from '../../state/store.js';
 import { getEngine } from '../../audio/index.js';
 import { onFrame } from '../ui/frames.js';

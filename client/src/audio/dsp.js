@@ -1,5 +1,5 @@
 // Small Web Audio helpers shared by instruments and effects.
-import { flattenCurve } from '@greanteadawy/core';
+import { flattenCurve } from '@ggs/core';
 
 const noiseCache = new WeakMap();
 
@@ -118,7 +118,7 @@ export function compressorAutoMakeupDb(thresholdDb, kneeDb, ratio) {
 export const gainToDb = (g) => (g <= 0.00001 ? -Infinity : 20 * Math.log10(g));
 
 // 0..1 ↔ a param's range: one definition in core (the audio → visual bridge reads effect values with it too)
-export { denormalizeParam as denormalize, normalizeParam as normalize } from '@greanteadawy/core';
+export { denormalizeParam as denormalize, normalizeParam as normalize } from '@ggs/core';
 
 /** Safely set an AudioParam now (smoothly, to avoid zipper noise). */
 const initialized = new WeakSet();

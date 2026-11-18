@@ -1,6 +1,6 @@
 // The studio's synth engines (additive, modal…) on the main thread: one AudioWorklet node per note, like a GGS voice
 // but simpler — the engine's classes live in packages/synth-dsp/src/engines and are bundled with the GGS worklet.
-import { SYNTH_ENGINES, hash32 } from '@greanteadawy/synth-dsp';
+import { SYNTH_ENGINES, hash32 } from '@ggs/synth-dsp';
 import { scheduleCurve } from './dsp.js';
 import { loadGgsModule, ggsReady } from './ggs-synth/index.js';
 
@@ -26,7 +26,7 @@ export function engineVoice(v, ctx, instrument, { t, velRaw, key, expr, tune, se
       }
     });
   } catch (err) {
-    console.warn(`GreanTeaDawy: a ${instrument.kind} voice failed`, err);
+    console.warn(`GGS: a ${instrument.kind} voice failed`, err);
     return t;
   }
   const P = node.parameters;

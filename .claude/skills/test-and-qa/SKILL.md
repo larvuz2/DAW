@@ -1,6 +1,6 @@
 ---
 name: test-and-qa
-description: Run GreanTeaDawy's checks (lint, unit/integration, Playwright e2e), debug failures, and run a QA review round with the qa-reviewer agent before committing.
+description: Run GGS's checks (lint, unit/integration, Playwright e2e), debug failures, and run a QA review round with the qa-reviewer agent before committing.
 ---
 
 # Test & QA
@@ -46,7 +46,7 @@ Helpers: `server/test/helpers.js` (`startServer` with temp data dir, cookie `age
 ## Manual checks
 
 - `npm run dev`, open http://localhost:5173, create the admin, then connect Claude Code:
-  `claude mcp add --transport http greanteadawy http://localhost:3001/mcp` and ask for a beat.
+  `claude mcp add --transport http ggs http://localhost:3001/mcp` and ask for a beat.
 - Phone layout: Chrome devtools at 390×844 (one-finger drag pans grids, tap draws).
 - Audio: export a WAV and listen; call `render_mix` and sanity-check LUFS/peaks.
 
@@ -54,7 +54,7 @@ Helpers: `server/test/helpers.js` (`startServer` with temp data dir, cookie `age
 
 For audio/engine questions a throwaway script is faster than a spec: start `E2E_PORT=3299 node e2e/serve.mjs`, create
 the admin with `POST /api/auth/setup`, then drive Chromium with `@playwright/test`'s `chromium.launch()` and
-`page.evaluate(() => window.greanteadawy.render(project, { mode: 'pattern', encode: false }))` (also on `window.greanteadawy`:
+`page.evaluate(() => window.ggs.render(project, { mode: 'pattern', encode: false }))` (also on `window.ggs`:
 `store`, `engine()`, `sync`). Measure buffers in the page; delete the script afterwards (never commit `e2e/_*`).
 Watch `page.on('requestfailed')` — CSP/CORP blocks show up there, not as exceptions.
 

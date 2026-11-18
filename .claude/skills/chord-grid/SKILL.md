@@ -1,6 +1,6 @@
 ---
 name: chord-grid
-description: Work on GreanTeaDawy's chord grid (Harmony → Grid, chord_grid / add_grid_chords) — update the vendored Tuple chord engine, change the adapter in packages/chord-grid, the Grid tab, the session that plays and writes it, or the MCP tools — without editing the engine or letting the studio's copy of its rules drift.
+description: Work on GGS's chord grid (Harmony → Grid, chord_grid / add_grid_chords) — update the vendored Tuple chord engine, change the adapter in packages/chord-grid, the Grid tab, the session that plays and writes it, or the MCP tools — without editing the engine or letting the studio's copy of its rules drift.
 ---
 
 # The chord grid

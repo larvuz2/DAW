@@ -21,8 +21,8 @@ All settings are environment variables (or a `.env` file in the repository root 
 | `FFMPEG_MAX_JOBS` | `2` | conversions at the same time (others queue) |
 | `PLUGINS_ENABLED` | `true` | allow users to install their own plugins ([plugins.md](plugins.md)); admins can also switch them off in Settings → Server |
 | `CLIENT_DIST` | `client/dist` | built web UI to serve |
-| `GREANTEADAWY_URL` | `http://127.0.0.1:3001` | stdio MCP bridge / Vite dev proxy target |
-| `GREANTEADAWY_TOKEN` | — | API token used by the stdio bridge |
+| `GGS_URL` | `http://127.0.0.1:3001` | stdio MCP bridge / Vite dev proxy target |
+| `GGS_TOKEN` | — | API token used by the stdio bridge |
 
 ## Docker
 
@@ -31,7 +31,7 @@ filesystem, dropped capabilities and an optional Caddy HTTPS proxy:
 
 ```bash
 cp .env.example .env && docker compose up -d --build
-docker compose logs greanteadawy        # shows the first-run setup code
+docker compose logs ggs        # shows the first-run setup code
 ```
 
 Everything about it — configuration, the HTTPS profile, backups, upgrades, password resets — is in
@@ -87,15 +87,15 @@ personal token.
 
 ```ini
 [Unit]
-Description=GreanTeaDawy
+Description=GGS
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/greanteadawy
-Environment=NODE_ENV=production HOST=127.0.0.1 PORT=3001 DATA_DIR=/var/lib/greanteadawy
+WorkingDirectory=/opt/ggs
+Environment=NODE_ENV=production HOST=127.0.0.1 PORT=3001 DATA_DIR=/var/lib/ggs
 ExecStart=/usr/bin/node server/src/index.js
 Restart=on-failure
-User=greanteadawy
+User=ggs
 
 [Install]
 WantedBy=multi-user.target
@@ -111,7 +111,7 @@ first. A `server.lock` file marks a running server; maintenance commands such as
 while it is present and the process is alive.
 
 ```bash
-tar czf greanteadawy-backup-$(date +%F).tgz -C /var/lib greanteadawy
+tar czf ggs-backup-$(date +%F).tgz -C /var/lib ggs
 ```
 
 Restore by extracting into `DATA_DIR` while the server is stopped.

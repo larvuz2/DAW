@@ -5,7 +5,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import dgram from 'node:dgram';
 import WebSocket from 'ws';
-import { decodeOsc, PPQ } from '@greanteadawy/core';
+import { decodeOsc, PPQ } from '@ggs/core';
 import { startServer, agent, openSocket, waitFor, mcpClient } from './helpers.js';
 import { parseAvTarget, AvBridge } from '../src/av.js';
 

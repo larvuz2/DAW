@@ -1,4 +1,4 @@
-// Euclidean Rhythms — example generator plugin for GreanTeaDawy. Runs in an isolated sandbox (no network, no access
+// Euclidean Rhythms — example generator plugin for GGS. Runs in an isolated sandbox (no network, no access
 // to the studio); generate() returns notes in 16th-note steps: [{ step, length, key, velocity }].
 gtd.registerGenerator({
   generate({ params, steps, channel, random }) {

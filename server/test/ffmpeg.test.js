@@ -101,7 +101,7 @@ test('conversion arguments: file-only protocol, forced input format, sanitized m
   const meta = args.filter((a, i) => args[i - 1] === '-metadata');
   assert.ok(meta.includes('title=Hi there -i /etc/passwd')); // one argument: never parsed as options
   assert.ok(meta.some((m) => m.startsWith('artist=') && m.length === 'artist='.length + 200));
-  assert.ok(meta.includes('comment=Made with GreanTeaDawy'));
+  assert.ok(meta.includes('comment=Made with GGS'));
   assert.ok(!meta.some((m) => m.startsWith('evil=')));
   assert.ok(!env.includes('GTD_TEST_SECRET'));
 

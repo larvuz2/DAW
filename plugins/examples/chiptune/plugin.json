@@ -1,9 +1,9 @@
 {
-  "id": "greanteadawy.chiptune",
+  "id": "ggs.chiptune",
   "name": "Chiptune",
   "version": "1.0.0",
   "type": "instrument",
-  "author": "GreanTeaDawy examples",
+  "author": "GGS examples",
   "description": "A band-limited pulse-wave voice (12.5 / 25 / 50 % duty) with a stepped 8-bit volume envelope and delayed vibrato — classic console leads, arps and square basses.",
   "license": "MIT",
   "apiVersion": 1,

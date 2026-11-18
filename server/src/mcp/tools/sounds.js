@@ -4,7 +4,7 @@ import {
   findChannel, parseNote, SCALES, SCALE_INFO, scaleGroups, requireScale, scaleNotes, chordNotes, diatonicChords, romanToChord, isRomanNumeral, splitProgression, CHORD_INFO, CHORD_SYMBOLS, scaleSpelling, spelledNoteName,
   detectChords, detectKey, euclidString, chordSpelling,
   sanitizeParams, MAX_NUDGE_MS, sanitizePluginValues
-} from '@greanteadawy/core';
+} from '@ggs/core';
 import { z, ok, projectIdArg, scaleArg, annotations as A, uniqueName, assertNameFree, normVelocity } from '../util.js';
 import { requirePlugin, pluginValues } from './plugins.js';
 

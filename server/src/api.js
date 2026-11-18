@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import express from 'express';
 import multer from 'multer';
-import { TEMPLATES, describeInstruments, describeEffects, projectToMidi, summarizeProject, uid } from '@greanteadawy/core';
+import { TEMPLATES, describeInstruments, describeEffects, projectToMidi, summarizeProject, uid } from '@ggs/core';
 import { meta } from './store.js';
 import { createLocalBackend, exportsDir, exportFilePath, EXPORT_NAME, safeFileName, activeProjectId, defaultFfmpeg } from './backend.js';
 

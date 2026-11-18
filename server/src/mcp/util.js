@@ -1,6 +1,6 @@
 // Shared helpers for MCP tool modules.
 import { z } from 'zod';
-import { STEP, ticksPerBar, isRomanNumeral, romanToChord, maxPatternLength, MAX_PATTERN_BARS, toTicks, parsePosition, parseDuration } from '@greanteadawy/core';
+import { STEP, ticksPerBar, isRomanNumeral, romanToChord, maxPatternLength, MAX_PATTERN_BARS, toTicks, parsePosition, parseDuration } from '@ggs/core';
 
 export { z };
 
