@@ -130,6 +130,20 @@ export function gridScaleFor(intervals) {
   return { id: best ? best.id : 'major', exact: false };
 }
 
+/**
+ * The notes of grid.notes() on a pattern's clock: [{ key, start, length, velocity (0–1), card }] in ticks.
+ * A card's bar is `barTicks` long (the song's own metre: a bar of 3/4 is three beats); a strum offset is real time, so it
+ * is counted in beats (`beatTicks`). A note still ends with its card, and is never shorter than one tick.
+ */
+export function notesInTicks({ notes }, { barTicks, beatTicks }) {
+  return notes.map((n) => {
+    const from = Math.round(n.bar * barTicks);
+    const end = Math.round((n.bar + n.bars) * barTicks);
+    const start = Math.min(end - 1, from + Math.round(n.offset * beatTicks));
+    return { key: n.pitch, start, length: Math.max(1, end - start), velocity: Math.round((n.velocity / 127) * 1000) / 1000, card: n.card };
+  });
+}
+
 const cellId = (c) => (c.kind === 'b' ? `b:${c.semis}:${c.type}` : `d:${c.degree}:${c.fn}`);
 
 /** A cell from its id ("d:1:nine", "b:3:maj"), or null. */
@@ -289,6 +303,42 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
     return { label: respell(SHARP[mod12(ui.root + s)] + colorSuffix(s, type), hint, inScale), roman: roman || '·' };
   }
 
+  // ---- any chord by its name. The borrowed column's "x" types spell a chord out (third or sus, fifth, seventh or
+  // sixth, 9th, 11th, 13th), so the engine can voice chords no page offers — E7 in A minor, Cm7 in C major. This is
+  // every such type the engine names, by its name; the plainest type that carries a name keeps it.
+  let spelled = null;
+  function spelledTypes() {
+    if (spelled) return spelled;
+    spelled = new Map();
+    const combos = [];
+    for (const third of ['t4', 't3', 'u5', 'u2']) for (const fifth of ['f7', 'f6', 'f8']) for (const top of ['', 's10', 's11', 's9', 'a9']) for (const n of ['', 'n2', 'n1', 'n3']) for (const e of ['', 'e5', 'e6']) for (const h of ['', 'h9', 'h8']) combos.push(['x', third, fifth, top, n, e, h].filter(Boolean));
+    combos.sort((a, b) => a.length - b.length);
+    for (const c of combos) {
+      const type = c.join('.');
+      if (!fns._xParse(type)) continue;
+      const k = chordKey(`C${colorSuffix(0, type)}`);
+      if (k && !spelled.has(k.suffix)) spelled.set(k.suffix, type);
+    }
+    return spelled;
+  }
+  /** The numeral of a chord on any root: the key's own degree (its case by the chord's third), or the flat / sharp of its neighbour. */
+  function numeralOf(semis, type) {
+    const sc = gridScales()[ui.scale];
+    const ivs = fns._colorIvs(type);
+    const cased = (d) => (ivs.includes(3) && !ivs.includes(4) ? ROMAN[d].toLowerCase() : ROMAN[d]);
+    const at = mod12(semis);
+    const here = sc.intervals.indexOf(at);
+    if (here >= 0) return cased(here);
+    const above = sc.intervals.indexOf(mod12(at + 1));
+    const below = sc.intervals.indexOf(mod12(at - 1));
+    // the five notes a major scale lacks are flat degrees (bII bIII bV bVI bVII); the others — the raised 3rd, 6th and
+    // 7th of a minor key — are sharp ones (#vi, #vii)
+    const flat = [1, 3, 6, 8, 10].includes(at);
+    if (flat && above >= 0) return `b${cased(above)}`;
+    if (below >= 0) return `#${cased(below)}`;
+    return above >= 0 ? `b${cased(above)}` : '·';
+  }
+
   function cardView(p, i, inScale) {
     const offer = fns._tensOffer(p).map((o) => {
       const [state, reason] = String(o.state).split(':');
@@ -300,10 +350,12 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
     const slash = spec && bassPc !== null && bassPc !== mod12(spec.rootPc) ? pcName(bassPc, inScale) : null;
     // (a chord taken from a page that was not showing has no numeral of its own: the key's table gives it one)
     const known = p.roman && p.roman !== '·';
-    const roman = known || p.fn !== 'color' ? p.roman || '·' : colorLabel(p.colorSemis, p.colorType, inScale).roman;
+    // (a spelled-out type says its own numeral: the engine would give E7 in A minor the "v" of the key's E minor)
+    const spelledOut = p.fn === 'color' && !!fns._xParse(p.colorType);
+    const roman = spelledOut ? numeralOf(p.colorSemis, p.colorType) : known || p.fn !== 'color' ? p.roman || '·' : colorLabel(p.colorSemis, p.colorType, inScale).roman;
     const hint = roman !== '·' ? roman : p.fn === 'color' ? (p.colorType === 'dim7' ? '#' : 'b') : null;
     return {
-      index: i, uid: p.uid ?? i,
+      index: i, uid: p.uid,
       name: respell(p.name, hint, inScale), baseName: respell(p.baseName || p.name, hint, inScale), roman,
       degree: p.deg, borrowed: p.fn === 'color', cell: p.fn === 'color' ? `b:${p.colorSemis}:${p.colorType}` : `d:${p.deg}:${p.fn}`,
       start: fns._entryStart(i), bars: fns._entryBars(p), notes: sorted,
@@ -341,6 +393,13 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
     };
     const labelOf = (id) => columns.flatMap((c) => c.cells).find((c) => c.id === id)?.label ?? borrowed.cells.find((c) => c.id === id)?.label ?? null;
     const progression = eng.get('progression');
+    // The engine names a card (uid) at the first undo snapshot that sees it. A screen needs the name from the start —
+    // a card that changes identity after its first edit loses the keyboard focus — so it is given here, the same way.
+    for (const p of progression) {
+      if (p.uid) continue;
+      eng.set('_progUid', eng.get('_progUid') + 1);
+      p.uid = eng.get('_progUid');
+    }
     const cards = progression.map((p, i) => cardView(p, i, inScale));
     const selected = eng.get('progSel');
     const last = ui.last && { cell: ui.last.cell, name: ui.last.name ? respell(ui.last.name, null, inScale) : labelOf(ui.last.cell), notes: ui.last.notes.slice().sort((a, b) => a - b) };
@@ -492,7 +551,8 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
     /**
      * The cell a chord name stands for in this key ("Dm9", "Cmaj7", "Eb", "Db7", "FM13"), or null:
      * { cell, id, label, roman, group }. Looked for in the key's own columns first, then the borrowed column's pages
-     * (as it shows them, then its other face: the names with EXT off or on), then the Ext page of each degree.
+     * (as it shows them, then its other face: the names with EXT off or on), then the Ext page of each degree. A chord
+     * no page offers but the engine can spell (E7 in A minor, Cm7 in C major) is answered too, as group 'chromatic'.
      */
     find(text) {
       const want = chordKey(text);
@@ -509,7 +569,14 @@ export function createChordGrid({ root = 0, scale = 'major', spell = null, seed 
         send('extended', was ? 0 : 1);
         try { hit = search(); } finally { send('extended', was ? 1 : 0); sounds = []; cached = null; }
       }
-      return hit && { cell: cellFromId(hit.id), id: hit.id, label: hit.label, roman: hit.roman ?? null, group: hit.group };
+      if (hit) return { cell: cellFromId(hit.id), id: hit.id, label: hit.label, roman: hit.roman ?? null, group: hit.group };
+      // not on any page: a chord the engine can still spell and voice
+      const type = spelledTypes().get(want.suffix);
+      if (!type) return null;
+      const semis = mod12(want.pc - ui.root);
+      const roman = numeralOf(semis, type);
+      const label = respell(SHARP[want.pc] + colorSuffix(semis, type), roman, scaleNotes());
+      return { cell: { kind: 'b', semis, type }, id: `b:${semis}:${type}`, label, roman, group: 'chromatic' };
     },
 
     // ------------------------------------------------------------------ the track

@@ -409,6 +409,7 @@ test('Harmony screenshots', async ({ browser, baseURL }) => {
   await layout(page, { harmony: [10, 10, 700, 640] }, { browserOpen: false });
   const win = page.locator('.window.harmony');
   await expect(win).toBeVisible();
+  await win.locator('.ggs-tabs button', { hasText: 'Chords' }).click();
   const add = (name) => win.locator('.harmony-pad', { has: page.locator('b', { hasText: new RegExp(`^${name}$`) }) }).first().locator('.harmony-pad-add').click();
   for (const name of ['Am', 'G', 'F', 'E']) await add(name);
   await win.locator('.harmony-chip-main').nth(3).click();

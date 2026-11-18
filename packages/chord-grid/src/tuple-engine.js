@@ -6231,6 +6231,7 @@ _clipHereInitTask.schedule(900);
         case 'SCALE_VALID_DEGREES': return SCALE_VALID_DEGREES;
         case 'SCALE_NAMES_ARR': return SCALE_NAMES_ARR;
         case 'progression': return progression;
+        case '_progUid': return _progUid;
         case 'progSel': return progSel;
         case '_undo': return _undo;
         case 'PROG_BARS_MIN': return PROG_BARS_MIN;
@@ -6246,6 +6247,7 @@ _clipHereInitTask.schedule(900);
     },
     set: function (name, value) {
       switch (name) {
+        case '_progUid': _progUid = value; break;
         case 'currentVelocity': currentVelocity = value; break;
         case '_extDeg': _extDeg = value; break;
         case 'captureMode': captureMode = value; break;

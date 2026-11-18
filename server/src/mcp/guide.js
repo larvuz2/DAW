@@ -251,6 +251,24 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
   the downbeat + a dropout fill in the bar before.
 
 ## Harmony & bass
+- Write harmony from the chord grid, not from four plain triads in a circle. chord_grid shows what the key offers: on
+  every degree the 7th, 9th, 6th, 6/9, sus and add9 forms; the borrowed column (modal interchange — iv, bVI, bVII in
+  major; IV, bII, the major V in minor — and secondary dominants V/ii, V/V, V/vi); a tritone substitute for each
+  dominant; chromatic mediants; the 11th and 13th forms of each degree. after=[…] ranks where a progression could go
+  next, chord="G7" says which tensions a chord takes and which it avoids. Any other chord can be named too (E7 in
+  A minor). It is the grid the user sees in Harmony → Grid (Tuple's engine).
+- add_grid_chords writes those chords voiced by the same engine: one voicing for the part (rootless or drop2 over a
+  bassline, open for pads, piano for solo keys, classic = closed), leading "follow" so each chord moves as little as
+  it can from the one before, tensions per chord ({ chord: "G7", tensions: ["b9", "13"] } = G13b9), strum 15–40 ms
+  and humanize 10–25 for a part that should sound played.
+- Unless the style is plain on purpose, a progression should sound written by a musician: sevenths or richer on most
+  chords (I → IM7 or I6/9, ii → ii9, IV → IVM9, V → V9 or V13, vi → vi9); one colour from outside the key per phrase
+  (iv or bVII before I, V/vi into vi, a tritone substitute for the last dominant, a borrowed bVI–bVII–I ending);
+  tensions the scale has first (9, 13), altered ones (b9, #9, b13) on a dominant that resolves; no avoid notes; the
+  top note of the chords moving by step — it is a melody of its own. The bass plays the roots (add_bassline), which
+  is why rootless voicings stay clear. Keep triads where the genre is made of them (most EDM drops, punk, folk,
+  trap pads): the colour then goes in one or two places — a sus before the resolution, an add9 on the tonic — not
+  on every chord. Say in a few words which chords you chose and why.
 - harmony is the tool to think with (it changes nothing): action "analyze" says what each chord is in the key — numeral,
   function (tonic = rest, subdominant = departure, dominant = tension), where it comes from, tension 0–1 — and names a
   known progression; give it a pattern to read the chords the notes play and check the key. "suggest" ranks what
@@ -303,7 +321,7 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 
 ## Ranges & rewriting
 - Bar ranges are inclusive: copy_bars / remove_clips fromBar 9, toBar 16 = the 8 bars 9–16.
-- write_melody, add_chords and add_bassline (replace=true, the default) only clear the range they write, so you can build a
+- write_melody, add_chords, add_grid_chords and add_bassline (replace=true, the default) only clear the range they write, so you can build a
   pattern section by section (start = step offset). Use replace=false to layer on top.
 - Ids: tools that create things return their ids [in brackets]; get_project / get_pattern list them.
 
@@ -311,7 +329,8 @@ GreanTeaDawy is an FL Studio-style DAW in the browser. Everything you change app
 1. create_project (optionally from a template) or use the active project (get_project to see it). Set key/scale/bpm.
 2. add_channel for each sound (kick, snare/clap, hats, 808/bass, chords, lead, pads, fx; or the user's samples).
    Hats: put open & closed hats in the same chokeGroup.
-3. create_pattern per part ("Drums", "Drums Fill", "808", "Chords", "Melody"...), then write_drums / add_chords /
+3. create_pattern per part ("Drums", "Drums Fill", "808", "Chords", "Melody"...), then write_drums /
+   add_grid_chords (chords from chord_grid, voiced and led) or add_chords (arpeggios, rhythm patterns, slash chords) /
    add_bassline / write_melody / add_notes (as note text) / add_roll. Add variation: ghost notes, velocity, fills,
    call-and-response. A part with its pattern, notes and clips is one batch.
 4. Feel: apply_groove for the genre; analyze_sound to tune the 808/kick to the key; set_note_expression on leads,

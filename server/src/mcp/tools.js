@@ -24,6 +24,7 @@ import { registerPluginTools } from './tools/plugins.js';
 import { registerExpressionTools } from './tools/expression.js';
 import { registerSynthTools } from './tools/synth.js';
 import { registerHarmonyTools } from './tools/harmony.js';
+import { registerChordGridTools } from './tools/chordgrid.js';
 import { registerPrompts } from './prompts.js';
 
 export { GUIDE };
@@ -174,6 +175,7 @@ export function createMcpServer(realBackend) {
   registerExpressionTools(ctx);
   registerSynthTools(ctx);
   registerHarmonyTools(ctx);
+  registerChordGridTools(ctx);
   registerPrompts(ctx);
 
   const batchShape = {

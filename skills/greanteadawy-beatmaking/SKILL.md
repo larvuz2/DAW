@@ -40,7 +40,15 @@ user's open studio. This skill is the producer's workflow on top of the tools. T
    dnb | reggaeton | lofi …>` writes a whole groove onto the drum channels (missing ones are made); `variation` and
    `fill` are seeded, so the same `seed` gives the same take. A track of `write_drums` can also be a Euclidean rhythm:
    `"E(5,16)"` (5 hits spread over 16 steps), `"E(3,8,2)"` started 2 steps later.
-5. **Harmony** — not sure which chords? `harmony action="progressions"` searches 82 of them by genre and mood (tags
+5. **Harmony** — start from the chord grid, not from four plain triads: `chord_grid` lists what the key offers on
+   every degree (7ths, 9ths, 6/9, sus, add9), its borrowed chords and secondary dominants, a tritone substitute for
+   each dominant and the 11th/13th forms; `after=[…]` ranks where the progression could go, `chord="G7"` says which
+   tensions a chord takes. `add_grid_chords` writes them voiced and voice-led by the same engine the user sees in
+   Harmony → Grid: `voicing` (rootless or drop2 over a bass, open for pads, piano for solo keys), `tensions` per chord,
+   `strum` 15–40 ms and `humanize` 10–25 for a played feel. Unless the genre is made of triads, aim for sevenths or
+   richer on most chords, one colour from outside the key per phrase (iv, bVII, a secondary dominant, a tritone
+   substitute) and a top note that moves by step — and tell the user which chords you chose and why.
+   Not sure where to start? `harmony action="progressions"` searches 82 of them by genre and mood (tags
    lo-fi, trap, cinematic, jazz, hopeful, dark…), `action="suggest"` ranks what could follow the chords you have, with
    reasons, and `action="analyze"` says what a progression does (function and tension of each chord). Then
    `add_chords` — `progression="<name>"` writes a library progression in the project key — with a voicing that fits the genre (drop2/rootless for neo-soul and lo-fi keys,

@@ -43,6 +43,8 @@ test('Harmony window: build a progression from the chords that fit, see what it 
   await page.locator('.toolbar button[aria-label="Harmony"]').click();
   const win = page.locator('.window.harmony');
   await expect(win).toBeVisible();
+  // (the window opens on the chord grid — e2e/workflow-chordgrid.spec.js; this is the Chords tab)
+  await win.locator('.ggs-tabs button', { hasText: 'Chords' }).click();
   // the chords of the key, each with its numeral, coloured by what it does
   const own = win.locator('.harmony-pool').first();
   await expect(own.locator('.harmony-pad b')).toContainText(['Am', 'Bdim', 'C', 'Dm', 'Em', 'F', 'G']);

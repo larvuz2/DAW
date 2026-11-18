@@ -38,9 +38,9 @@ async function unchanged(fn) {
   assert.deepEqual(await project(), was, 'the project is as it was');
 }
 
-test('the tools are there: 102 of them, the new editing ones with a dry run', async () => {
+test('the tools are there: 104 of them, the new editing ones with a dry run', async () => {
   const { tools } = await client.listTools();
-  assert.equal(tools.length, 102);
+  assert.equal(tools.length, 104);
   for (const name of ['add_arpeggio', 'add_drum_groove', 'set_tuning']) assert.ok(tools.find((t) => t.name === name).inputSchema.properties.dryRun, name);
   for (const name of ['harmony', 'describe_tuning', 'music_theory']) assert.equal(tools.find((t) => t.name === name).annotations.readOnlyHint, true, name);
 });

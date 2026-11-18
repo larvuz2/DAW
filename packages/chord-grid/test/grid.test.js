@@ -260,6 +260,14 @@ test('the track: cards from cells, placed, sized, coloured with tensions, undone
   assert.equal(g.view().progression.canUndo, true);
   g.undo();
   assert.equal(g.view().progression.cards.length, 5);
+  // a card is the same card through every edit (a screen keys its element on this)
+  const ids = g.view().progression.cards.map((c) => c.uid);
+  assert.equal(new Set(ids).size, ids.length);
+  g.resize(1, 2);
+  g.setTension(2, '13', true);
+  g.undo();
+  assert.deepEqual(g.view().progression.cards.map((c) => c.uid), ids);
+  g.undo();
   g.select(2);
   assert.equal(g.view().progression.selected, 2);
   g.select(null);
@@ -386,8 +394,8 @@ test('a chord by its name: the many ways to write one find the same cell', () =>
   assert.equal(where('F7'), 'b:5:sub7 tritone', 'a substitute the Tritone page is not showing');
   assert.equal(g.find('FM13').group, 'ext');
   assert.equal(g.find('G13').roman, 'V');
-  assert.equal(where('Cm7'), null, 'C major has no Cm7');
   assert.equal(where('nonsense'), null);
+  assert.equal(where('C5'), null, 'a bare fifth is not a chord the engine spells');
   assert.equal(g.view().borrowed.page, 0, 'looking leaves the page where it was');
   assert.equal(g.view().settings.extended, false);
   // found cells are playable and become cards, whatever page shows
@@ -416,4 +424,32 @@ test('the view is the same object until something changes, and listeners hear ab
   stop();
   g.set({ voicing: 'classic' });
   assert.equal(calls, 1);
+});
+
+test('a chord no page offers is still spelled and voiced: E7 in A minor, Cm7 in C major', () => {
+  const a = createChordGrid({ root: 9, scale: 'minor' });
+  assert.ok(!a.catalog().columns.flatMap((c) => c.cells).some((c) => c.label === 'E7'), 'natural minor has no dominant seventh on its fifth degree');
+  const e7 = a.find('E7');
+  assert.deepEqual([e7.label, e7.roman, e7.group], ['E7', 'V', 'chromatic']);
+  const seen = {};
+  for (const name of ['E7', 'E7b9', 'Am6', 'F#m7b5', 'Ebmaj7', 'C7sus4', 'AmMaj7', 'A13b9', 'C7#5']) {
+    const f = a.find(name);
+    assert.ok(f, name);
+    const { index } = a.add(f.cell);
+    const card = a.view().progression.cards[index];
+    seen[name] = `${card.name} ${card.roman} ${[...new Set(card.notes.map((n) => n % 12))].sort((x, y) => x - y).join(',')}`;
+    assert.equal(card.name, f.label, `${name}: the card is called what was found`);
+    a.remove(index);
+  }
+  assert.deepEqual(seen, {
+    E7: 'E7 V 2,4,8,11', E7b9: 'E7b9 V 2,4,5,8,11', Am6: 'Am6 i 0,4,6,9', 'F#m7b5': 'F#ø7 #vi 0,4,6,9', Ebmaj7: 'EbM7 bV 2,3,7,10',
+    C7sus4: 'C7sus4 III 0,5,7,10', AmMaj7: 'AmMaj7 i 0,4,8,9', A13b9: 'A13b9 I 1,4,6,7,9,10', 'C7#5': 'C7#5 III 0,4,8,10'
+  });
+  const c = createChordGrid({ root: 0, scale: 'major' });
+  assert.deepEqual([c.find('Cm7').label, c.find('Cm7').roman, c.find('Cm7').group], ['Cm7', 'i', 'chromatic']);
+  assert.equal(c.find('Bb7').group, 'tritone', 'a chord a page offers is that page\'s: Bb7 leads to Am');
+  // tensions and voice leading work on them as on any card
+  const { index, refused } = c.add(c.find('Cm7').cell, { tensions: ['9', '11'] });
+  assert.deepEqual(refused, []);
+  assert.equal(c.view().progression.cards[index].name, 'Cm11');
 });

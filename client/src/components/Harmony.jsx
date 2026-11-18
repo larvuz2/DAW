@@ -11,6 +11,7 @@ import { Window } from './ui/Window.jsx';
 import { Select, DragNumber } from './ui/Controls.jsx';
 import { Icon } from './ui/Icon.jsx';
 import { scaleOptions } from '../lib/scales.js';
+import { GridTab } from './ChordGrid.jsx';
 
 const PC_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
@@ -328,13 +329,13 @@ function TuningTab({ project, ctx, channel }) {
   );
 }
 
-/** Harmony: chords that fit the key and what could follow them, a library of progressions, and the project's tuning. */
+/** Harmony: the chord grid, chords that fit the key and what could follow them, a library of progressions, and the project's tuning. */
 export function Harmony() {
   const project = useStore((s) => s.project);
   const open = useStore((s) => s.windows.harmony?.open);
   const patternId = useStore((s) => s.selectedPatternId);
   const preferred = useStore((s) => s.pianoRollChannelId || s.selectedChannelId);
-  const [tab, setTab] = useState('chords');
+  const [tab, setTab] = useState('grid');
   const [channelId, setChannelId] = useState(null);
   const ctx = useMemo(() => (project ? keyContext(project.key, project.scale) : null), [project?.key, project?.scale]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!project || !open) return <Window name="harmony" title="Harmony" icon="music" />;
@@ -354,11 +355,12 @@ export function Harmony() {
       )}>
       <div className="harmony-body">
         <div className="ggs-tabs" role="tablist">
-          {[['chords', 'Chords'], ['library', 'Library'], ['tuning', 'Tuning']].map(([id, label]) => (
+          {[['grid', 'Grid'], ['chords', 'Chords'], ['library', 'Library'], ['tuning', 'Tuning']].map(([id, label]) => (
             <button key={id} role="tab" id={`harmony-tab-${id}`} aria-controls="harmony-pane" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}{id === 'tuning' && !isStandardTuning(project.tuning) ? ' •' : ''}</button>
           ))}
         </div>
         <div className="harmony-pane" id="harmony-pane" role="tabpanel" aria-labelledby={`harmony-tab-${tab}`}>
+          {tab === 'grid' && <GridTab project={project} channel={channel} pattern={pattern} />}
           {tab === 'chords' && <ChordsTab key={project.id} project={project} ctx={ctx} channel={channel} pattern={pattern} />}
           {tab === 'library' && <LibraryTab project={project} ctx={ctx} channel={channel} onLoad={(chords) => { kept.set(project.id, { chords }); useStore.setState({ harmonyLoad: { projectId: project.id, chords } }); setTab('chords'); }} />}
           {tab === 'tuning' && <TuningTab project={project} ctx={ctx} channel={channel} />}
