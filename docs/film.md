@@ -12,7 +12,8 @@ npm run film:record     # the video: film.mp4, 1920×1080 at 60 fps, with the au
 `E2E_CHROMIUM=/path/to/chromium` uses an installed browser for the recording, as for the end-to-end tests. Open
 `uploads/film/kaleidoscope/index.html` to play it live: **Play** starts the audio and the picture together; a click or
 the space bar pauses. `node tools/film/record.mjs --frame 12.5` writes one still instead of the video, to look before
-recording (several `--frame` give several). Nothing in `uploads/` is committed.
+recording (several `--frame` give several). `page.html` is the same page without the document around it, for a host
+that wraps pages itself. Nothing in `uploads/` is committed.
 
 ## Nothing is drawn by hand
 

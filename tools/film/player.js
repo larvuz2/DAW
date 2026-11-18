@@ -875,7 +875,7 @@
       const t = actx.currentTime - startedAt - (actx.outputLatency || 0);
       draw(Math.max(0, t));
       if (t < D.total + 0.2) raf = requestAnimationFrame(frame);
-      else { playing = false; button.hidden = false; button.querySelector('span:nth-child(2)').textContent = 'Play again'; }
+      else { playing = false; button.hidden = false; document.getElementById('start-label').textContent = 'Play again'; }
     };
     raf = requestAnimationFrame(frame);
   }

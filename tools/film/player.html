@@ -2,35 +2,57 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--page-->
 <title>Kaleidoscope Film</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300;400&display=swap">
 <style>
-  :root { --night: #05070f; --ink: #f4e9d2; --dim: #8f8672; --amber: #ffb347; }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--night); color: var(--ink); overflow: hidden; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
-  #wrap { position: fixed; inset: 0; display: grid; place-items: center; }
-  #stage { display: block; width: min(100vw, calc(100vh * 16 / 9)); height: auto; aspect-ratio: 16 / 9; cursor: pointer; }
-  #start {
-    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 14px;
-    padding: 16px 30px 16px 24px; border-radius: 999px; border: 1px solid rgba(255, 179, 71, 0.55); background: rgba(8, 11, 22, 0.72);
-    color: var(--ink); font: 400 17px/1 "Inter", system-ui, sans-serif; letter-spacing: 0.04em; cursor: pointer;
-    box-shadow: 0 0 60px rgba(255, 170, 60, 0.18), inset 0 0 24px rgba(255, 170, 60, 0.08); backdrop-filter: blur(6px); transition: opacity 0.4s, border-color 0.2s;
+  /* One look, by choice: the film is a night scene. Layout: a 16:9 stage that fills the window, one control over it. */
+  :root {
+    --night: #05070f; --ink: #f4e9d2; --dim: #8f8672; --amber: #ffb347;
+    --glass: rgba(8, 11, 22, 0.74); --edge: rgba(255, 179, 71, 0.55); --halo: rgba(255, 170, 60, 0.2);
+    --text: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --data: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    color-scheme: dark;
   }
-  #start:hover, #start:focus-visible { border-color: var(--amber); outline: none; }
-  #start[hidden] { display: none; }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--night); color: var(--ink); font-family: var(--text); overflow: hidden;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  #wrap { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; }
+  #stage { display: block; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+  #start {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 14px; white-space: nowrap;
+    padding: 16px 30px 16px 24px; border-radius: 999px; border: 1px solid var(--edge); background: var(--glass); color: var(--ink);
+    font: 400 17px/1 var(--text); letter-spacing: 0.04em; cursor: pointer; box-shadow: 0 0 60px var(--halo);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); transition: border-color 0.2s;
+  }
+  #start:hover { border-color: var(--amber); }
+  #start:focus-visible { border-color: var(--amber); outline: 2px solid var(--amber); outline-offset: 3px; }
   #start .tri { width: 0; height: 0; border-left: 15px solid var(--amber); border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
-  #start small { color: var(--dim); font-size: 13px; letter-spacing: 0.08em; }
-  body.record #start { display: none; }
-  body.record #stage { width: 1920px; height: 1080px; cursor: default; }
-  body.record #wrap { place-items: start; }
+  #start small { color: var(--dim); font: 400 12px/1 var(--data); letter-spacing: 0.06em; }
+  #hint { display: none; margin: 0; text-align: center; color: var(--dim); font: 400 13px/1.5 var(--text); text-wrap: balance; }
+  @media (max-aspect-ratio: 1/1) { #hint { display: block; } #wrap { flex: 0 0 auto; aspect-ratio: 16 / 9; max-width: 100%; margin-block: auto 0; } #hint { margin-block: 0 auto; } }
+  body.record { padding: 0; display: block; }
+  body.record #start, body.record #hint { display: none; }
+  body.record #wrap { width: 1920px; height: 1080px; }
+  body.record #stage { cursor: default; }
 </style>
+<!--/page-->
 </head>
 <body>
-<div id="wrap"><canvas id="stage" width="1920" height="1080" aria-label="Kaleidoscope: an animated score of a 36-second piece, with a playhead moving across the voices of each chord"></canvas></div>
-<button id="start" type="button"><span class="tri"></span><span>Play</span><small>36 s · sound on</small></button>
+<!--page-->
+<div id="wrap">
+  <canvas id="stage" width="1920" height="1080" role="img" aria-label="An animated score of a 36-second piece on the Kaleidoscope preset: a playhead crosses the voices of each chord, and every note shows its strike, body, pulse, air and sub"></canvas>
+  <button id="start" type="button"><span class="tri"></span><span id="start-label">Play</span><small>36 s · sound on</small></button>
+</div>
+<p id="hint">Turn the phone sideways for the full picture. Tap the film to pause.</p>
 <script>window.FILM = { data: "__DATA__", audioType: "__AUDIO_TYPE__", audio: "__AUDIO__" };</script>
 <script>/*__PLAYER__*/</script>
+<!--/page-->
 </body>
 </html>

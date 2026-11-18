@@ -2,7 +2,8 @@
 // the sound — the audio, what every note's layers do sixty times a second (read from the voices while they render,
 // not drawn by hand), and each layer's level on its own.
 //   node tools/film/kaleidoscope.mjs [--out <folder>]      default: uploads/film/kaleidoscope
-// Writes audio.wav (and audio.mp3 when ffmpeg is installed), data.json and index.html: the player with both inside.
+// Writes audio.wav (and audio.mp3 when ffmpeg is installed), data.json and index.html: the player with both inside
+// (page.html is the same page without <html>/<head>/<body>, for hosts that wrap a page themselves).
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -237,10 +238,13 @@ const page = readFileSync(path.join(HERE, 'player.html'), 'utf8')
   .replace('__AUDIO_TYPE__', audio.type)
   .replace('__AUDIO__', () => audio.bytes.toString('base64'));
 writeFileSync(path.join(OUT, 'index.html'), page);
+// the same page without the document around it (what is between the page marks), for hosts that wrap a page themselves
+const inner = [...page.matchAll(/<!--page-->\n([\s\S]*?)<!--\/page-->/g)].map((m) => m[1]).join('');
+writeFileSync(path.join(OUT, 'page.html'), inner);
 
 const live = notes.map((n) => tele.get(n).amp.length / FPS);
 console.log(`${after.duration.toFixed(1)} s · ${after.lufs} LUFS · true peak ${after.truePeakDb} dBTP (one gain of ${(20 * Math.log10(gain)).toFixed(1)} dB)`);
 console.log(`${notes.length} notes, ${data.notes.reduce((a, n) => a + n.beads.length, 0)} pulses, the longest note sounds ${Math.max(...live).toFixed(1)} s`);
 console.log(`layers at their loudest (dB under the mix): ${LAYERS.map(([name]) => `${name} ${(20 * Math.log10(Math.max(...lanes[name]) / Math.max(...lanes.all))).toFixed(1)}`).join(' · ')}`);
 console.log(`chords: ${data.chords.map((c) => `${c.name}${c.numeral ? ` (${c.numeral})` : ''}`).join(' → ')}`);
-console.log(`wrote ${path.relative(ROOT, OUT)}/{audio.wav, ${audio.type === 'audio/mpeg' ? 'audio.mp3, ' : ''}data.json, index.html} (data ${(json.length / 1024).toFixed(0)} KB, page ${(page.length / 1024 / 1024).toFixed(2)} MB)`);
+console.log(`wrote ${path.relative(ROOT, OUT)}/{audio.wav, ${audio.type === 'audio/mpeg' ? 'audio.mp3, ' : ''}data.json, index.html, page.html} (data ${(json.length / 1024).toFixed(0)} KB, page ${(page.length / 1024 / 1024).toFixed(2)} MB)`);
