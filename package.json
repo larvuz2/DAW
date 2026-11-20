@@ -36,7 +36,8 @@
     "song:setup": "bash tools/song-analyzer/setup.sh",
     "song:study": "node tools/song-analyzer/to-daw.mjs",
     "song:audition": "node tools/song-analyzer/audition.mjs",
-    "song:bundle": "node tools/song-analyzer/bundle.mjs"
+    "song:bundle": "node tools/song-analyzer/bundle.mjs",
+    "song:library": "node tools/song-analyzer/library.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

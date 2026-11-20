@@ -110,6 +110,33 @@ Measured on the session's machine (4 cores, no GPU): set-up 10 min; the 35-secon
 (1.9 min with `--fast`), of which structure 1.7 min and separation 20 s; a re-run with `--reuse-stems --fast` 52 s.
 The method measured 18.5–19 min for 2.7–4.8-minute songs with local separation.
 
+## A library of songs
+
+To learn from many songs at once (a folder of reference tracks), share the folder on Google Drive as *Anyone with the
+link* and give Claude the link. Claude runs:
+
+```bash
+npm run song:library -- fetch "<drive folder link>"     # only the audio files are kept: uploads/library/audio
+```
+
+```bash
+npm run song:library -- run                             # every song: analyze + the study draft; resumable
+```
+
+```bash
+npm run song:library -- summarize --publish <name>      # one reference across all songs
+```
+
+`status` lists what is done and how long the rest will take (about 5–8 × the audio's length with local stems; with
+`--stems fal` separation is done by fal.ai in seconds, the rest still runs here). `run --only <part of a name>` does
+one song. The result is `uploads/library/library.md` + `library.json` (private: with each song's description) and,
+with `--publish`, `docs/references/<name>.md`: per song its tempo (with the half and double readings), meter, feel,
+key and how sure it is, form, chords per part as symbols and as numerals, drum and bass patterns, instruments, loudness
+and band balance, and which GGS sounds rebuild it; across the songs the tempos, keys, recurring four-step progressions in
+numerals, chord vocabulary, instruments, forms and median sound. It holds charts only (no audio, melody or lyrics),
+so it can be committed and read by Claude in later sessions when composing. Uploads are deleted with the session's
+machine: commit the reference, or the analysis has to be run again.
+
 ## The blueprint
 
 `study/blueprint.json` is what a saved study is made of (`packages/core/src/templates/blueprint.js` turns it into a
