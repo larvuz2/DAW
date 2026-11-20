@@ -7,7 +7,7 @@
 //   node tools/song-analyzer/library.mjs status [--lib …]
 // Everything stays under the library folder in uploads/ (git-ignored). `run` skips songs already analysed, so it can
 // be stopped and started again; one log per song is in <lib>/logs.
-import { spawnSync, spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, statSync, copyFileSync, renameSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
